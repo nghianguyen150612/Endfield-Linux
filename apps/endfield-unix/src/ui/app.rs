@@ -1,5 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
+    path::PathBuf,
     rc::Rc,
     time::Duration,
 };
@@ -20,12 +21,17 @@ use super::{
 #[derive(Default)]
 pub struct AppInit {
     smoke_report: Option<Rc<RefCell<GuiSmokeSummary>>>,
+    screenshot_path: Option<PathBuf>,
 }
 
 impl AppInit {
-    pub(super) fn with_smoke_report(report: Rc<RefCell<GuiSmokeSummary>>) -> Self {
+    pub(super) fn with_smoke_report(
+        report: Rc<RefCell<GuiSmokeSummary>>,
+        screenshot_path: Option<PathBuf>,
+    ) -> Self {
         Self {
             smoke_report: Some(report),
+            screenshot_path,
         }
     }
 }
@@ -40,6 +46,7 @@ pub struct AppWidgets {
 pub struct App {
     state: AppModel,
     smoke_report: Option<Rc<RefCell<GuiSmokeSummary>>>,
+    smoke_started: bool,
     smoke_step: usize,
     smoke_selection_pending: Option<Rc<Cell<bool>>>,
     smoke_close_pending: Option<Rc<Cell<bool>>>,
@@ -169,13 +176,26 @@ impl SimpleComponent for App {
                 .push(widgets.page_title.label().to_string());
 
             let smoke_sender = sender.clone();
-            glib::idle_add_local_once(move || smoke_sender.input(AppMessage::SmokeStart));
+            if let Some(path) = init.screenshot_path.clone() {
+                let screenshot_window = root.clone();
+                glib::timeout_add_local_once(Duration::from_millis(350), move || {
+                    if let Err(error) = save_window_screenshot(&screenshot_window, &path) {
+                        eprintln!("could not save GTK smoke screenshot: {error}");
+                    }
+                });
+                glib::timeout_add_local_once(Duration::from_millis(750), move || {
+                    smoke_sender.input(AppMessage::SmokeStart);
+                });
+            } else {
+                glib::idle_add_local_once(move || smoke_sender.input(AppMessage::SmokeStart));
+            }
         }
 
         let smoke_report = init.smoke_report;
         let model = App {
             state,
-            smoke_step: usize::from(smoke_report.is_some()),
+            smoke_started: false,
+            smoke_step: 0,
             smoke_selection_pending: smoke_report.as_ref().map(|_| Rc::new(Cell::new(false))),
             smoke_close_pending: smoke_report.as_ref().map(|_| Rc::new(Cell::new(false))),
             smoke_report,
@@ -187,7 +207,7 @@ impl SimpleComponent for App {
         match message {
             AppMessage::Navigate(page) => {
                 self.state.navigation.navigate_to(page);
-                if self.smoke_report.is_some() && Page::ALL.get(self.smoke_step) == Some(&page) {
+                if self.smoke_started && Page::ALL.get(self.smoke_step) == Some(&page) {
                     self.smoke_step += 1;
                 }
             }
@@ -196,7 +216,10 @@ impl SimpleComponent for App {
                 self.state.navigation.set_compact(compact)
             }
             AppMessage::WindowCloseRequested => self.state.lifecycle = WindowLifecycle::Closing,
-            AppMessage::SmokeStart => {}
+            AppMessage::SmokeStart => {
+                self.smoke_started = true;
+                self.smoke_step = 1;
+            }
         }
     }
 
@@ -225,6 +248,10 @@ impl SimpleComponent for App {
                         .page_titles
                         .push(widgets.page_title.label().to_string());
                 }
+            }
+
+            if !self.smoke_started {
+                return;
             }
 
             if self.smoke_step < Page::ALL.len() {
@@ -260,4 +287,32 @@ impl SimpleComponent for App {
             }
         }
     }
+}
+
+fn save_window_screenshot(
+    window: &adw::ApplicationWindow,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    let width = window.width();
+    let height = window.height();
+    if width <= 0 || height <= 0 {
+        return Err(format!(
+            "window has invalid screenshot size {width}×{height}"
+        ));
+    }
+
+    let paintable = gtk::WidgetPaintable::new(Some(window));
+    let snapshot = gtk::Snapshot::new();
+    paintable.snapshot(&snapshot, width as f64, height as f64);
+    let node = snapshot
+        .to_node()
+        .ok_or_else(|| "GTK produced no render node for the application window".to_owned())?;
+    let renderer = window
+        .renderer()
+        .ok_or_else(|| "application window has no GTK renderer".to_owned())?;
+    let viewport = gtk::graphene::Rect::new(0.0, 0.0, width as f32, height as f32);
+    renderer
+        .render_texture(&node, Some(&viewport))
+        .save_to_png(path)
+        .map_err(|error| error.to_string())
 }

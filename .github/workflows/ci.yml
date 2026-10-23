@@ -42,10 +42,20 @@ jobs:
 
       - name: Run graphical smoke test
         env:
+          ENDFIELD_GUI_SCREENSHOT: /tmp/endfield-unix-gtk-smoke.png
           GSK_RENDERER: cairo
           GTK_A11Y: none
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: xvfb-run -a dbus-run-session -- cargo test --locked --workspace --test gui_smoke -- --ignored --test-threads=1
+
+      - name: Upload GTK smoke screenshot
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: endfield-unix-gtk-smoke
+          path: /tmp/endfield-unix-gtk-smoke.png
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Build workspace
         run: cargo build --locked --workspace

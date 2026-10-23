@@ -6,7 +6,7 @@ pub mod pages;
 pub mod resources;
 
 use std::fmt;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fs, path::PathBuf, rc::Rc};
 
 use relm4::RelmApp;
 
@@ -80,8 +80,27 @@ fn run_application(init: app::AppInit) -> Result<(), GuiError> {
 #[doc(hidden)]
 pub fn run_smoke_test() -> Result<GuiSmokeSummary, GuiError> {
     let report = Rc::new(RefCell::new(GuiSmokeSummary::default()));
-    run_application(app::AppInit::with_smoke_report(report.clone()))?;
+    let screenshot_path = std::env::var_os("ENDFIELD_GUI_SCREENSHOT").map(PathBuf::from);
+    run_application(app::AppInit::with_smoke_report(
+        report.clone(),
+        screenshot_path.clone(),
+    ))?;
     let summary = report.borrow().clone();
+
+    if let Some(path) = screenshot_path {
+        let screenshot = fs::metadata(&path).map_err(|error| {
+            GuiError(format!(
+                "GTK smoke test did not save the requested screenshot at {}: {error}",
+                path.display()
+            ))
+        })?;
+        if screenshot.len() == 0 {
+            return Err(GuiError(format!(
+                "GTK smoke test saved an empty screenshot at {}",
+                path.display()
+            )));
+        }
+    }
 
     let expected: Vec<_> = navigation::Page::ALL
         .into_iter()

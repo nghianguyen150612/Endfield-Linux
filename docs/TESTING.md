@@ -78,7 +78,7 @@ P001 validation is limited to repository/document checks: file and link inspecti
 
 ## P004 validation and GTK build requirements
 
-The supported Ubuntu CI runner is Ubuntu 24.04. The Rust check job installs `libgtk-4-dev`, `libadwaita-1-dev`, `pkg-config`, `dbus-daemon`, and `xvfb` before building. The application uses the Relm4 0.9.1 / GTK4-rs 0.9.6 / libadwaita-rs 0.7.2 bindings and the libadwaita 1.4 `NavigationSplitView` API. The graphical smoke test runs the actual Relm4 application under Xvfb and a private D-Bus session; it visits all six pages, checks their identities and header title, verifies the window's initial/resized sizes and SVG asset, and closes the window.
+The supported Ubuntu CI runner is Ubuntu 24.04. The Rust check job installs `libgtk-4-dev`, `libadwaita-1-dev`, `pkg-config`, `dbus-daemon`, and `xvfb` before building. The application uses the Relm4 0.9.1 / GTK4-rs 0.9.6 / libadwaita-rs 0.7.2 bindings and the libadwaita 1.4 `NavigationSplitView` API. The graphical smoke test runs the actual Relm4 application under Xvfb and a private D-Bus session; it visits all six pages, checks their identities and header title, verifies the window's initial/resized sizes and SVG asset, and closes the window. CI also captures the application's initial Home page through GTK's renderer and publishes it as the `endfield-unix-gtk-smoke` workflow artifact.
 
 Local GTK build prerequisites are GTK4 development files, libadwaita 1.4 or newer development files, `pkg-config`, and a C compiler. The app does not require GNOME Shell. On Arch Linux, install `gtk4`, `libadwaita`, `pkgconf`, and `gcc`; on the supported Ubuntu 24.04 runner, install `libgtk-4-dev`, `libadwaita-1-dev`, `pkg-config`, `dbus-daemon`, and `xvfb`.
 
