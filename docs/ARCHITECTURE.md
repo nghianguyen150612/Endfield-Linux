@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-This document defines intended boundaries; P001 contains no implementation. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries; P002 implements only the initial Rust workspace and shared executable entry point. No GTK shell, platform adapter, daemon, optimizer, or runtime service is implemented yet. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -16,7 +16,15 @@ The GTK frontend and CLI use one Rust application core and one GUI/CLI executabl
 
 The desktop stack is fixed: Rust 2024, GTK4, libadwaita, Relm4, GTK CSS, and SVG resources. C optimizer code targets C17. Rust owns the application lifecycle, CLI argument handling, UI integration, game and runtime management, platform adapters, telemetry ingestion, daemon lifecycle and IPC, SQLite/TOML persistence, safe FFI wrappers, plan validation/execution, and recovery.
 
-## Concrete responsibility boundaries
+## P002 workspace and entry point
+
+The Cargo workspace uses resolver version 3 and contains one application package at `apps/endfield-unix`. The package is Rust 2024 with MSRV 1.85 and produces exactly one application binary, `endfield-unix`. Its library contains argument dispatch and startup routing so those behaviors can be tested without a GUI. The workspace currently has no third-party Rust dependencies.
+
+`main` obtains arguments as OS strings, skips the executable name, and delegates process work to the shared library. Dispatch recognizes only `--help`, `--version`, and no arguments. No arguments call the `start_gui` boundary, which reports GUI mode unavailable until P004 supplies the GTK4, libadwaita, and Relm4 shell.
+
+P002 performs no hardware, filesystem, process, network, Wine, Proton, or game probing. Invalid input and output failures return explicit nonzero statuses and diagnostics.
+
+P003 can add the C17 build integration and safe FFI wrapper to this package without changing the executable entry point. P002 defines no speculative ABI types. P004 can replace the GUI boundary while keeping GTK widgets and GTK-facing state on the main thread. There is no GTK mock or second GUI/CLI executable.
 
 Define interfaces when implementation reaches the relevant feature; keep OS-specific behavior behind adapters. The following responsibilities anchor that design:
 

@@ -1,13 +1,13 @@
 # Roadmap P001–P090
 
-This roadmap preserves the requested development order. Items describe intended work, not shipped features. P001 is the current documentation baseline. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
+This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. Remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
 
 ## Linux-first foundation and product: P001–P060
 
 ### Foundation and desktop shell: P001–P010
 
 - **P001** — Establish the product, architecture, naming, security, testing, runtime, and cross-platform baseline.
-- **P002** — Create the Rust 2024 workspace and the single `endfield-unix` GUI/CLI executable skeleton.
+- **P002** — **Completed** — Create the Rust 2024 workspace and the single `endfield-unix` GUI/CLI executable skeleton. The executable supports help/version and reports GUI mode unavailable until P004.
 - **P003** — Add the C17 planner library boundary, public header, version handshake, and safe Rust wrapper skeleton.
 - **P004** — Build the GTK4, libadwaita, and Relm4 application shell with GTK CSS and SVG resources.
 - **P005** — Add CLI subcommand parsing to the shared executable.
