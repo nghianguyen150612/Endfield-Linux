@@ -3,22 +3,25 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::io::{self, Write};
 
+pub mod ui;
+
 pub const APPLICATION_NAME: &str = "endfield-unix";
 pub const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const APPLICATION_ID: &str = "io.github.nghianguyen150612.endfieldunix";
 
 pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_INVALID_ARGUMENTS: u8 = 2;
-pub const EXIT_GUI_UNAVAILABLE: u8 = 69;
+pub const EXIT_GUI_STARTUP_ERROR: u8 = 69;
 pub const EXIT_IO_ERROR: u8 = 74;
 
 const HELP_TEXT: &str = concat!(
     "endfield-unix: Native launcher and optimization application for Arknights: Endfield on Unix-like systems.\n",
-    "GUI and CLI functionality are under active development.\n\n",
+    "The native desktop shell is available; game and optimization services are under development.\n\n",
     "Usage: endfield-unix [--help | --version]\n\n",
     "Options:\n",
     "  --help       Show this help message\n",
     "  --version    Show the application version\n\n",
-    "Running without options starts GUI mode. The GTK4 application shell is planned for P004.\n",
+    "Running without options starts the GTK4 desktop application.\n",
 );
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,17 +44,22 @@ impl fmt::Display for DispatchError {
 
 impl Error for DispatchError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GuiUnavailable;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuiStartupError(String);
 
-impl fmt::Display for GuiUnavailable {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .write_str("GUI mode is unavailable: the GTK4 application shell is planned for P004.")
+impl GuiStartupError {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
     }
 }
 
-impl Error for GuiUnavailable {}
+impl fmt::Display for GuiStartupError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl Error for GuiStartupError {}
 
 /// Converts command-line arguments, excluding the executable name, into an action.
 ///
@@ -81,9 +89,9 @@ where
     Ok(command)
 }
 
-/// The P004 integration point for starting the GTK application on its main thread.
-pub fn start_gui() -> Result<(), GuiUnavailable> {
-    Err(GuiUnavailable)
+/// Starts the GTK application on the calling thread.
+pub fn start_gui() -> Result<(), GuiStartupError> {
+    ui::run().map_err(|error| GuiStartupError::new(error.to_string()))
 }
 
 /// Starts the shared application entry point using the process standard streams.
@@ -106,6 +114,16 @@ where
     O: Write,
     E: Write,
 {
+    run_with_io_and_gui(arguments, stdout, stderr, start_gui)
+}
+
+fn run_with_io_and_gui<I, O, E, G>(arguments: I, stdout: &mut O, stderr: &mut E, gui_start: G) -> u8
+where
+    I: IntoIterator<Item = OsString>,
+    O: Write,
+    E: Write,
+    G: FnOnce() -> Result<(), GuiStartupError>,
+{
     let command = match dispatch(arguments) {
         Ok(command) => command,
         Err(error) => {
@@ -122,9 +140,9 @@ where
             Ok(()) => EXIT_SUCCESS,
             Err(_) => report_output_error(stderr),
         },
-        Command::LaunchGui => match start_gui() {
+        Command::LaunchGui => match gui_start() {
             Ok(()) => EXIT_SUCCESS,
-            Err(error) => report_error(stderr, &error.to_string(), EXIT_GUI_UNAVAILABLE),
+            Err(error) => report_error(stderr, &error.to_string(), EXIT_GUI_STARTUP_ERROR),
         },
     }
 }
@@ -174,17 +192,42 @@ mod tests {
     }
 
     #[test]
-    fn unavailable_gui_reports_diagnostic_and_failure_status() {
+    fn application_id_meets_glib_requirements() {
+        assert!(gtk::gio::Application::id_is_valid(APPLICATION_ID));
+    }
+
+    #[test]
+    fn no_arguments_dispatches_to_a_successful_gui_startup() {
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
 
-        let exit_status = run_with_io(Vec::<OsString>::new(), &mut stdout, &mut stderr);
+        let exit_status =
+            run_with_io_and_gui(Vec::<OsString>::new(), &mut stdout, &mut stderr, || Ok(()));
 
-        assert_eq!(exit_status, EXIT_GUI_UNAVAILABLE);
+        assert_eq!(exit_status, EXIT_SUCCESS);
+        assert!(stdout.is_empty());
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn gui_startup_errors_have_a_nonzero_status_and_clear_diagnostic() {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        let exit_status =
+            run_with_io_and_gui(Vec::<OsString>::new(), &mut stdout, &mut stderr, || {
+                Err(GuiStartupError::new(
+                    "could not initialize GTK display: no display",
+                ))
+            });
+
+        assert_eq!(exit_status, EXIT_GUI_STARTUP_ERROR);
         assert!(stdout.is_empty());
         assert_eq!(
             String::from_utf8(stderr),
-            Ok(format!("{APPLICATION_NAME}: {GuiUnavailable}\n"))
+            Ok(format!(
+                "{APPLICATION_NAME}: could not initialize GTK display: no display\n"
+            ))
         );
     }
 

@@ -1,0 +1,106 @@
+@define-color endfield_yellow #d3b34b;
+@define-color endfield_yellow_soft alpha(#d3b34b, 0.13);
+@define-color endfield_border alpha(@theme_fg_color, 0.12);
+
+.application-navigation {
+  background-color: @window_bg_color;
+}
+
+.workspace-sidebar {
+  padding: 4px;
+}
+
+.brand-mark {
+  -gtk-icon-size: 28px;
+}
+
+.application-identity {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.page-title-in-header {
+  color: alpha(@theme_fg_color, 0.78);
+}
+
+.eyebrow {
+  color: alpha(@theme_fg_color, 0.62);
+  font-size: 0.76em;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.page-content {
+  min-width: 0;
+}
+
+.page-heading {
+  font-size: 2em;
+  font-weight: 700;
+}
+
+.page-description,
+.card-detail,
+.quiet-note {
+  color: alpha(@theme_fg_color, 0.73);
+}
+
+.hero-panel {
+  padding: 22px;
+  border: 1px solid @endfield_border;
+  border-radius: 12px;
+  background-color: @endfield_yellow_soft;
+}
+
+.state-label {
+  color: @endfield_yellow;
+  font-size: 0.8em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.hero-copy {
+  font-size: 1.08em;
+}
+
+.status-card,
+.chart-placeholder {
+  padding: 18px;
+  border: 1px solid @endfield_border;
+  border-radius: 10px;
+  background-color: alpha(@theme_fg_color, 0.035);
+}
+
+.chart-placeholder {
+  min-height: 200px;
+  border-style: dashed;
+}
+
+.card-title,
+.status-value {
+  font-weight: 650;
+}
+
+.section-heading {
+  font-size: 1.15em;
+  font-weight: 650;
+}
+
+.info-row {
+  padding: 13px 2px;
+  border-bottom: 1px solid @endfield_border;
+}
+
+.info-row:last-child {
+  border-bottom-style: none;
+}
+
+button.suggested-action {
+  background-color: @endfield_yellow;
+  color: #201d14;
+}
+
+button.suggested-action:disabled {
+  background-color: alpha(@endfield_yellow, 0.3);
+  color: alpha(@theme_fg_color, 0.55);
+}

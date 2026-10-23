@@ -12,10 +12,15 @@ permissions:
 jobs:
   checks:
     name: Format, lint, metadata, and tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Install GTK build and smoke-test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libgtk-4-dev libadwaita-1-dev pkg-config dbus-daemon xvfb
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -35,8 +40,29 @@ jobs:
       - name: Run tests
         run: cargo test --locked --workspace
 
+      - name: Run graphical smoke test
+        env:
+          GSK_RENDERER: cairo
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a dbus-run-session -- cargo test --locked --workspace --test gui_smoke -- --ignored --test-threads=1
+
+      - name: Build workspace
+        run: cargo build --locked --workspace
+
       - name: Validate Cargo metadata
-        run: cargo metadata --locked --no-deps --format-version 1
+        run: |
+          cargo metadata --locked --no-deps --format-version 1 > /tmp/endfield-cargo-metadata.json
+          python3 - <<'PY'
+          import json
+          metadata = json.load(open("/tmp/endfield-cargo-metadata.json", encoding="utf-8"))
+          binaries = [
+              (package["name"], target["name"])
+              for package in metadata["packages"]
+              for target in package["targets"]
+              if "bin" in target["kind"]
+          ]
+          assert binaries == [("endfield-unix", "endfield-unix")], binaries
+          PY
 
   c17:
     name: C17 ABI tests (${{ matrix.compiler }})

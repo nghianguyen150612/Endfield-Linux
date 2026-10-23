@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries; P002 implements only the initial Rust workspace and shared executable entry point. No GTK shell, platform adapter, daemon, optimizer, or runtime service is implemented yet. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -18,13 +18,25 @@ The desktop stack is fixed: Rust 2024, GTK4, libadwaita, Relm4, GTK CSS, and SVG
 
 ## P002 workspace and entry point
 
-The Cargo workspace uses resolver version 3 and contains one application package at `apps/endfield-unix`. The package is Rust 2024 with MSRV 1.85 and produces exactly one application binary, `endfield-unix`. Its library contains argument dispatch and startup routing so those behaviors can be tested without a GUI. The workspace currently has no third-party Rust dependencies.
+The Cargo workspace uses resolver version 3 and contains one application package at `apps/endfield-unix`. The package is Rust 2024 with MSRV 1.85 and produces exactly one application binary, `endfield-unix`. Its library contains argument dispatch and startup routing so those behaviors can be tested without a GUI. P004 adds Relm4 0.9.1, GTK4-rs 0.9.6, and libadwaita-rs 0.7.2; these bindings use the matching GTK4 0.9 / GLib 0.20 generation.
 
-`main` obtains arguments as OS strings, skips the executable name, and delegates process work to the shared library. Dispatch recognizes only `--help`, `--version`, and no arguments. No arguments call the `start_gui` boundary, which reports GUI mode unavailable until P004 supplies the GTK4, libadwaita, and Relm4 shell.
+`main` obtains arguments as OS strings, skips the executable name, and delegates process work to the shared library. Dispatch recognizes only `--help`, `--version`, and no arguments. Help, version, and argument errors are resolved before GTK initialization. No arguments call `start_gui`; P004 initializes GTK/libadwaita on the main thread and starts the Relm4 application. Display initialization errors return status 69 with a diagnostic rather than panicking.
 
 P002 performs no hardware, filesystem, process, network, Wine, Proton, or game probing. Invalid input and output failures return explicit nonzero statuses and diagnostics.
 
-P003 adds a workspace library package, `optimizer-ffi`, for the C17 build integration and safe FFI wrapper without changing the executable entry point. The workspace still has one application binary, `endfield-unix`; the FFI package is a library and adds no executable. P004 can replace the GUI boundary while keeping GTK widgets and GTK-facing state on the main thread. There is no GTK mock or second GUI/CLI executable.
+P003 adds a workspace library package, `optimizer-ffi`, for the C17 build integration and safe FFI wrapper without changing the executable entry point. The workspace still has one application binary, `endfield-unix`; the FFI package is a library and adds no executable. P004 implements the GTK shell in that application package. There is no second GUI/CLI executable.
+
+## P004 native application shell
+
+The stable GTK application ID is `io.github.nghianguyen150612.endfieldunix`; GLib validates it before creating the application. `ui::app::App` is the top-level Relm4 component. Its model owns the active page, compact-navigation state, and window lifecycle. `AppMessage` carries navigation, responsive-layout, back-navigation, and close requests. GTK widgets are created and mutated only on the GUI main thread.
+
+`ui::navigation` defines the six page identities and builds an `AdwNavigationSplitView` with a `GtkStackSidebar` and content stack. libadwaita collapses the split view at narrower widths; the header exposes a back affordance to return to the sidebar. `ui::pages` owns each page's view subtree. Page builders display shell status and send only navigation requests; they do not access services, system probes, or the C planner. Home keeps Play disabled until a launch service exists. Optimize identifies the C17 empty plan set and does not invoke an optimization workflow.
+
+`ui::resources` embeds GTK CSS and the original SVG mark into the executable. CSS is installed only after graphics initialization. SVG decoding has a symbolic GTK icon fallback. CLI help and version do not initialize GTK or load GUI resources. No GResource compiler or second binary is introduced.
+
+The application window starts at 1100 × 720 logical pixels and remains resizable. AdwNavigationSplitView and scrollable page content adapt to narrower windows. GTK's platform typography, system font scaling, keyboard traversal, accessible widget roles, and native focus indication are retained. The stack uses no transition animation. The interface contains no network-loaded resource or continuously animated content.
+
+The page model is presentation state, not a service layer. Future platform probing, runtime, library, benchmark, planner, and diagnostics work must arrive through service boundaries and Relm4 messages/workers; those integrations are not implemented in P004. No GTK widget or display-server interface enters the C17 planner or optimizer FFI. The selected `v1_4` libadwaita bindings require system libadwaita 1.4 or newer. macOS and BSD behavior remains unverified.
 
 Define interfaces when implementation reaches the relevant feature; keep OS-specific behavior behind adapters. The following responsibilities anchor that design:
 

@@ -10,13 +10,13 @@ fn invoke(arguments: &[&str]) -> Output {
 }
 
 #[test]
-fn compiled_executable_help_succeeds_and_describes_development_status() {
+fn compiled_executable_help_succeeds_without_initializing_the_display() {
     let output = invoke(&["--help"]);
 
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("endfield-unix"));
-    assert!(stdout.contains("GUI and CLI functionality are under active development."));
+    assert!(stdout.contains("native desktop shell is available"));
 }
 
 #[test]
@@ -31,14 +31,15 @@ fn compiled_executable_version_uses_package_metadata() {
 }
 
 #[test]
-fn compiled_executable_default_uses_unavailable_gui_boundary_without_environment() {
+fn compiled_executable_default_reports_missing_graphical_session() {
     let output = invoke(&[]);
 
     assert_eq!(output.status.code(), Some(69));
     assert!(output.stdout.is_empty());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("GUI mode is unavailable"));
-    assert!(stderr.contains("P004"));
+    assert!(stderr.contains("could not initialize GTK display"));
+    assert!(stderr.contains("graphical session"));
+    assert!(!stderr.contains("panicked at"));
 }
 
 #[test]
@@ -62,9 +63,11 @@ fn compiled_executable_rejects_multiple_options_deterministically() {
 }
 
 #[test]
-fn startup_with_no_external_runtime_environment_needs_no_game_or_network() {
+fn startup_attempts_real_graphics_initialization_without_game_or_network() {
     let output = invoke(&[]);
 
     assert_eq!(output.status.code(), Some(69));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("GUI mode is unavailable"));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("could not initialize GTK display"));
+    assert!(!stderr.contains("GUI mode is unavailable"));
 }
