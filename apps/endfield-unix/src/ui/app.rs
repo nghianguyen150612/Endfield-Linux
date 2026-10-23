@@ -154,6 +154,7 @@ impl SimpleComponent for App {
         let toolbar_view = adw::ToolbarView::new();
         toolbar_view.add_top_bar(&header_bar);
         toolbar_view.set_content(Some(&navigation.split_view));
+        let screenshot_widget = toolbar_view.clone();
         root.set_content(Some(&toolbar_view));
 
         let widgets = AppWidgets {
@@ -177,14 +178,26 @@ impl SimpleComponent for App {
 
             let smoke_sender = sender.clone();
             if let Some(path) = init.screenshot_path.clone() {
+                let widget = screenshot_widget;
                 let screenshot_window = root.clone();
-                glib::timeout_add_local_once(Duration::from_millis(350), move || {
-                    if let Err(error) = save_window_screenshot(&screenshot_window, &path) {
-                        eprintln!("could not save GTK smoke screenshot: {error}");
+                let mut attempts = 0;
+                glib::timeout_add_local(Duration::from_millis(100), move || {
+                    attempts += 1;
+                    if widget.width() > 0 && widget.height() > 0 {
+                        if let Err(error) =
+                            save_widget_screenshot(&screenshot_window, &widget, &path)
+                        {
+                            eprintln!("could not save GTK smoke screenshot: {error}");
+                        }
+                        smoke_sender.input(AppMessage::SmokeStart);
+                        glib::ControlFlow::Break
+                    } else if attempts >= 20 {
+                        eprintln!("GTK smoke window content was never allocated for screenshot");
+                        smoke_sender.input(AppMessage::SmokeStart);
+                        glib::ControlFlow::Break
+                    } else {
+                        glib::ControlFlow::Continue
                     }
-                });
-                glib::timeout_add_local_once(Duration::from_millis(750), move || {
-                    smoke_sender.input(AppMessage::SmokeStart);
                 });
             } else {
                 glib::idle_add_local_once(move || smoke_sender.input(AppMessage::SmokeStart));
@@ -289,19 +302,20 @@ impl SimpleComponent for App {
     }
 }
 
-fn save_window_screenshot(
+fn save_widget_screenshot(
     window: &adw::ApplicationWindow,
+    widget: &impl IsA<gtk::Widget>,
     path: &std::path::Path,
 ) -> Result<(), String> {
-    let width = window.width();
-    let height = window.height();
+    let width = widget.width();
+    let height = widget.height();
     if width <= 0 || height <= 0 {
         return Err(format!(
             "window has invalid screenshot size {width}×{height}"
         ));
     }
 
-    let paintable = gtk::WidgetPaintable::new(Some(window));
+    let paintable = gtk::WidgetPaintable::new(Some(widget));
     let snapshot = gtk::Snapshot::new();
     paintable.snapshot(&snapshot, width as f64, height as f64);
     let node = snapshot
