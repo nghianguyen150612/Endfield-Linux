@@ -86,14 +86,16 @@ P004 local validation uses Rust 1.85.0. The Rust sources and all target types we
 
 The CLI integration tests run without display variables and assert that help/version do not initialize GTK, no-argument startup attempts real GTK initialization and reports a missing display with status 69, and invalid arguments still fail with status 2. `run_smoke_test` is an ignored, display-dependent integration test executed only in the configured Xvfb job.
 
-## P005 local validation before native CI
+## P005 validation record — 2026-10-23
 
 - Rust toolchain — pinned Rust 1.85.0.
 - Clap compatibility — pinned Clap 4.5.53 and resolved `clap_derive` 4.5.49 both declare Rust 1.74 support.
-- `cargo fmt --all -- --check` — passed.
-- `cargo check --locked --workspace --all-targets` — passed using temporary pkg-config metadata for Rust type checking. This container has no GTK4/libadwaita development files, so this did not verify native linking.
-- `cargo clippy --locked --workspace --all-targets -- -D warnings` — passed using the same type-check metadata.
-- CLI source harness — passed 21 CLI unit tests and all 11 compiled-command integration assertions. The temporary harness compiles the repository's CLI modules and uses a GUI-startup stub; it does not validate GTK linking or runtime.
-- `cargo test --locked --workspace` — attempted, but native test binaries could not link because GTK4/libadwaita development libraries are absent from this container.
-- GCC C17 ABI tests and sanitizer tests — passed. Clang is not installed locally.
-- GitHub Actions — pending direct push to `main`; the workflow will run the real locked workspace tests, graphical Xvfb/D-Bus smoke test and screenshot generation, build, metadata check, and GCC/Clang C17 tests.
+- `cargo fmt --all -- --check` — passed locally and in GitHub Actions.
+- `cargo check --locked --workspace --all-targets` — passed locally using temporary pkg-config metadata for Rust type checking and passed on the native GitHub runner with GTK4/libadwaita installed.
+- `cargo clippy --locked --workspace --all-targets -- -D warnings` — passed locally using the same type-check metadata and passed on the native GitHub runner.
+- CLI source harness — passed 21 CLI unit tests and all 11 compiled-command integration assertions. The temporary harness compiles the repository's CLI modules and uses a GUI-startup stub.
+- `cargo test --locked --workspace` — passed in GitHub Actions, including the compiled CLI tests and Rust FFI tests. The local attempt could not link because GTK4/libadwaita development libraries are absent from this container.
+- GTK regression — the Xvfb/D-Bus GUI smoke test passed, visited the six existing navigation destinations, and uploaded the screenshot artifact.
+- `cargo build --locked --workspace` and `cargo metadata --locked --no-deps --format-version 1` — passed in GitHub Actions; metadata reports exactly one application binary, `endfield-unix`.
+- GCC and Clang C17 ABI workflow jobs — passed. Local GCC C17 ABI and sanitizer tests also passed; Clang is not installed locally.
+- GitHub Actions — [Rust CI run for commit `cffa8a1`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/39948830829) completed successfully.

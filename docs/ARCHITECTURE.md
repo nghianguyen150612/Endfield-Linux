@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 adds typed CLI subcommands. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
