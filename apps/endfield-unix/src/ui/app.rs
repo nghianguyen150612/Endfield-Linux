@@ -144,8 +144,10 @@ impl SimpleComponent for App {
             glib::Propagation::Proceed
         });
 
-        root.set_titlebar(Some(&header_bar));
-        root.set_content(Some(&navigation.split_view));
+        let toolbar_view = adw::ToolbarView::new();
+        toolbar_view.add_top_bar(&header_bar);
+        toolbar_view.set_content(Some(&navigation.split_view));
+        root.set_content(Some(&toolbar_view));
 
         let widgets = AppWidgets {
             navigation,
