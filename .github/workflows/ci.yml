@@ -37,7 +37,7 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
-      - name: Run tests
+      - name: Run workspace, CLI, and FFI tests
         run: cargo test --locked --workspace
 
       - name: Run graphical smoke test

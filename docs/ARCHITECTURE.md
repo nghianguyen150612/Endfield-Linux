@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 adds typed CLI subcommands. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -20,7 +20,7 @@ The desktop stack is fixed: Rust 2024, GTK4, libadwaita, Relm4, GTK CSS, and SVG
 
 The Cargo workspace uses resolver version 3 and contains one application package at `apps/endfield-unix`. The package is Rust 2024 with MSRV 1.85 and produces exactly one application binary, `endfield-unix`. Its library contains argument dispatch and startup routing so those behaviors can be tested without a GUI. P004 adds Relm4 0.9.1, GTK4-rs 0.9.6, and libadwaita-rs 0.7.2; these bindings use the matching GTK4 0.9 / GLib 0.20 generation.
 
-`main` obtains arguments as OS strings, skips the executable name, and delegates process work to the shared library. Dispatch recognizes only `--help`, `--version`, and no arguments. Help, version, and argument errors are resolved before GTK initialization. No arguments call `start_gui`; P004 initializes GTK/libadwaita on the main thread and starts the Relm4 application. Display initialization errors return status 69 with a diagnostic rather than panicking.
+At the P002 baseline, dispatch recognized only `--help`, `--version`, and no arguments. P005 replaces that initial parser with the typed subcommand architecture below. `main` still obtains arguments as OS strings, skips the executable name, and delegates process work to the shared library. Help, version, about, and argument errors are resolved before GTK initialization. No arguments and `gui` call the same `start_gui` function; P004 initializes GTK/libadwaita on the main thread and starts the Relm4 application. Display initialization errors return status 69 with a diagnostic rather than panicking.
 
 P002 performs no hardware, filesystem, process, network, Wine, Proton, or game probing. Invalid input and output failures return explicit nonzero statuses and diagnostics.
 
@@ -32,7 +32,7 @@ The stable GTK application ID is `io.github.nghianguyen150612.endfieldunix`; GLi
 
 `ui::navigation` defines the six page identities and builds an `AdwNavigationSplitView` with a `GtkStackSidebar` and content stack. libadwaita collapses the split view at narrower widths; the header exposes a back affordance to return to the sidebar. `ui::pages` owns each page's view subtree. Page builders display shell status and send only navigation requests; they do not access services, system probes, or the C planner. Home keeps Play disabled until a launch service exists. Optimize identifies the C17 empty plan set and does not invoke an optimization workflow.
 
-`ui::resources` embeds GTK CSS and the original SVG mark into the executable. CSS is installed only after graphics initialization. SVG decoding has a symbolic GTK icon fallback. CLI help and version do not initialize GTK or load GUI resources. No GResource compiler or second binary is introduced.
+`ui::resources` embeds GTK CSS and the original SVG mark into the executable. CSS is installed only after graphics initialization. SVG decoding has a symbolic GTK icon fallback. CLI help, version, and about do not initialize GTK or load GUI resources. No GResource compiler or second binary is introduced.
 
 The application window starts at 1100 × 720 logical pixels and remains resizable. AdwNavigationSplitView and scrollable page content adapt to narrower windows. GTK's platform typography, system font scaling, keyboard traversal, accessible widget roles, and native focus indication are retained. The stack uses no transition animation. The interface contains no network-loaded resource or continuously animated content.
 
@@ -115,6 +115,14 @@ SQLite is suitable for structured local session/benchmark records; TOML is suita
 `endfield-unixd` is the sole companion executable. It tracks game sessions, gathers available hardware/FPS/frametime/thermal/power data, records benchmark observations, and provides diagnostic reports to GUI and CLI clients. It is lightweight, unprivileged by default, and session-scoped where practical. Closing the GUI does not terminate a game session. Shutdown is graceful; the daemon may stop when no client or supervised session requires it.
 
 Use authenticated local IPC with a versioned, bounded message protocol. On Linux, the initial transport should be a per-user Unix-domain socket in a user-owned runtime directory, with filesystem permissions and peer-credential checks tied to the current user. Do not listen on a network interface. Validate message size, version, operation, and caller identity. Keep future transport choices behind the IPC adapter so other platforms can use their native local transport while preserving authorization and protocol semantics. Service installation and control use the user service manager; root is not required by default.
+
+## P005 typed CLI and command dispatch
+
+The app package uses pinned Clap 4.5.53, whose crate metadata declares Rust 1.74 support, below the workspace's Rust 1.85 minimum. Parsing uses Clap's non-terminating matches API and consumes `OsString` arguments. Parser errors return to the dispatcher, which owns predictable exit-status mapping and injected stdout/stderr writers. The `cli` module separates the typed command model, parser, output formatting, and dispatch.
+
+The implemented command model contains general and command-specific help, version, about, and GUI startup. Help documents only implemented commands. About reads its version, purpose, license, and repository from Cargo package metadata and static development-stage text; it does not probe hardware, runtimes, or games. The future game, runtime, optimize, benchmark, diagnose, service, and profile namespaces are documented as planned and are not parsed as operational commands.
+
+Static CLI commands run before GTK or libadwaita initialization. Both no-argument startup and `gui` call the same existing `start_gui` boundary. The CLI model has no GTK widget types. As future services are introduced, both frontends must call the same Rust application services rather than duplicating Wine/Proton, optimizer, benchmark, or game-management behavior. Exit statuses remain 0 for success, 2 for invalid arguments, 69 for GUI startup failure, and 74 for standard-stream write failure.
 
 ## Compatibility policy
 

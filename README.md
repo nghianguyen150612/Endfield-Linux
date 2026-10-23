@@ -2,7 +2,7 @@
 
 `endfield-unix` is an independent community launcher and goal-driven optimization application for Arknights: Endfield on Unix-like systems. Linux is the first implementation target. The frontend is Rust 2024 with GTK4, libadwaita, Relm4, GTK CSS, and locally included SVG resources. Optimization decisions belong to the portable C17 library; Rust will validate and execute only user-approved actions.
 
-**Status:** P001 documents the product and architecture. P002 established the Rust 2024 workspace and the single `endfield-unix` executable. P003 established the C17 ABI 1.0 and safe Rust wrapper; valid planner requests still return an empty plan set. P004 adds the first real GTK4/libadwaita/Relm4 application shell with six navigable pages. Game installation and launch, runtime management, optimization candidates, hardware probes, telemetry, benchmark execution, and the daemon are not implemented.
+**Status:** P001 documents the product and architecture. P002 established the Rust 2024 workspace and the single `endfield-unix` executable. P003 established the C17 ABI 1.0 and safe Rust wrapper; valid planner requests still return an empty plan set. P004 adds the first real GTK4/libadwaita/Relm4 application shell with six navigable pages. P005 implements typed static CLI commands; full native CI validation is pending. Game installation and launch, runtime management, optimization candidates, hardware probes, telemetry, benchmark execution, and the daemon are not implemented.
 
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). Local application and executable naming is `endfield-unix`; the future companion daemon is reserved as `endfield-unixd`.
 
@@ -16,6 +16,7 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [P001–P090 roadmap](docs/ROADMAP.md)
 - [Security and recovery principles](docs/SECURITY.md)
 - [Testing strategy and validation records](docs/TESTING.md)
+- [CLI commands and architecture](docs/CLI.md)
 - [Rust and C17 architecture decision](docs/adr/0001-rust-c17-architecture.md)
 - [Cross-platform boundary decision](docs/adr/0002-cross-platform-boundaries.md)
 - [Runtime and rollback decision](docs/adr/0003-runtime-and-rollback-policy.md)
@@ -45,11 +46,14 @@ For graphical smoke tests on Ubuntu, also install `xvfb` and `dbus-daemon`. A GT
 cargo +1.85.0 build --locked --workspace
 cargo +1.85.0 run --locked -p endfield-unix -- --help
 cargo +1.85.0 run --locked -p endfield-unix -- --version
+cargo +1.85.0 run --locked -p endfield-unix -- about
+cargo +1.85.0 run --locked -p endfield-unix -- help gui
+cargo +1.85.0 run --locked -p endfield-unix -- gui
 cargo +1.85.0 run --locked -p endfield-unix
 ```
 
-The no-argument command opens the native application window. `--help` and `--version` do not initialize GTK and work without a graphical session. If GTK cannot connect to a working display, the command prints a display-initialization diagnostic and exits with status 69. Invalid arguments print a diagnostic and exit with status 2. The application does not infer display availability from `DISPLAY` or `WAYLAND_DISPLAY` alone.
+The no-argument command and `gui` open the same native application window. Help, version, and about do not initialize GTK and work without a graphical session. If GTK cannot connect to a working display, GUI startup prints a display-initialization diagnostic and exits with status 69. Invalid arguments print a diagnostic and exit with status 2; command output failures use status 74. The application does not infer display availability from `DISPLAY` or `WAYLAND_DISPLAY` alone. See [CLI usage and exit statuses](docs/CLI.md).
 
-The shell provides Home, Optimize, Benchmark, Library, Diagnostics, and Settings. Pages distinguish unavailable services from detected facts. In particular, Play stays disabled until a launch backend exists; system detection and optimization recommendations are not claimed; and the current C17 implementation returns an empty plan set. P005 adds CLI subcommands. P006 introduces versioned persistent configuration; P004 settings are not saved.
+The shell provides Home, Optimize, Benchmark, Library, Diagnostics, and Settings. Pages distinguish unavailable services from detected facts. In particular, Play stays disabled until a launch backend exists; system detection and optimization recommendations are not claimed; and the current C17 implementation returns an empty plan set. P005 implements static CLI subcommands; game management, runtime setup, optimization, benchmarking, diagnostics, and daemon interaction remain future work. P006 introduces versioned persistent configuration; P004 settings are not saved.
 
 The application does not access game credentials, modify Wine prefixes or system settings, run privileged commands, contact game services, collect telemetry, or start a daemon. macOS and BSD UI behavior is unverified; Linux-first CI does not establish support on those platforms.

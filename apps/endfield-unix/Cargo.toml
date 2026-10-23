@@ -6,10 +6,11 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Shared GUI and CLI foundation for Endfield on Unix-like systems"
+description = "Native community launcher and goal-driven optimization application for Arknights: Endfield on Unix-like systems"
 default-run = "endfield-unix"
 
 [dependencies]
+clap = { version = "=4.5.53", default-features = false, features = ["derive", "error-context", "help", "std", "usage"] }
 adw = { package = "libadwaita", version = "=0.7.2", features = ["v1_4"] }
 gtk = { package = "gtk4", version = "=0.9.6" }
 relm4 = { version = "=0.9.1", features = ["libadwaita"] }

@@ -1,6 +1,6 @@
 # Roadmap P001–P090
 
-This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. Remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
+This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. The P005 implementation is awaiting full native CI validation; other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
 
 ## Linux-first foundation and product: P001–P060
 
@@ -10,7 +10,7 @@ This roadmap preserves the requested development order. P001 established the doc
 - **P002** — **Completed** — Create the Rust 2024 workspace and the single `endfield-unix` GUI/CLI executable skeleton. The executable supports help/version and routes no-argument startup to the GUI boundary.
 - **P003** — **Completed** — Establish the portable C17 ABI 1.0 library, safe Rust FFI wrapper, independent native/Rust contract tests, and headless CI checks. Valid requests currently return an empty plan set; candidate generation remains P041–P048.
 - **P004** — **Completed** — Build the GTK4, libadwaita, and Relm4 application shell with responsive six-page navigation, GTK CSS, SVG resources, display-safe startup, and graphical smoke coverage. Game/runtime/planner services remain future work.
-- **P005** — Add CLI subcommand parsing to the shared executable.
+- **P005** — Implemented; full native CI validation pending — Add typed CLI subcommand parsing, static help/version/about output, and shared GUI dispatch to the existing executable.
 - **P006** — Establish versioned TOML configuration and SQLite data migrations.
 - **P007** — Define portable domain models and capability-oriented platform interfaces.
 - **P008** — Add application diagnostics, structured local logging, and support-report redaction rules.

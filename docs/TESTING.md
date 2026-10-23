@@ -85,3 +85,15 @@ Local GTK build prerequisites are GTK4 development files, libadwaita 1.4 or newe
 P004 local validation uses Rust 1.85.0. The Rust sources and all target types were checked using temporary pkg-config metadata because this execution container has no GTK/GLib development packages. This type-check does not verify native linking or GUI runtime. GCC C17 ABI and Rust FFI checks remain separate; CI runs the graphical smoke test with the real GTK/libadwaita libraries. Do not treat an unavailable local display or missing GTK packages as a passing graphical test.
 
 The CLI integration tests run without display variables and assert that help/version do not initialize GTK, no-argument startup attempts real GTK initialization and reports a missing display with status 69, and invalid arguments still fail with status 2. `run_smoke_test` is an ignored, display-dependent integration test executed only in the configured Xvfb job.
+
+## P005 local validation before native CI
+
+- Rust toolchain — pinned Rust 1.85.0.
+- Clap compatibility — pinned Clap 4.5.53 and resolved `clap_derive` 4.5.49 both declare Rust 1.74 support.
+- `cargo fmt --all -- --check` — passed.
+- `cargo check --locked --workspace --all-targets` — passed using temporary pkg-config metadata for Rust type checking. This container has no GTK4/libadwaita development files, so this did not verify native linking.
+- `cargo clippy --locked --workspace --all-targets -- -D warnings` — passed using the same type-check metadata.
+- CLI source harness — passed 21 CLI unit tests and all 11 compiled-command integration assertions. The temporary harness compiles the repository's CLI modules and uses a GUI-startup stub; it does not validate GTK linking or runtime.
+- `cargo test --locked --workspace` — attempted, but native test binaries could not link because GTK4/libadwaita development libraries are absent from this container.
+- GCC C17 ABI tests and sanitizer tests — passed. Clang is not installed locally.
+- GitHub Actions — pending direct push to `main`; the workflow will run the real locked workspace tests, graphical Xvfb/D-Bus smoke test and screenshot generation, build, metadata check, and GCC/Clang C17 tests.
