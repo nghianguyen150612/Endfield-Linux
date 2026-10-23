@@ -66,7 +66,9 @@ fn initialize_graphics() -> Result<(), GuiError> {
 
 fn run_application(init: app::AppInit) -> Result<(), GuiError> {
     initialize_graphics()?;
-    RelmApp::<messages::AppMessage>::new(APPLICATION_ID).run::<app::App>(init);
+    RelmApp::<messages::AppMessage>::new(APPLICATION_ID)
+        .with_args(vec![APPLICATION_NAME.to_owned()])
+        .run::<app::App>(init);
     Ok(())
 }
 
