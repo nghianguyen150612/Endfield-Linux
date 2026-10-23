@@ -24,7 +24,7 @@ The Cargo workspace uses resolver version 3 and contains one application package
 
 P002 performs no hardware, filesystem, process, network, Wine, Proton, or game probing. Invalid input and output failures return explicit nonzero statuses and diagnostics.
 
-P003 can add the C17 build integration and safe FFI wrapper to this package without changing the executable entry point. P002 defines no speculative ABI types. P004 can replace the GUI boundary while keeping GTK widgets and GTK-facing state on the main thread. There is no GTK mock or second GUI/CLI executable.
+P003 adds a workspace library package, `optimizer-ffi`, for the C17 build integration and safe FFI wrapper without changing the executable entry point. The workspace still has one application binary, `endfield-unix`; the FFI package is a library and adds no executable. P004 can replace the GUI boundary while keeping GTK widgets and GTK-facing state on the main thread. There is no GTK mock or second GUI/CLI executable.
 
 Define interfaces when implementation reaches the relevant feature; keep OS-specific behavior behind adapters. The following responsibilities anchor that design:
 
@@ -83,6 +83,14 @@ The planned header-level entry points return `uint32_t` statuses where applicabl
 Use a 32-bit ABI version with the major in the high 16 bits and minor in the low 16 bits. The first published ABI is `0x00010000` (major 1, minor 0). A major mismatch returns status `2`; additive, size-versioned compatible fields increment the minor. Never reinterpret an existing field or identifier. A breaking change requires a new major and explicit wrapper negotiation. This ABI-version rule is separate from runtime IPC and persisted configuration versions.
 
 Plan rank is a one-based `uint32_t`; the comparable score is a bounded integer from `0` through `1,000,000` and is meaningful only for candidates from the same request and engine version. It is not predicted FPS. Machine-readable plans identify action IDs and parameters, constraints, rank and score, evidence references, expected qualitative benefit/cost dimensions, uncertainty, and rollback requirements. Any numeric performance estimate must cite benchmark observations and their conditions; absent evidence, leave it unknown. The C planner never executes a plan.
+
+### P003 ABI 1.0 implementation
+
+The published ABI header is `native/optimizer/include/endfield_optimizer.h`; its layouts, identifier constants, validation rules, ownership, and status mapping are documented in [ABI.md](ABI.md). ABI 1.0 defines versioned capability, goal, request, action-view, impact-view, and plan-view records. Measurements carry availability, an explicit unit, and a value-kind marker so unknown data and numeric zero remain distinct. Goal records use explicit presence flags. Capability provenance is length-delimited UTF-8.
+
+`optimizer-ffi` owns the safe request model and C-owned plan-set guard. Its raw module contains every unsafe FFI declaration and call. Rust input arrays and strings remain alive through the planning call only; C retains no input pointer. The opaque plan set is allocated and destroyed by C. The Rust handle is deliberately neither `Send` nor `Sync`.
+
+P003's C library validates metadata and identifiers, then returns an empty plan set for valid input. Candidate generation, goal interpretation, constraint analysis, ranking, and trade-off generation remain future work in P041–P048. The successful empty response does not represent a functioning optimizer or an optimization recommendation.
 
 ## Runtime, game, and persistence services
 

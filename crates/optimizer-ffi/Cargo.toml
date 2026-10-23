@@ -1,0 +1,17 @@
+[package]
+name = "optimizer-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Safe Rust bindings for the portable endfield-unix C17 optimizer ABI"
+build = "build.rs"
+
+[lib]
+name = "optimizer_ffi"
+path = "src/lib.rs"
+
+[build-dependencies]
+cc = "1"

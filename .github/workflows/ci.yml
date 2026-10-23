@@ -37,3 +37,19 @@ jobs:
 
       - name: Validate Cargo metadata
         run: cargo metadata --locked --no-deps --format-version 1
+
+  c17:
+    name: C17 ABI tests (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Compile header and run independent ABI tests
+        env:
+          CC: ${{ matrix.compiler }}
+        run: native/optimizer/tests/run-c-tests.sh

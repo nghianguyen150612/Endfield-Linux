@@ -1,0 +1,213 @@
+#ifndef ENDFIELD_OPTIMIZER_H
+#define ENDFIELD_OPTIMIZER_H
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define ENDFIELD_OPTIMIZER_ABI_VERSION UINT32_C(0x00010000)
+#define ENDFIELD_OPTIMIZER_ABI_MAJOR(version) ((uint32_t)(version) >> 16)
+#define ENDFIELD_OPTIMIZER_ABI_MINOR(version) ((uint32_t)(version) & UINT32_C(0xffff))
+
+#define ENDFIELD_OPTIMIZER_STATUS_SUCCESS UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_STATUS_INVALID_ARGUMENT UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_STATUS_UNSUPPORTED_ABI UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_STATUS_UNSUPPORTED_IDENTIFIER UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_STATUS_INCOMPATIBLE_CONSTRAINTS UINT32_C(4)
+#define ENDFIELD_OPTIMIZER_STATUS_RESOURCE_EXHAUSTION UINT32_C(5)
+#define ENDFIELD_OPTIMIZER_STATUS_INTERNAL_FAILURE UINT32_C(6)
+
+#define ENDFIELD_OPTIMIZER_PLATFORM_LINUX UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_PLATFORM_MACOS UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_PLATFORM_FREEBSD UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_PLATFORM_OTHER_UNKNOWN UINT32_C(255)
+
+#define ENDFIELD_OPTIMIZER_AVAILABILITY_UNKNOWN UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_AVAILABILITY_UNAVAILABLE UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_AVAILABILITY_AVAILABLE UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_AVAILABILITY_DEGRADED UINT32_C(3)
+
+#define ENDFIELD_OPTIMIZER_CAPABILITY_CPU_TOPOLOGY UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_CPU_SCHEDULING UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_CPU_FREQUENCY_POWER UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_GPU_DEVICE UINT32_C(10)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_VRAM UINT32_C(11)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_HARDWARE_ACCELERATION UINT32_C(12)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_GRAPHICS_DRIVER UINT32_C(13)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_VULKAN_DEVICE UINT32_C(14)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_RAM UINT32_C(20)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_SWAP UINT32_C(21)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_CPU_THERMAL UINT32_C(30)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_GPU_THERMAL UINT32_C(31)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_POWER_TELEMETRY UINT32_C(32)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_DISPLAY UINT32_C(40)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_COMPOSITOR_SESSION UINT32_C(41)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_RUNTIME_DISCOVERY UINT32_C(50)
+#define ENDFIELD_OPTIMIZER_CAPABILITY_OPTIMIZATION_TOOLS UINT32_C(51)
+
+#define ENDFIELD_OPTIMIZER_GOAL_TARGET_FPS UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_GOAL_TARGET_RESOLUTION UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_GOAL_SMOOTHNESS UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_GOAL_VISUAL_QUALITY UINT32_C(4)
+#define ENDFIELD_OPTIMIZER_GOAL_INPUT_LATENCY UINT32_C(5)
+#define ENDFIELD_OPTIMIZER_GOAL_STABILITY UINT32_C(6)
+#define ENDFIELD_OPTIMIZER_GOAL_THERMAL_NOISE UINT32_C(7)
+#define ENDFIELD_OPTIMIZER_GOAL_POWER_EFFICIENCY UINT32_C(8)
+
+#define ENDFIELD_OPTIMIZER_INTENSITY_L0 UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_INTENSITY_L1 UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_INTENSITY_L2 UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_INTENSITY_L3 UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_INTENSITY_L4 UINT32_C(4)
+
+#define ENDFIELD_OPTIMIZER_ACTION_OBSERVATION_ONLY UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_ACTION_GAME_RUNTIME_MIN UINT32_C(100)
+#define ENDFIELD_OPTIMIZER_ACTION_GAME_RUNTIME_MAX UINT32_C(199)
+#define ENDFIELD_OPTIMIZER_ACTION_SESSION_MIN UINT32_C(200)
+#define ENDFIELD_OPTIMIZER_ACTION_SESSION_MAX UINT32_C(299)
+#define ENDFIELD_OPTIMIZER_ACTION_USER_SESSION_MIN UINT32_C(300)
+#define ENDFIELD_OPTIMIZER_ACTION_USER_SESSION_MAX UINT32_C(399)
+#define ENDFIELD_OPTIMIZER_ACTION_MEASUREMENT_MIN UINT32_C(400)
+#define ENDFIELD_OPTIMIZER_ACTION_MEASUREMENT_MAX UINT32_C(499)
+#define ENDFIELD_OPTIMIZER_ACTION_EXPERIMENTAL_MIN UINT32_C(900)
+#define ENDFIELD_OPTIMIZER_ACTION_EXPERIMENTAL_MAX UINT32_C(999)
+
+#define ENDFIELD_OPTIMIZER_IMPACT_THROUGHPUT_FPS UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_IMPACT_FRAMETIME_CONSISTENCY UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_IMPACT_VISUAL_QUALITY UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_IMPACT_INPUT_LATENCY UINT32_C(4)
+#define ENDFIELD_OPTIMIZER_IMPACT_STABILITY UINT32_C(5)
+#define ENDFIELD_OPTIMIZER_IMPACT_THERMAL_NOISE UINT32_C(6)
+#define ENDFIELD_OPTIMIZER_IMPACT_POWER_EFFICIENCY UINT32_C(7)
+
+#define ENDFIELD_OPTIMIZER_IMPACT_UNKNOWN UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_IMPACT_ADVERSE UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_IMPACT_NO_MATERIAL_CHANGE UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_IMPACT_BENEFICIAL UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_IMPACT_MIXED UINT32_C(4)
+
+#define ENDFIELD_OPTIMIZER_VALUE_NONE UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_VALUE_UINT64 UINT32_C(1)
+
+#define ENDFIELD_OPTIMIZER_UNIT_NONE UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_UNIT_COUNT UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_UNIT_BYTES UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_UNIT_HERTZ UINT32_C(3)
+#define ENDFIELD_OPTIMIZER_UNIT_PIXELS UINT32_C(4)
+#define ENDFIELD_OPTIMIZER_UNIT_MILLI_FRAMES_PER_SECOND UINT32_C(5)
+#define ENDFIELD_OPTIMIZER_UNIT_MILLISECONDS UINT32_C(6)
+#define ENDFIELD_OPTIMIZER_UNIT_MICROSECONDS UINT32_C(7)
+#define ENDFIELD_OPTIMIZER_UNIT_NANOSECONDS UINT32_C(8)
+#define ENDFIELD_OPTIMIZER_UNIT_MILLI_CELSIUS UINT32_C(9)
+#define ENDFIELD_OPTIMIZER_UNIT_MILLIWATTS UINT32_C(10)
+#define ENDFIELD_OPTIMIZER_UNIT_MILLIVOLTS UINT32_C(11)
+#define ENDFIELD_OPTIMIZER_UNIT_JOULES UINT32_C(12)
+#define ENDFIELD_OPTIMIZER_UNIT_MILLIJOULES UINT32_C(13)
+
+#define ENDFIELD_OPTIMIZER_GOAL_PRESENT UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_GOAL_ABSENT UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_MAX_CAPABILITIES UINT32_C(4096)
+#define ENDFIELD_OPTIMIZER_MAX_GOALS UINT32_C(8)
+#define ENDFIELD_OPTIMIZER_MAX_PROVENANCE_BYTES UINT32_C(4096)
+
+#define ENDFIELD_OPTIMIZER_UNCERTAINTY_UNKNOWN UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_UNCERTAINTY_LOW UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_UNCERTAINTY_MODERATE UINT32_C(2)
+#define ENDFIELD_OPTIMIZER_UNCERTAINTY_HIGH UINT32_C(3)
+
+#define ENDFIELD_OPTIMIZER_ROLLBACK_UNSPECIFIED UINT32_C(0)
+#define ENDFIELD_OPTIMIZER_ROLLBACK_NOT_REQUIRED UINT32_C(1)
+#define ENDFIELD_OPTIMIZER_ROLLBACK_REQUIRED UINT32_C(2)
+
+typedef struct endfield_optimizer_capability {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint32_t capability_id;
+    uint32_t instance_id;
+    uint32_t availability;
+    uint32_t value_kind;
+    uint32_t unit_id;
+    uint64_t value_u64;
+    const uint8_t *provenance_utf8;
+    uint32_t provenance_len;
+} endfield_optimizer_capability;
+
+typedef struct endfield_optimizer_goal {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint32_t goal_id;
+    uint32_t present;
+    uint64_t value_primary;
+    uint64_t value_secondary;
+} endfield_optimizer_goal;
+
+typedef struct endfield_optimizer_request {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint32_t platform_id;
+    uint32_t intensity;
+    const endfield_optimizer_capability *capabilities;
+    uint32_t capability_count;
+    const endfield_optimizer_goal *goals;
+    uint32_t goal_count;
+} endfield_optimizer_request;
+
+typedef struct endfield_optimizer_action_view {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint32_t action_id;
+    const uint8_t *parameter_data;
+    uint32_t parameter_len;
+} endfield_optimizer_action_view;
+
+typedef struct endfield_optimizer_impact_view {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint32_t dimension_id;
+    uint32_t impact_value;
+} endfield_optimizer_impact_view;
+
+typedef struct endfield_optimizer_plan_view {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint32_t rank;
+    uint32_t score;
+    uint32_t action_count;
+    const endfield_optimizer_action_view *actions;
+    uint32_t impact_count;
+    const endfield_optimizer_impact_view *impacts;
+    uint32_t evidence_count;
+    const uint64_t *evidence_ids;
+    uint32_t constraint_count;
+    const uint32_t *constraint_ids;
+    uint32_t uncertainty;
+    uint32_t rollback_requirement;
+} endfield_optimizer_plan_view;
+
+typedef struct endfield_optimizer_plan_set endfield_optimizer_plan_set;
+
+uint32_t endfield_optimizer_abi_version(void);
+
+uint32_t endfield_optimizer_plan(
+    const endfield_optimizer_request *request,
+    endfield_optimizer_plan_set **out_plan_set);
+
+uint32_t endfield_optimizer_plan_count(
+    const endfield_optimizer_plan_set *plan_set,
+    uint32_t *out_count);
+
+uint32_t endfield_optimizer_plan_get(
+    const endfield_optimizer_plan_set *plan_set,
+    uint32_t index,
+    endfield_optimizer_plan_view *out_view);
+
+uint32_t endfield_optimizer_plan_set_destroy(
+    endfield_optimizer_plan_set *plan_set);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

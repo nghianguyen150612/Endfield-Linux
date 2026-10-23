@@ -59,3 +59,19 @@ P001 validation is limited to repository/document checks: file and link inspecti
 - GTK window tests — not run; no GTK window exists in P002.
 - `git diff --check && git diff --cached --check` — passed with no whitespace errors.
 - `.github/workflows/ci.yml` — added for pushes to `main` and pull requests targeting `main`; it runs the same Rust checks on `ubuntu-latest` without GPU or desktop requirements.
+
+## P003 validation record — 2026-10-23
+
+- Rust toolchain — pinned Rust 1.85.0, matching the repository MSRV.
+- cargo fmt --all -- --check — passed.
+- cargo check --locked --workspace --all-targets — passed.
+- cargo clippy --locked --workspace --all-targets -- -D warnings — passed with no warnings.
+- cargo test --locked --workspace — passed: 7 application unit tests, 6 application CLI integration tests, 4 FFI/layout unit tests, and 9 Rust FFI integration tests; 26 total, 0 failures.
+- cargo metadata --locked --no-deps --format-version 1 — passed; packages are endfield-unix and optimizer-ffi, with exactly one application binary.
+- cargo build --locked --workspace — passed.
+- CC=gcc native/optimizer/tests/run-c-tests.sh — passed. The script compiles the ABI header and C17 implementation with -Wall -Wextra -Wpedantic -Werror, archives the native object, links the independent C test program against that static library, and executes it.
+- CC=gcc native/optimizer/tests/run-sanitizers.sh — passed with AddressSanitizer and UndefinedBehaviorSanitizer enabled; no sanitizer report was emitted.
+- C and Rust 64-bit ABI layout assertions — passed for sizes and natural alignment.
+- Local Clang validation — not run because Clang is not installed in this environment. The GitHub workflow now has separate GCC and Clang C17 ABI jobs.
+- The workflow includes all P002 Rust checks and adds standalone C17 header/library tests. GitHub-hosted job results are reported after the commit is pushed.
+- GTK, Wine/Proton, game launch, daemon, telemetry collection, benchmark execution, and optimizer candidate generation remain unimplemented and were not tested.

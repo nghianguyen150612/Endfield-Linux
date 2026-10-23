@@ -8,7 +8,7 @@ This roadmap preserves the requested development order. P001 established the doc
 
 - **P001** — Establish the product, architecture, naming, security, testing, runtime, and cross-platform baseline.
 - **P002** — **Completed** — Create the Rust 2024 workspace and the single `endfield-unix` GUI/CLI executable skeleton. The executable supports help/version and reports GUI mode unavailable until P004.
-- **P003** — Add the C17 planner library boundary, public header, version handshake, and safe Rust wrapper skeleton.
+- **P003** — **Completed** — Establish the portable C17 ABI 1.0 library, safe Rust FFI wrapper, independent native/Rust contract tests, and headless CI checks. Valid requests currently return an empty plan set; candidate generation remains P041–P048.
 - **P004** — Build the GTK4, libadwaita, and Relm4 application shell with GTK CSS and SVG resources.
 - **P005** — Add CLI subcommand parsing to the shared executable.
 - **P006** — Establish versioned TOML configuration and SQLite data migrations.
