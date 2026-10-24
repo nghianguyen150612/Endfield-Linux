@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces. Operating-system adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -42,7 +42,8 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 
 | Boundary | Responsibility |
 | --- | --- |
-| `PlatformProbe` | Discover platform identity and, more importantly, available capabilities, versions, devices, and diagnostics. |
+| `PlatformProbe` | P007's synchronous boundary for a normalized snapshot. The generic composite probe retains successful subsystem reports when another provider fails; no OS probe is included. |
+| `CapabilityProvider` | P007's synchronous boundary for one independent capability source and a partial discovery report. |
 | `RuntimeProvider` | Detect, verify, install, select, pin, and remove user-managed Wine/Proton-compatible runners under the runtime policy. |
 | `HardwareTelemetryProvider` | Read available hardware, utilization, FPS/frametime, thermal, and power observations with source and availability metadata. |
 | `SessionSupervisor` | Start, observe, and end game sessions; preserve a running game if the GUI closes. |
@@ -51,11 +52,19 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | `BenchmarkProvider` | Run or ingest repeatable observations with configuration and provenance. |
 | `ServiceManager` | Install, start, stop, and inspect the unprivileged per-user `endfield-unixd` service where supported. |
 
-These are responsibilities, not pre-existing Rust trait signatures. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters implement the same domain-facing responsibilities only for capabilities they can actually provide.
+The runtime, telemetry, session, planner, executor, benchmark, and service-manager entries are responsibilities, not pre-existing Rust trait signatures. `PlatformProbe` and `CapabilityProvider` are implemented by the P007 domain crate. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in future Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
+
+## P007 portable domain library
+
+`crates/domain` is the `endfield-unix-domain` Rust library. It uses only the Rust standard library and forbids unsafe code. It has no dependency on the application, GUI, storage, optimizer FFI, or operating-system APIs. Application services and future platform adapters may depend on it; P007 does not wire it into the GUI or CLI.
+
+The crate defines the P001 platform-family and capability identifiers, the four availability states, measurement units and origins, typed CPU/GPU/memory/display contracts, provenance and diagnostic records, and a schema-versioned `SystemSnapshot`. Validation rejects unknown numeric identifiers, contradictory units and availability/value combinations, unresolved instance/provenance references, and duplicate capability identities. `normalize` sorts unordered inventories and records to create deterministic in-memory snapshots. Snapshot schema version 1 is independent of package, configuration, database, and C ABI versions; no snapshot serialization or persistence is introduced.
+
+`PlatformProbe` and `CapabilityProvider` are synchronous, portable traits. `CompositePlatformProbe` runs providers independently and preserves successful results alongside typed diagnostics when one provider fails. It returns a typed total error if there are no providers or none can produce a valid report. The test adapters and desktop, laptop, and incomplete fixtures are in-memory synthetic data; they never read the host machine.
 
 ## Rust and C17 ownership
 
-Rust gathers system data, maps unavailable or unknown data explicitly, normalizes units and identifiers, and calls the C planner. C17 evaluates capabilities, interprets goals and intensity, evaluates constraints, generates multiple candidates, rejects unsupported or unsafe combinations, scores and ranks plans, and reports benefits and trade-offs. C17 does not read sysfs, inspect Wine, call GTK, access the network, execute commands, change system state, or decide user approval. Rust validates each returned action against current capabilities and policy before presenting or executing it.
+When platform adapters are implemented, Rust will gather system data, map unavailable or unknown data explicitly, normalize units and identifiers, and call the C planner. P007 establishes the portable representation and ABI compatibility checks; it performs no collection or planner marshalling. C17 evaluates capabilities, interprets goals and intensity, evaluates constraints, generates multiple candidates, rejects unsupported or unsafe combinations, scores and ranks plans, and reports benefits and trade-offs. C17 does not read sysfs, inspect Wine, call GTK, access the network, execute commands, change system state, or decide user approval. Rust validates each returned action against current capabilities and policy before presenting or executing it.
 
 ### Normalized planner inputs and outputs
 

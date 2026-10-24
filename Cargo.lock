@@ -136,6 +136,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "endfield-unix-domain"
+version = "0.1.0"
+
+[[package]]
 name = "endfield-unix-storage"
 version = "0.1.0"
 dependencies = [

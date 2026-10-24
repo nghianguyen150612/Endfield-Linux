@@ -1,0 +1,13 @@
+[package]
+name = "endfield-unix-domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Portable domain models and platform capability interfaces for endfield-unix"
+
+[lib]
+name = "endfield_unix_domain"
+path = "src/lib.rs"

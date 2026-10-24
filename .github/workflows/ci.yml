@@ -37,7 +37,7 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
-      - name: Run workspace, CLI, FFI, and storage contract tests
+      - name: Run workspace, CLI, FFI, storage, and domain contract tests
         run: cargo test --locked --workspace
 
       - name: Run graphical smoke test
@@ -73,6 +73,10 @@ jobs:
               if "bin" in target["kind"]
           ]
           assert binaries == [("endfield-unix", "endfield-unix")], binaries
+          domain = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-domain")
+          assert domain["dependencies"] == [], domain["dependencies"]
+          assert any("lib" in target["kind"] for target in domain["targets"]), domain["targets"]
+          assert not any("bin" in target["kind"] for target in domain["targets"]), domain["targets"]
           PY
 
   c17:

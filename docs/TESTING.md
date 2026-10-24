@@ -117,3 +117,17 @@ The CLI integration tests run without display variables and assert that help/ver
 - GCC and Clang C17 ABI jobs — passed in hosted CI. The C17 ABI and public header are unchanged.
 - GitHub Actions — [Rust CI run for commit `3a345e6`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40064013008) completed successfully.
 - Power-loss recovery was not tested.
+
+## P007 validation record — 2026-10-24
+
+- Rust toolchain — installed and used the pinned Rust 1.85.0 toolchain.
+- `cargo fmt --all -- --check` and `git diff --check` — passed.
+- `cargo test --locked -p endfield-unix-domain` — passed: 22 synthetic contract tests covering identifier compatibility, availability and zero semantics, measurement conversion, snapshot invariants and normalization, multiple GPUs, partial provider results, total provider failure, and Linux/macOS/FreeBSD identities.
+- `cargo clippy --locked -p endfield-unix-domain --all-targets -- -D warnings` — passed.
+- `cargo test --locked -p endfield-unix-storage` — passed: 26 existing storage tests.
+- `cargo test --locked -p optimizer-ffi` — passed: 13 existing Rust FFI tests. The C ABI header and optimizer FFI implementation are unchanged.
+- `cargo clippy --locked -p endfield-unix-storage -p optimizer-ffi --all-targets -- -D warnings` — passed.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed.
+- `cargo metadata --locked --no-deps --format-version 1` — passed; the workspace has four library/application packages and exactly one application binary, `endfield-unix`. CI additionally asserts that the domain package has no dependencies or binary target.
+- `cargo check --locked --workspace --all-targets` — blocked because this environment lacks the GLib/GTK4/libadwaita development packages; `pkg-config` could not find `glib-2.0`. Full workspace build/test, GTK smoke, and screenshot checks therefore require the hosted CI runner. Xvfb and Clang are not installed locally.
+- No real hardware, display server, Vulkan library, or operating-system probe was used by the domain tests.
