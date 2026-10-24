@@ -180,9 +180,10 @@ The CLI integration tests run without display variables and assert that help/ver
 
 ## P011 validation record — 2026-10-24
 
-P011 is implemented and is not marked complete until the hosted checks below
-pass. The local execution environment does not include native GTK4,
-libadwaita, or GLib development packages, and it is not an Arch Linux device.
+P011 is complete after the hosted checks passed in [Rust CI run
+40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204).
+The local execution environment does not include native GTK4, libadwaita, or
+GLib development packages, and it is not an Arch Linux device.
 
 - Rust toolchain — pinned Rust 1.85.0.
 - `cargo +1.85.0 fmt --all -- --check` — passed.
@@ -196,4 +197,19 @@ libadwaita, or GLib development packages, and it is not an Arch Linux device.
 - A native GTK workspace build, app test linking, GTK smoke, and GTK screenshot are not claimed locally because GLib, GTK4, and libadwaita development packages are absent. CI now runs a real `diagnose platform` CLI command, the adapter tests, existing GUI smoke/screenshot, and the full workspace gates on Ubuntu 24.04.
 - CI metadata verifies exactly the two application binaries (`endfield-unix` and `endfield-unixd`), verifies that the platform adapter is library-only, and checks that it has no GUI dependency.
 - P003 C17 files and the P010 IPC protocol are unchanged. No Arch Linux physical-device validation has been performed; use the manual comparison commands in [PLATFORM-LINUX.md](PLATFORM-LINUX.md).
-- Hosted GitHub Actions result — pending push and completion of the P011 workflow.
+- Hosted GitHub Actions — [Rust CI run for commit `3a2ebdb`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204) completed successfully. Workspace check and Clippy, app/daemon builds, the real headless platform CLI, all 44 adapter tests and live smoke, full workspace tests, daemon lifecycle, authenticated IPC integration, GTK smoke and screenshot artifact, workspace build, and exact two-binary/library-only metadata assertions passed.
+- Hosted C17 matrix — GCC and Clang jobs both passed in the same workflow.
+- Actual hosted `diagnose platform` output from the Ubuntu runner:
+
+  ```text
+  Platform: Linux
+  Distribution: Ubuntu 24.04.5 LTS (id: ubuntu; version: 24.04)
+  Kernel: Linux 6.17.0-1022-azure
+  Architecture: x86_64 (kernel-reported)
+  Environment: native Linux process (low confidence; sources: linux-environment)
+  Environment uncertainty: no recognized container or WSL marker was found; bare-metal status is not established
+  User runtime directory: available and valid (linux-xdg-runtime-dir)
+  Probe result: partial
+  ```
+
+- The hosted output is a real Ubuntu CI runner observation. It does not substitute for manual Arch Linux, CachyOS, or physical-device validation.

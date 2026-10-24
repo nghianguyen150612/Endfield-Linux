@@ -3,9 +3,10 @@
 P011 adds the first read-only Linux platform adapter in
 `crates/platform-linux`, published as the library crate
 `endfield-unix-platform-linux`. It is a Linux identity probe, not hardware
-discovery. The implementation is present; P011 remains in validation until
-the hosted CI run succeeds. Linux CI does not establish support on Arch Linux,
-CachyOS, or the user's physical devices.
+discovery. P011's hosted Linux qualification passed in [CI run
+40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204).
+Linux CI does not establish support on Arch Linux, CachyOS, or the user's
+physical devices.
 
 ## Boundary and report shape
 

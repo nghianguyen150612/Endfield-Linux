@@ -1,6 +1,6 @@
 # Roadmap P001–P090
 
-This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005–P010 are completed. P011 implementation is present and awaiting hosted qualification; it is not marked complete until those gates pass. Other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
+This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005–P011 are completed. Other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
 
 ## Linux-first foundation and product: P001–P060
 
@@ -19,7 +19,7 @@ This roadmap preserves the requested development order. P001 established the doc
 
 ### Linux capabilities, telemetry, and sessions: P011–P020
 
-- **P011** — In validation — Add the read-only Linux platform adapter, distribution parser, running-kernel and architecture identity, conservative container/WSL assessment, safe runtime-directory assessment, and headless `diagnose platform` command. Completion awaits hosted Linux CI.
+- **P011** — **Completed** — Add the read-only Linux platform adapter, distribution parser, running-kernel and architecture identity, conservative container/WSL assessment, safe runtime-directory assessment, and headless `diagnose platform` command. Hosted Rust, GTK smoke/screenshot, IPC/daemon, metadata, GCC, and Clang checks passed in [CI run 40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204). No Arch Linux physical-device validation is claimed.
 - **P012** — Discover CPU topology, memory, and available power/scheduling interfaces.
 - **P013** — Discover GPUs, graphics drivers, Vulkan devices, and hardware-acceleration capabilities.
 - **P014** — Discover display modes, compositor/session characteristics, and relevant display capabilities.
