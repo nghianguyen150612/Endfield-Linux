@@ -69,6 +69,8 @@ enum DiagnoseArgs {
         #[arg(long)]
         overwrite: bool,
     },
+    /// Inspect local Linux platform identity without starting the daemon.
+    Platform,
 }
 
 #[derive(Debug, Subcommand)]
@@ -84,6 +86,7 @@ enum HelpTopicArg {
     Gui,
     About,
     Service,
+    Diagnose,
 }
 
 /// Parses operating-system arguments into a typed command without exiting the process.
@@ -125,11 +128,15 @@ where
             HelpTopicArg::Gui => HelpTopic::Gui,
             HelpTopicArg::About => HelpTopic::About,
             HelpTopicArg::Service => HelpTopic::Service,
+            HelpTopicArg::Diagnose => HelpTopic::Diagnose,
         })),
         Some(SubcommandArgs::About) => Command::About,
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Report { output, overwrite },
         }) => Command::DiagnoseReport { output, overwrite },
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::Platform,
+        }) => Command::DiagnosePlatform,
         Some(SubcommandArgs::Service {
             command: ServiceArgs::Ping,
         }) => Command::ServicePing,
@@ -223,6 +230,15 @@ mod tests {
     fn service_ping_and_status_are_typed_headless_commands() {
         assert_command(&["service", "ping"], Command::ServicePing);
         assert_command(&["service", "status"], Command::ServiceStatus);
+    }
+
+    #[test]
+    fn diagnose_platform_is_a_typed_local_command() {
+        assert_command(&["diagnose", "platform"], Command::DiagnosePlatform);
+        assert_command(
+            &["help", "diagnose"],
+            Command::Help(Some(HelpTopic::Diagnose)),
+        );
     }
 
     #[test]

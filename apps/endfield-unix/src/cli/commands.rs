@@ -4,6 +4,7 @@ pub enum HelpTopic {
     Gui,
     About,
     Service,
+    Diagnose,
 }
 
 /// Typed command selected by the CLI parser.
@@ -17,6 +18,7 @@ pub enum Command {
         output: std::path::PathBuf,
         overwrite: bool,
     },
+    DiagnosePlatform,
     ServicePing,
     ServiceStatus,
 }

@@ -184,6 +184,10 @@ impl From<DiagnosticCategory> for SafeDiagnosticCategory {
 pub enum SafeProvider {
     LinuxProcfs,
     LinuxSysfs,
+    LinuxUname,
+    LinuxOsRelease,
+    LinuxEnvironment,
+    LinuxXdgRuntimeDir,
     Drm,
     VulkanLoader,
     Wayland,
@@ -198,6 +202,10 @@ impl SafeProvider {
         match self {
             Self::LinuxProcfs => "linux-procfs",
             Self::LinuxSysfs => "linux-sysfs",
+            Self::LinuxUname => "linux-uname",
+            Self::LinuxOsRelease => "linux-os-release",
+            Self::LinuxEnvironment => "linux-environment",
+            Self::LinuxXdgRuntimeDir => "linux-xdg-runtime-dir",
             Self::Drm => "drm",
             Self::VulkanLoader => "vulkan-loader",
             Self::Wayland => "wayland",
@@ -212,6 +220,10 @@ impl SafeProvider {
         match value {
             "linux-procfs" => Some(Self::LinuxProcfs),
             "linux-sysfs" => Some(Self::LinuxSysfs),
+            "linux-uname" => Some(Self::LinuxUname),
+            "linux-os-release" => Some(Self::LinuxOsRelease),
+            "linux-environment" => Some(Self::LinuxEnvironment),
+            "linux-xdg-runtime-dir" => Some(Self::LinuxXdgRuntimeDir),
             "drm" => Some(Self::Drm),
             "vulkan-loader" => Some(Self::VulkanLoader),
             "wayland" => Some(Self::Wayland),

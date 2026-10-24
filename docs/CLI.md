@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, probing hardware, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, probing hardware, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform` is a separate read-only Linux probe command; it also avoids GTK, the daemon, and application storage. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
 
 ## Available commands
 
@@ -14,10 +14,11 @@
 | `endfield-unix --version` | Print the package version | No |
 | `endfield-unix about` | Print static application and repository metadata | No |
 | `endfield-unix diagnose report --output PATH` | Write a versioned, privacy-safe JSON report to the explicit path | No |
+| `endfield-unix diagnose platform` | Inspect validated Linux distribution, running kernel, architecture, environment hints, and runtime-directory availability | No |
 | `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
 | `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
 
-Help lists only implemented commands. Game, runtime, optimization, benchmarking, and hardware-probe services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. CPU/GPU hardware probing, runtime discovery, optimization, and game services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -48,6 +49,7 @@ endfield-unix --version
 endfield-unix about
 endfield-unix diagnose report --output ./support-report.json
 endfield-unix diagnose report --output ./support-report.json --overwrite
+endfield-unix diagnose platform
 endfield-unix help gui
 endfield-unix service ping
 endfield-unix service status
@@ -58,7 +60,7 @@ endfield-unix gui
 
 Clap parses OS-string arguments through its non-terminating `try_get_matches_from` API. The typed command model, parser, output formatters, and dispatcher live in separate modules under `apps/endfield-unix/src/cli/`. `main.rs` continues to pass OS arguments to the library entry point. Parser failures become status 2 and are written to stderr; static command output goes to stdout.
 
-Both default startup and the `gui` command invoke the existing `start_gui()` boundary. No CLI command constructs GTK widgets or accesses UI types. The report command calls the diagnostics library directly; it does not initialize GTK or the logger, create application state directories, run hardware probes, or contact the network. Reports contain static application/component metadata and validated allowlisted event history when available. The command writes only to the requested output file, refuses symlink destinations, uses mode `0600`, and refuses an existing file unless `--overwrite` is set.
+Both default startup and the `gui` command invoke the existing `start_gui()` boundary. No CLI command constructs GTK widgets or accesses UI types. The report command calls the diagnostics library directly; it does not initialize GTK or the logger, create application state directories, run hardware probes, or contact the network. Reports contain static application/component metadata and validated allowlisted event history when available. The command writes only to the requested output file, refuses symlink destinations, uses mode `0600`, and refuses an existing file unless `--overwrite` is set. `diagnose platform` calls `endfield-unix-platform-linux` directly, requires no daemon, and performs no writes or command execution. It prints a validated full or partial result; unknown and unavailable facts are labeled.
 
 Output writers can be injected through `run_with_io` for deterministic dispatch tests. Output and diagnostic write failures are handled without panicking, including closed pipes. The service commands use the shared `endfield-unix-ipc` client, enforce a 2-second total deadline, validate the response envelope and status fields, and never initialize GTK or auto-start `endfield-unixd`.
 
@@ -74,15 +76,20 @@ Output writers can be injected through `run_with_io` for deterministic dispatch 
 | `76` | Protocol mismatch or invalid daemon response |
 | `77` | Socket permission or peer authentication denied |
 | `65` | Daemon rejected an unsupported operation |
+| `70` | Fatal platform identity probe failure |
+| `78` | Platform probe is unsupported on this operating system |
 
 Status `74` also covers report destination and file-write failures. Invalid
 syntax or an unsupported report option remains status `2`. IPC failures use
-the statuses above rather than the GUI startup status `69`.
+the statuses above rather than the GUI startup status `69`. The platform command
+returns `0` for complete or partial information, `70` if running-kernel identity
+cannot be established, and `78` when the adapter is unsupported. Its
+output-write failures use `74`; invalid arguments remain `2`.
 
 ## Planned command namespaces
 
 The following namespaces are reserved for later work. The `diagnose`
-namespace currently implements only the safe report export described above;
+namespace implements the safe report export and Linux platform inspection;
 hardware diagnostics remain unimplemented. `service` currently implements
 only `ping` and `status`.
 

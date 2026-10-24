@@ -177,3 +177,23 @@ The CLI integration tests run without display variables and assert that help/ver
 - Cross-UID kernel authentication was not exercised because no second UID is available; the deterministic UID policy test and actual same-UID `SO_PEERCRED` path are separate checks. No manual Arch Linux runtime session was run.
 - CI fixture correction — the initial run found that IPC test runtime roots inherited the hosted runner's broader umask. The fixtures now explicitly set mode `0700`, preserving the production runtime-directory check.
 - GitHub Actions — [Rust CI run for commit `2de9b88`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40083552910) completed successfully. Native workspace check, Clippy, application binary build, full workspace tests, P009 lifecycle gate, real daemon/CLI IPC subprocess gate, GTK smoke and screenshot upload, workspace build, exact two-binary/GTK-dependency metadata assertions, and GCC/Clang C17 ABI jobs all passed.
+
+## P011 validation record — 2026-10-24
+
+P011 is implemented and is not marked complete until the hosted checks below
+pass. The local execution environment does not include native GTK4,
+libadwaita, or GLib development packages, and it is not an Arch Linux device.
+
+- Rust toolchain — pinned Rust 1.85.0.
+- `cargo +1.85.0 fmt --all -- --check` — passed.
+- `cargo +1.85.0 test --locked -p endfield-unix-platform-linux --all-targets` — passed: 44 tests across parser contracts, source precedence and symlink policy, kernel/domain integration, runtime-environment fixtures, and the live Linux kernel/architecture smoke.
+- `cargo +1.85.0 clippy --locked -p endfield-unix-platform-linux --all-targets -- -D warnings` — passed.
+- `cargo +1.85.0 test --locked -p endfield-unix-diagnostics --all-targets` — passed: 31 tests, including the new P011 provider allowlist/redaction contract; matching Clippy passed.
+- `cargo +1.85.0 test --locked -p endfield-unix-ipc -p endfield-unixd -p endfield-unix-domain -p endfield-unix-storage -p optimizer-ffi --all-targets` — passed. P010 IPC, daemon lifecycle, portable domain, storage/recovery, and Rust FFI tests all passed.
+- Workspace `cargo check --locked --workspace --all-targets` and Clippy with `-D warnings` — passed using temporary pkg-config metadata. App Rust targets and all integration-test targets type-checked; the metadata does not verify native GTK linking.
+- Cargo metadata — passed; exactly two application binaries remain, `endfield-unix` and `endfield-unixd`; the Linux adapter is library-only with no GTK, libadwaita, or Relm4 dependency; P007 domain still has no dependencies.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed. Clang is not installed in this local environment; hosted CI runs the existing GCC/Clang matrix.
+- A native GTK workspace build, app test linking, GTK smoke, and GTK screenshot are not claimed locally because GLib, GTK4, and libadwaita development packages are absent. CI now runs a real `diagnose platform` CLI command, the adapter tests, existing GUI smoke/screenshot, and the full workspace gates on Ubuntu 24.04.
+- CI metadata verifies exactly the two application binaries (`endfield-unix` and `endfield-unixd`), verifies that the platform adapter is library-only, and checks that it has no GUI dependency.
+- P003 C17 files and the P010 IPC protocol are unchanged. No Arch Linux physical-device validation has been performed; use the manual comparison commands in [PLATFORM-LINUX.md](PLATFORM-LINUX.md).
+- Hosted GitHub Actions result — pending push and completion of the P011 workflow.

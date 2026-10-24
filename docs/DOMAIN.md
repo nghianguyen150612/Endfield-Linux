@@ -19,6 +19,13 @@ distribution is valid only with the Linux family. Optional versions remain
 absent when the adapter does not know them; the domain layer does not infer a
 version from a name.
 
+P011 implements the Linux adapter in `crates/platform-linux`. It maps the
+running kernel's `uname` system name, release, and machine fields into these
+existing P007 types, and maps validated os-release `ID`, version, and display
+name into `DistributionIdentity`. The portable schema is unchanged. Linux-only
+container/WSL evidence and user runtime-directory status live in the adapter's
+separately versioned `LinuxPlatformReport`.
+
 The family identifiers are the existing P001/P003 C ABI values:
 
 | ABI value | Rust variant |
@@ -189,12 +196,15 @@ subsystem's diagnostic category. Malformed or conflicting provider data is
 discarded without erasing earlier valid reports. No providers and all providers
 failing are typed total errors. These traits contain no GTK types, OS-specific
 paths, global mutable state, privileged access, network operation, or hardware
-probe. Real blocking providers and any applicable cancellation/timeout policy
-will be introduced with their platform milestones.
+probe. P011 implements Linux identity through this boundary. A valid running
+kernel identity is required; distribution metadata, environment classification,
+and runtime-directory assessment fail independently and remain diagnostics or
+unknown/partial facts. P011 does not add hardware discovery or alter snapshot
+schema version 1.
 
-The same contracts can be implemented by future Linux, macOS, and FreeBSD
-adapters. Their ability to identify a platform does not establish compatibility
-or imply that every capability exists on that platform.
+Future macOS and FreeBSD adapters can implement the same contracts. P011 only
+implements Linux; identifying a platform does not establish compatibility or
+imply that every capability exists on that platform.
 
 ## C17 boundary
 

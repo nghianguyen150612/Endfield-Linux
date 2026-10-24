@@ -21,6 +21,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("endfield-unix"));
     assert!(stdout.contains("native GTK4 desktop application"));
     assert!(stdout.contains("diagnose report --output PATH"));
+    assert!(stdout.contains("diagnose platform"));
     assert!(stdout.contains("service ping"));
     assert!(stdout.contains("service status"));
     assert!(!stdout.contains("  game "));
@@ -43,6 +44,7 @@ fn command_specific_help_describes_gui_and_about() {
     let gui = invoke(&["help", "gui"]);
     let about = invoke(&["help", "about"]);
     let service = invoke(&["help", "service"]);
+    let diagnose = invoke(&["help", "diagnose"]);
 
     assert_eq!(gui.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&gui.stdout).contains("same startup path"));
@@ -51,6 +53,8 @@ fn command_specific_help_describes_gui_and_about() {
     assert!(String::from_utf8_lossy(&about.stdout).contains("static purpose, version"));
     assert_eq!(service.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&service.stdout).contains("authenticated local Ping/Pong"));
+    assert_eq!(diagnose.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&diagnose.stdout).contains("diagnose <report|platform>"));
 }
 
 #[test]
@@ -63,6 +67,23 @@ fn compiled_executable_version_uses_package_metadata() {
         Ok(format!("endfield-unix {}\n", env!("CARGO_PKG_VERSION")))
     );
     assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn diagnose_platform_runs_headlessly_without_a_daemon_or_runtime_directory() {
+    let output = invoke(&["diagnose", "platform"]);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Platform: Linux"));
+    assert!(stdout.contains("Distribution:"));
+    assert!(stdout.contains("Kernel: Linux "));
+    assert!(stdout.contains("Architecture:") && stdout.contains("kernel-reported"));
+    assert!(stdout.contains("Environment:"));
+    assert!(stdout.contains("User runtime directory: missing"));
+    assert!(stdout.contains("Probe result: partial"));
+    assert!(!stdout.contains("Daemon:"));
 }
 
 #[test]

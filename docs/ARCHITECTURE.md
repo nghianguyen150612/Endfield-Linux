@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel. Operating-system probes, candidate generation, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds the first read-only Linux platform adapter. Hardware discovery, candidate generation, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -42,7 +42,7 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 
 | Boundary | Responsibility |
 | --- | --- |
-| `PlatformProbe` | P007's synchronous boundary for a normalized snapshot. The generic composite probe retains successful subsystem reports when another provider fails; no OS probe is included. |
+| `PlatformProbe` | P007's synchronous boundary for a normalized snapshot. The generic composite probe retains successful subsystem reports when another provider fails. P011's Linux adapter implements it with kernel identity and optional distribution metadata. |
 | `CapabilityProvider` | P007's synchronous boundary for one independent capability source and a partial discovery report. |
 | `RuntimeProvider` | Detect, verify, install, select, pin, and remove user-managed Wine/Proton-compatible runners under the runtime policy. |
 | `HardwareTelemetryProvider` | Read available hardware, utilization, FPS/frametime, thermal, and power observations with source and availability metadata. |
@@ -52,11 +52,15 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | `BenchmarkProvider` | Run or ingest repeatable observations with configuration and provenance. |
 | `ServiceManager` | Install, start, stop, and inspect the unprivileged per-user `endfield-unixd` service where supported. |
 
-The runtime, telemetry, session, planner, executor, benchmark, and service-manager entries are responsibilities, not pre-existing Rust trait signatures. `PlatformProbe` and `CapabilityProvider` are implemented by the P007 domain crate. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in future Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
+The runtime, telemetry, session, planner, executor, benchmark, and service-manager entries are responsibilities, not pre-existing Rust trait signatures. P007 defines `PlatformProbe` and `CapabilityProvider`; P011 implements `PlatformProbe` in the Linux adapter. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
 
 ## P007 portable domain library
 
-`crates/domain` is the `endfield-unix-domain` Rust library. It uses only the Rust standard library and forbids unsafe code. It has no dependency on the application, GUI, storage, optimizer FFI, or operating-system APIs. Application services and future platform adapters may depend on it; P007 does not wire it into the GUI or CLI.
+`crates/domain` is the `endfield-unix-domain` Rust library. It uses only the Rust standard library and forbids unsafe code. It has no dependency on the application, GUI, storage, optimizer FFI, or operating-system APIs. Application services and platform adapters may depend on it; the P011 CLI consumes its P007 snapshot through the separate Linux adapter.
+
+## P011 Linux platform adapter
+
+`crates/platform-linux` is the library-only `endfield-unix-platform-linux` adapter. It depends on `endfield-unix-domain` and safe `nix` interfaces; it has no GUI, daemon, optimizer, or executable dependency. A narrow read-only source trait injects fixed OS metadata, native `uname`, allowlisted environment markers, and runtime-directory metadata for tests. The adapter uses the running kernel's `uname` machine value for P007 `Architecture`, retains the actual kernel release, and maps validated os-release fields into `DistributionIdentity`. Environment and runtime-directory observations live in a separately versioned `LinuxPlatformReport`, so snapshot schema 1 and the C17 ABI remain unchanged. The headless CLI calls this adapter directly; it does not query the daemon or initialize GTK.
 
 The crate defines the P001 platform-family and capability identifiers, the four availability states, measurement units and origins, typed CPU/GPU/memory/display contracts, provenance and diagnostic records, and a schema-versioned `SystemSnapshot`. Validation rejects unknown numeric identifiers, contradictory units and availability/value combinations, unresolved instance/provenance references, and duplicate capability identities. `normalize` sorts unordered inventories and records to create deterministic in-memory snapshots. Snapshot schema version 1 is independent of package, configuration, database, and C ABI versions; no snapshot serialization or persistence is introduced.
 
@@ -80,7 +84,7 @@ initialized only for GUI startup, after static CLI parsing.
 
 ## Rust and C17 ownership
 
-When platform adapters are implemented, Rust will gather system data, map unavailable or unknown data explicitly, normalize units and identifiers, and call the C planner. P007 establishes the portable representation and ABI compatibility checks; it performs no collection or planner marshalling. C17 evaluates capabilities, interprets goals and intensity, evaluates constraints, generates multiple candidates, rejects unsupported or unsafe combinations, scores and ranks plans, and reports benefits and trade-offs. C17 does not read sysfs, inspect Wine, call GTK, access the network, execute commands, change system state, or decide user approval. Rust validates each returned action against current capabilities and policy before presenting or executing it.
+Platform adapters gather system data, map unavailable or unknown data explicitly, normalize units and identifiers, and may later call the C planner. P007 establishes the portable representation and ABI compatibility checks; it performs no collection or planner marshalling. P011 collects only Linux OS, kernel, architecture, and basic environment facts. C17 evaluates capabilities, interprets goals and intensity, evaluates constraints, generates multiple candidates, rejects unsupported or unsafe combinations, scores and ranks plans, and reports benefits and trade-offs. C17 does not read sysfs, inspect Wine, call GTK, access the network, execute commands, change system state, or decide user approval. Rust validates each returned action against current capabilities and policy before presenting or executing it.
 
 ### Normalized planner inputs and outputs
 

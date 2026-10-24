@@ -193,6 +193,31 @@ fn probe_error_detail_is_omitted_and_not_yet_probed_is_not_a_failure() {
 }
 
 #[test]
+fn p011_provider_names_are_allowlisted_while_details_remain_discarded() {
+    for provider_name in [
+        "linux-uname",
+        "linux-os-release",
+        "linux-environment",
+        "linux-xdg-runtime-dir",
+    ] {
+        let diagnostic = Diagnostic::new(
+            DiagnosticCategory::PermissionDenied,
+            Some(provider_name.to_owned()),
+            Some("private path and source text".to_owned()),
+        )
+        .expect("bounded synthetic diagnostic");
+        let event = event_from_domain_diagnostic(&diagnostic, None, 123)
+            .expect("allowlisted provider event");
+        assert_eq!(
+            event.provider().map(|provider| provider.as_str()),
+            Some(provider_name)
+        );
+        let serialized = serde_json::to_string(&event).expect("serialized event");
+        assert!(!serialized.contains("private path"));
+    }
+}
+
+#[test]
 fn sensitivity_classes_mark_only_static_and_structured_values_as_reportable() {
     assert_eq!(
         ReportField::ApplicationName.sensitivity(),

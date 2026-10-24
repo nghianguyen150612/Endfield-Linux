@@ -6,6 +6,8 @@ use std::path::Path;
 use super::commands::Command;
 use super::{output, parser};
 use crate::{APPLICATION_NAME, GuiStartupError, start_gui};
+use endfield_unix_domain::{ProbeError, ProbeErrorKind};
+use endfield_unix_platform_linux::{LinuxPlatformProbe, LinuxPlatformReport};
 
 pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_INVALID_ARGUMENTS: u8 = 2;
@@ -15,6 +17,8 @@ pub const EXIT_IPC_UNAVAILABLE: u8 = 75;
 pub const EXIT_IPC_PROTOCOL_ERROR: u8 = 76;
 pub const EXIT_IPC_AUTHENTICATION_ERROR: u8 = 77;
 pub const EXIT_IPC_REQUEST_REJECTED: u8 = 65;
+pub const EXIT_PLATFORM_PROBE_FAILED: u8 = 70;
+pub const EXIT_PLATFORM_UNSUPPORTED: u8 = 78;
 
 #[derive(Debug)]
 pub enum CliError {
@@ -23,6 +27,7 @@ pub enum CliError {
     GuiStartup(GuiStartupError),
     Diagnostics(endfield_unix_diagnostics::DiagnosticsError),
     Ipc(endfield_unix_ipc::ClientError),
+    PlatformProbe(ProbeError),
 }
 
 impl CliError {
@@ -48,6 +53,13 @@ impl CliError {
                 | endfield_unix_ipc::ClientError::InvalidResponse => EXIT_IPC_PROTOCOL_ERROR,
                 endfield_unix_ipc::ClientError::RequestRejected => EXIT_IPC_REQUEST_REJECTED,
             },
+            Self::PlatformProbe(error) => {
+                if error.kind() == ProbeErrorKind::Unsupported {
+                    EXIT_PLATFORM_UNSUPPORTED
+                } else {
+                    EXIT_PLATFORM_PROBE_FAILED
+                }
+            }
         }
     }
 }
@@ -60,6 +72,7 @@ impl fmt::Display for CliError {
             Self::GuiStartup(error) => error.fmt(formatter),
             Self::Diagnostics(error) => fmt::Display::fmt(error, formatter),
             Self::Ipc(error) => fmt::Display::fmt(error, formatter),
+            Self::PlatformProbe(error) => fmt::Display::fmt(error, formatter),
         }
     }
 }
@@ -72,6 +85,7 @@ impl Error for CliError {
             Self::GuiStartup(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
             Self::Ipc(error) => Some(error),
+            Self::PlatformProbe(error) => Some(error),
         }
     }
 }
@@ -96,9 +110,12 @@ where
     O: Write,
     E: Write,
 {
-    run_with_io_and_gui(arguments, stdout, stderr, start_gui)
+    run_with_io_and_gui_and_platform(arguments, stdout, stderr, start_gui, || {
+        LinuxPlatformProbe::system().inspect()
+    })
 }
 
+#[cfg(test)]
 pub(crate) fn run_with_io_and_gui<I, O, E, G>(
     arguments: I,
     stdout: &mut O,
@@ -111,22 +128,47 @@ where
     E: Write,
     G: FnOnce() -> Result<(), GuiStartupError>,
 {
+    run_with_io_and_gui_and_platform(arguments, stdout, stderr, gui_start, || {
+        LinuxPlatformProbe::system().inspect()
+    })
+}
+
+pub(crate) fn run_with_io_and_gui_and_platform<I, O, E, G, P>(
+    arguments: I,
+    stdout: &mut O,
+    stderr: &mut E,
+    gui_start: G,
+    platform_inspect: P,
+) -> u8
+where
+    I: IntoIterator<Item = std::ffi::OsString>,
+    O: Write,
+    E: Write,
+    G: FnOnce() -> Result<(), GuiStartupError>,
+    P: FnOnce() -> Result<LinuxPlatformReport, ProbeError>,
+{
     let command = match parser::parse(arguments).map_err(CliError::InvalidArguments) {
         Ok(command) => command,
         Err(error) => return report_error(stderr, &error.to_string(), error.exit_status()),
     };
 
-    let result = execute(command, stdout, gui_start);
+    let result = execute(command, stdout, gui_start, platform_inspect);
     match result {
         Ok(()) => EXIT_SUCCESS,
         Err(error) => report_error(stderr, &error.to_string(), error.exit_status()),
     }
 }
 
-fn execute<O, G>(command: Command, stdout: &mut O, gui_start: G) -> Result<(), CliError>
+fn execute<O, G, P>(
+    command: Command,
+    stdout: &mut O,
+    gui_start: G,
+    platform_inspect: P,
+) -> Result<(), CliError>
 where
     O: Write,
     G: FnOnce() -> Result<(), GuiStartupError>,
+    P: FnOnce() -> Result<LinuxPlatformReport, ProbeError>,
 {
     match command {
         Command::Help(topic) => output::write_help(topic, stdout).map_err(CliError::Output),
@@ -140,6 +182,10 @@ where
             endfield_unix_diagnostics::export_support_report(&path, overwrite)
                 .map_err(CliError::Diagnostics)?;
             write_report_success(stdout, &path).map_err(CliError::Output)
+        }
+        Command::DiagnosePlatform => {
+            let report = platform_inspect().map_err(CliError::PlatformProbe)?;
+            output::write_platform_report(&report, stdout).map_err(CliError::Output)
         }
         Command::ServicePing => {
             let client =
@@ -297,6 +343,108 @@ mod tests {
 
         assert_eq!(status, EXIT_IO_ERROR);
         assert!(stdout.is_empty());
+    }
+
+    #[test]
+    fn platform_command_renders_an_injected_partial_report_without_gui_or_daemon() {
+        use endfield_unix_domain::{
+            Architecture, DistributionIdentity, KernelIdentity, OsIdentity, PlatformFamily,
+            PlatformIdentity, SystemSnapshot,
+        };
+        use endfield_unix_platform_linux::{
+            EnvironmentClassification, EnvironmentConfidence, EnvironmentStatus,
+            LINUX_PLATFORM_REPORT_SCHEMA_VERSION, LinuxDistributionMetadata, LinuxPlatformReport,
+            LinuxReportCompleteness, RuntimeDirectoryAssessment, RuntimeDirectoryStatus,
+            RuntimeEnvironmentFacts,
+        };
+
+        let platform = PlatformIdentity::new(
+            PlatformFamily::Linux,
+            OsIdentity::new("Linux", None).expect("OS identity"),
+            Architecture::Aarch64,
+            Some(KernelIdentity::new("Linux", Some("6.18.3-arch1-1".to_owned())).expect("kernel")),
+            Some(
+                DistributionIdentity::new("arch", None, Some("Arch Linux".to_owned()))
+                    .expect("distribution"),
+            ),
+        )
+        .expect("platform");
+        let report = LinuxPlatformReport {
+            schema_version: LINUX_PLATFORM_REPORT_SCHEMA_VERSION,
+            snapshot: SystemSnapshot::new(platform),
+            distribution: Some(LinuxDistributionMetadata {
+                id: "arch".to_owned(),
+                name: Some("Arch Linux".to_owned()),
+                pretty_name: Some("Arch Linux".to_owned()),
+                version_id: None,
+                version: None,
+                id_like: Vec::new(),
+                variant_id: None,
+                source: "etc-os-release",
+            }),
+            runtime_environment: RuntimeEnvironmentFacts {
+                classification: EnvironmentClassification::Wsl,
+                status: EnvironmentStatus::Identified,
+                confidence: EnvironmentConfidence::High,
+                source_ids: vec!["linux-uname"],
+                diagnostic: None,
+                uncertainty: Some("WSL generation is not inferred"),
+            },
+            user_runtime_directory: RuntimeDirectoryAssessment {
+                status: RuntimeDirectoryStatus::Missing,
+                source_id: "linux-xdg-runtime-dir",
+                diagnostic: Some("XDG_RUNTIME_DIR is not set"),
+            },
+            completeness: LinuxReportCompleteness::Partial,
+        };
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let mut gui_started = false;
+        let report_for_probe = report.clone();
+        let status = run_with_io_and_gui_and_platform(
+            [OsString::from("diagnose"), OsString::from("platform")],
+            &mut stdout,
+            &mut stderr,
+            || {
+                gui_started = true;
+                Ok(())
+            },
+            move || Ok(report_for_probe),
+        );
+
+        assert_eq!(status, EXIT_SUCCESS);
+        assert!(!gui_started);
+        assert!(stderr.is_empty());
+        let output = String::from_utf8(stdout).expect("UTF-8 output");
+        assert!(output.contains("Distribution: Arch Linux (id: arch)"));
+        assert!(output.contains("Kernel: Linux 6.18.3-arch1-1"));
+        assert!(output.contains("Architecture: aarch64 (kernel-reported)"));
+        assert!(output.contains("Environment: WSL (high confidence"));
+        assert!(output.contains("User runtime directory: missing"));
+        assert!(output.contains("Probe result: partial"));
+    }
+
+    #[test]
+    fn platform_probe_errors_have_distinct_unsupported_and_fatal_statuses() {
+        for (kind, expected_status) in [
+            (ProbeErrorKind::Unsupported, EXIT_PLATFORM_UNSUPPORTED),
+            (ProbeErrorKind::TemporaryFailure, EXIT_PLATFORM_PROBE_FAILED),
+        ] {
+            let error = ProbeError::new("linux-uname", kind, Some("safe failure".to_owned()))
+                .expect("valid probe error");
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            let status = run_with_io_and_gui_and_platform(
+                [OsString::from("diagnose"), OsString::from("platform")],
+                &mut stdout,
+                &mut stderr,
+                || Ok(()),
+                move || Err(error),
+            );
+            assert_eq!(status, expected_status);
+            assert!(stdout.is_empty());
+            assert!(!stderr.is_empty());
+        }
     }
 
     struct BrokenPipeWriter;

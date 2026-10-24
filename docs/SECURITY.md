@@ -41,6 +41,33 @@ file requires an overwrite option and symlink destinations are refused.
 See [DIAGNOSTICS.md](DIAGNOSTICS.md) for the data flow and limits. These P008
 controls do not constitute a security audit of the whole application.
 
+## P011 read-only platform discovery
+
+`diagnose platform` runs unprivileged and makes no filesystem changes. The
+Linux adapter reads only bounded `/etc/os-release`, `/usr/lib/os-release`, and
+fixed container-indicator sources, plus the native `uname` interface. It does
+not execute a shell or external command, scan processes or cgroups, read
+arbitrary environment values, access the network, or collect hardware data.
+For os-release fallback, `/etc/os-release` takes precedence and
+`/usr/lib/os-release` is used only if the preferred path is missing. The only
+accepted symlink target is the fixed `/usr/lib/os-release` target; file opens
+reject unexpected final symlinks and non-regular files.
+
+Parser reads are capped at 64 KiB, lines at 4 KiB, and selected values at 128
+bytes after parsing. Invalid UTF-8, malformed assignments, invalid escapes,
+unexpected file types, and overlong sources become bounded diagnostics. Raw
+source text and paths never enter the report. Container evidence uses only
+allowlisted marker paths and recognized systemd container values. WSL
+classification uses recognizable kernel release markers and does not guess
+WSL generation. Missing markers do not establish bare-metal execution; the
+report marks that result low-confidence or unknown. Runtime-directory
+assessment follows P010's absolute path, no-symlink, effective-owner, private
+mode, and socket-path length policy. It never creates or repairs the directory.
+
+The live report is printed locally and is not automatically added to P008 logs
+or support reports. P008 continues to discard free-form diagnostic messages;
+only the new fixed provider identifiers are allowlisted.
+
 ## Runtime and prefix safety
 
 Verify runtime source and integrity before activation. Keep known-good versions pinned and do not automatically upgrade them. Stage a new runner separately, validate it, and retain the previous runner until the user elects to change or remove it. Back up prefixes before risky migrations or repair operations. Explain what is included in a backup and where it is stored. Never silently delete or overwrite a prefix, runtime, or user data. Provide rollback steps for any applied optimization or runtime change.

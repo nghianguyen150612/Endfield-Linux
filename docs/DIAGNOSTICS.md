@@ -75,8 +75,9 @@ identifiers from a fixed allowlist. It never exports `Diagnostic.message` or
 
 Successful operations use `succeeded`; known gaps use `not_implemented`.
 These values do not imply a capability was tested. Safe provider IDs currently
-include `linux-procfs`, `linux-sysfs`, `drm`, `vulkan-loader`, `wayland`, `x11`,
-`systemd-user`, `wine`, and `proton`. Unknown provider names are omitted.
+include `linux-procfs`, `linux-sysfs`, `linux-uname`, `linux-os-release`,
+`linux-environment`, `linux-xdg-runtime-dir`, `drm`, `vulkan-loader`, `wayland`,
+`x11`, `systemd-user`, `wine`, and `proton`. Unknown provider names are omitted.
 
 ## Local log paths and retention
 
@@ -149,7 +150,8 @@ these classes:
 | Secret or forbidden | Free-form text, home paths, environment values, command lines, credentials | Not accepted by the report schema. |
 
 The P007 free-form diagnostic message and probe error detail are discarded at
-the adapter boundary, before they enter persistent event records. Report event
+the adapter boundary, before they enter persistent event records. Live P011
+platform facts are not automatically copied into logs or support reports. Report event
 messages come from fixed code strings. Correlation IDs are never copied to a
 report. The exporter has no field for usernames, absolute paths, tokens,
 passwords, authorization headers, cookies, account credentials, arbitrary
