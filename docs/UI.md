@@ -37,6 +37,6 @@ Native typography, system font scaling, keyboard traversal, and GTK focus indica
 
 ## Unimplemented work
 
-The Optimize page reserves sections for target FPS, playing preference, intensity, capabilities, candidate plans, benchmark results, review, and rollback. They are status-only placeholders. The C17 ABI still returns an empty plan set, so the interface does not claim that the planner produces recommendations. Benchmark, Library, Diagnostics, and Settings likewise identify unavailable behavior without fabricated system details or persisted preferences.
+The Optimize page reserves sections for target FPS, playing preference, intensity, capabilities, candidate plans, benchmark results, review, and rollback. They are status-only placeholders. The C17 ABI still returns an empty plan set, so the interface does not claim that the planner produces recommendations. Benchmark, Library, Diagnostics, and Settings likewise identify unavailable behavior without fabricated system details. P006 supplies a storage library with theme and language preferences, but the Settings page neither edits those values nor reports them as applied.
 
 The shell is validated for Linux CI only. macOS and BSD GTK/libadwaita packaging and behavior remain unverified.

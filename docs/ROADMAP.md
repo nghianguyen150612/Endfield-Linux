@@ -11,7 +11,7 @@ This roadmap preserves the requested development order. P001 established the doc
 - **P003** — **Completed** — Establish the portable C17 ABI 1.0 library, safe Rust FFI wrapper, independent native/Rust contract tests, and headless CI checks. Valid requests currently return an empty plan set; candidate generation remains P041–P048.
 - **P004** — **Completed** — Build the GTK4, libadwaita, and Relm4 application shell with responsive six-page navigation, GTK CSS, SVG resources, display-safe startup, and graphical smoke coverage. Game/runtime/planner services remain future work.
 - **P005** — **Completed** — Add typed CLI subcommand parsing, static help/version/about output, shared GUI dispatch, and native CI coverage to the existing executable.
-- **P006** — Establish versioned TOML configuration and SQLite data migrations.
+- **P006** — **In validation** — Implement versioned TOML configuration and transactional SQLite storage. Hosted GUI/CLI regression and CI checks are pending the direct `main` push.
 - **P007** — Define portable domain models and capability-oriented platform interfaces.
 - **P008** — Add application diagnostics, structured local logging, and support-report redaction rules.
 - **P009** — Create the `endfield-unixd` daemon skeleton and lifecycle contract.

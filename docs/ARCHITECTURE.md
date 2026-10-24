@@ -2,13 +2,13 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence. Platform adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
                                   │                             │
                                   ├──> platform adapters        └──> C17 planner
-                                  ├──> storage and IPC
+                                  ├──> storage crate and IPC
                                   └──> session daemon client
 ```
 
@@ -123,6 +123,16 @@ The app package uses pinned Clap 4.5.53, whose crate metadata declares Rust 1.74
 The implemented command model contains general and command-specific help, version, about, and GUI startup. Help documents only implemented commands. About reads its version, purpose, license, and repository from Cargo package metadata and static development-stage text; it does not probe hardware, runtimes, or games. The future game, runtime, optimize, benchmark, diagnose, service, and profile namespaces are documented as planned and are not parsed as operational commands.
 
 Static CLI commands run before GTK or libadwaita initialization. Both no-argument startup and `gui` call the same existing `start_gui` boundary. The CLI model has no GTK widget types. As future services are introduced, both frontends must call the same Rust application services rather than duplicating Wine/Proton, optimizer, benchmark, or game-management behavior. Exit statuses remain 0 for success, 2 for invalid arguments, 69 for GUI startup failure, and 74 for standard-stream write failure.
+
+## P006 Rust storage crate
+
+The `endfield-unix-storage` workspace library is independent of the application executable and the `optimizer-ffi` crate. It depends on Serde/TOML for typed configuration and rusqlite for SQLite; it does not depend on GTK, libadwaita, Relm4, Wine/Proton, or the C optimizer. Application services can construct `AppPaths`, `ConfigStore`, `Database`, or the combined `Storage` facade. No global mutable connection is exposed.
+
+Linux path resolution follows XDG configuration, data, and cache bases and namespaces them under `endfield-unix`. The v1 config stores only UI theme/language preferences. Theme defaults to `system`; language defaults to `system`. Persistence does not mean that GTK has consumed a preference: the current Settings page remains a placeholder. Static CLI commands continue to resolve help, version, and about without discovering paths or creating storage.
+
+Config saves validate and serialize before filesystem changes, take an exclusive sidecar lock, compare the exact loaded revision, write a mode-0600 temporary file in the same directory, synchronize it, then atomically rename it into place. A stale snapshot returns a conflict. The SQLite service serializes access to its connection with a mutex, enables foreign keys, applies a bounded busy timeout, and uses `PRAGMA user_version` as the sole schema-version authority. Migration v1 creates only the `storage_metadata` table in a transaction. The full format and failure behavior are in [STORAGE.md](STORAGE.md).
+
+Storage methods are synchronous and may block on filesystem or SQLite work. GUI callers must invoke them through a worker or another off-main-thread service boundary; P006 does not initialize persistence in the GTK startup path.
 
 ## Compatibility policy
 

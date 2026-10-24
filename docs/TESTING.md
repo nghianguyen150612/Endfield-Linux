@@ -99,3 +99,16 @@ The CLI integration tests run without display variables and assert that help/ver
 - `cargo build --locked --workspace` and `cargo metadata --locked --no-deps --format-version 1` — passed in GitHub Actions; metadata reports exactly one application binary, `endfield-unix`.
 - GCC and Clang C17 ABI workflow jobs — passed. Local GCC C17 ABI and sanitizer tests also passed; Clang is not installed locally.
 - GitHub Actions — [Rust CI run for commit `cffa8a1`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/39948830829) completed successfully.
+
+## P006 validation record — 2026-10-24
+
+- Rust toolchain — pinned Rust 1.85.0 (`rustc 1.85.0`). Direct storage dependencies are pinned; full Cargo metadata reported no declared dependency MSRV above 1.85.0. Twenty-three resolved packages do not publish a `rust-version` declaration.
+- `cargo fmt --all -- --check` — passed after formatting the new crate.
+- `cargo check --locked --workspace --all-targets` — passed using temporary pkg-config metadata because this environment has no GTK4/libadwaita development packages. This verifies Rust type checking but does not verify native GTK linking.
+- `cargo clippy --locked --workspace --all-targets -- -D warnings` — passed with the same temporary pkg-config metadata.
+- `cargo test --locked -p endfield-unix-storage` — passed: 26 tests across unit tests, configuration contracts, migration contracts, and recovery tests. Coverage includes injected pre-rename failure, simultaneous first writers, stale-write conflict, XDG paths, permission errors, app-directory and file symlink refusal, SQLite transaction rollback, migration rollback, future schemas, corruption preservation, foreign-key enforcement, metadata persistence, and bounded lock waits.
+- `cargo test --locked -p optimizer-ffi` — passed: 13 unit and integration tests. The public C header and C17 ABI were not changed.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed.
+- `cargo metadata --locked --format-version 1` — passed; the workspace contains exactly one application binary, `endfield-unix`. Dependency metadata was checked for declared Rust versions through 1.85.0.
+- The full Rust workspace test/build and graphical smoke test cannot be linked or run in this container because GTK4/libadwaita development libraries and Xvfb are absent. Clang is also unavailable locally. The existing hosted workflow retains these checks; its P006 run is pending the direct push to `main`.
+- Power-loss recovery was not tested. Hosted CI status will be recorded after the workflow completes.

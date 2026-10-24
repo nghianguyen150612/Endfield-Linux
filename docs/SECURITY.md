@@ -1,6 +1,6 @@
 # Security, privacy, and recovery
 
-P001 sets requirements; it does not claim implementation or a security audit.
+P001 sets the baseline requirements. P006 implements the storage protections below; this is not a broader security audit.
 
 ## Least privilege and trust boundaries
 
@@ -21,6 +21,8 @@ The daemon must tolerate malformed or stale client messages, disconnects, GUI cl
 Keep telemetry, sessions, benchmark results, and configuration local by default. Do not upload telemetry without explicit informed consent. Collect only data needed for a displayed feature. Never request unrelated credentials. Provide a user-visible way to inspect and remove application-owned records; cleanup must not remove game data or prefixes without explicit selection and confirmation.
 
 Configuration and state updates should be versioned and recoverable. Use atomic writes where practical, validate migrations, and preserve a recoverable copy before destructive transformations. Protect files with user-only permissions when they contain sensitive local information.
+
+P006 creates Linux app-owned config/data directories with mode `0700` and TOML, lock, temporary, and database files with mode `0600`. It refuses final-component symlinks and non-regular config/database paths, uses same-directory atomic TOML replacement, and does not automatically delete or recreate unreadable, unsupported, or corrupt data. Its SQLite v1 migration is transactional. P006 has no database backup feature; copying an active WAL database file alone is not a consistent backup.
 
 ## Runtime and prefix safety
 
