@@ -1,4 +1,5 @@
 use std::io::{Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -11,7 +12,7 @@ use endfield_unix_ipc::{
 
 #[test]
 fn real_unix_socket_client_ping_status_malformed_request_and_reconnect() {
-    let runtime = tempfile::tempdir().expect("isolated runtime directory");
+    let runtime = secure_runtime_directory();
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("runtime paths");
     let server = LocalSocketServer::bind_at(paths.clone()).expect("bind local service");
     let shutdown = server.shutdown_handle();
@@ -89,7 +90,7 @@ fn real_unix_socket_client_ping_status_malformed_request_and_reconnect() {
 #[test]
 fn client_rejects_mismatched_response_id_type_and_protocol() {
     for mismatch in 0..3 {
-        let runtime = tempfile::tempdir().expect("isolated runtime directory");
+        let runtime = secure_runtime_directory();
         let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("runtime paths");
         paths
             .prepare_server_directory()
@@ -140,7 +141,7 @@ fn client_rejects_mismatched_response_id_type_and_protocol() {
 
 #[test]
 fn client_enforces_one_overall_request_deadline() {
-    let runtime = tempfile::tempdir().expect("isolated runtime directory");
+    let runtime = secure_runtime_directory();
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("runtime paths");
     paths
         .prepare_server_directory()
@@ -164,7 +165,7 @@ fn client_enforces_one_overall_request_deadline() {
 
 #[test]
 fn server_deadline_is_not_extended_by_a_client_trickling_frame_bytes() {
-    let runtime = tempfile::tempdir().expect("isolated runtime directory");
+    let runtime = secure_runtime_directory();
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("runtime paths");
     let server = LocalSocketServer::bind_at(paths.clone()).expect("bind local service");
     let socket_path = paths.socket_path().to_path_buf();
@@ -209,4 +210,11 @@ fn raw_exchange(socket_path: &std::path::Path, payload: &[u8]) -> IpcResponse {
     write_frame(&mut stream, payload).expect("write raw protocol request");
     let bytes = read_frame(&mut stream).expect("read protocol response");
     serde_json::from_slice(&bytes).expect("decode protocol response")
+}
+
+fn secure_runtime_directory() -> tempfile::TempDir {
+    let runtime = tempfile::tempdir().expect("isolated runtime directory");
+    std::fs::set_permissions(runtime.path(), std::fs::Permissions::from_mode(0o700))
+        .expect("restrict runtime directory permissions");
+    runtime
 }

@@ -1,5 +1,5 @@
 use std::fs;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::net::UnixListener;
 
 use endfield_unix_ipc::{LocalSocketServer, RuntimePaths, SOCKET_MODE, peer_uid_is_authorized};
@@ -13,7 +13,7 @@ fn uid_policy_requires_exact_match_and_does_not_add_root_as_an_exception() {
 
 #[test]
 fn socket_namespace_and_socket_permissions_are_private() {
-    let runtime = tempfile::tempdir().expect("runtime directory");
+    let runtime = secure_runtime_directory();
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("validated runtime");
     let server = LocalSocketServer::bind_at(paths.clone()).expect("bind server");
     let directory_mode = fs::symlink_metadata(paths.application_directory())
@@ -33,7 +33,7 @@ fn socket_namespace_and_socket_permissions_are_private() {
 
 #[test]
 fn a_second_instance_cannot_replace_the_active_socket() {
-    let runtime = tempfile::tempdir().expect("runtime directory");
+    let runtime = secure_runtime_directory();
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("validated runtime");
     let server = LocalSocketServer::bind_at(paths.clone()).expect("first instance binds");
     let before = fs::symlink_metadata(paths.socket_path()).expect("first socket");
@@ -45,7 +45,7 @@ fn a_second_instance_cannot_replace_the_active_socket() {
 
 #[test]
 fn regular_files_and_symlinks_at_socket_path_fail_closed() {
-    let runtime = tempfile::tempdir().expect("runtime directory");
+    let runtime = secure_runtime_directory();
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("validated runtime");
     paths
         .prepare_server_directory()
@@ -62,7 +62,7 @@ fn regular_files_and_symlinks_at_socket_path_fail_closed() {
 
 #[test]
 fn stale_socket_recovery_requires_a_same_uid_socket_with_no_live_kernel_entry() {
-    let runtime = tempfile::tempdir().expect("runtime directory");
+    let runtime = secure_runtime_directory();
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("validated runtime");
     paths
         .prepare_server_directory()
@@ -79,7 +79,7 @@ fn stale_socket_recovery_requires_a_same_uid_socket_with_no_live_kernel_entry() 
 
 #[test]
 fn runtime_directory_symlink_is_rejected() {
-    let runtime = tempfile::tempdir().expect("runtime directory");
+    let runtime = secure_runtime_directory();
     let alias = runtime.path().join("alias");
     std::os::unix::fs::symlink(runtime.path(), &alias).expect("runtime alias");
     assert!(RuntimePaths::for_runtime_directory(alias).is_err());
@@ -87,7 +87,7 @@ fn runtime_directory_symlink_is_rejected() {
 
 #[test]
 fn client_refuses_an_unsafe_application_directory_or_socket_destination() {
-    let runtime = tempfile::tempdir().expect("runtime directory");
+    let runtime = secure_runtime_directory();
     let other = tempfile::tempdir().expect("symlink target");
     let paths = RuntimePaths::for_runtime_directory(runtime.path()).expect("validated runtime");
     std::os::unix::fs::symlink(other.path(), paths.application_directory())
@@ -102,4 +102,11 @@ fn client_refuses_an_unsafe_application_directory_or_socket_destination() {
     let _listener = UnixListener::bind(&target).expect("socket target");
     std::os::unix::fs::symlink(target, paths.socket_path()).expect("socket symlink");
     assert!(paths.validate_client_socket().is_err());
+}
+
+fn secure_runtime_directory() -> tempfile::TempDir {
+    let runtime = tempfile::tempdir().expect("runtime directory");
+    fs::set_permissions(runtime.path(), fs::Permissions::from_mode(0o700))
+        .expect("restrict runtime directory permissions");
+    runtime
 }
