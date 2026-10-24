@@ -11,6 +11,10 @@ pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_INVALID_ARGUMENTS: u8 = 2;
 pub const EXIT_GUI_STARTUP_ERROR: u8 = 69;
 pub const EXIT_IO_ERROR: u8 = 74;
+pub const EXIT_IPC_UNAVAILABLE: u8 = 75;
+pub const EXIT_IPC_PROTOCOL_ERROR: u8 = 76;
+pub const EXIT_IPC_AUTHENTICATION_ERROR: u8 = 77;
+pub const EXIT_IPC_REQUEST_REJECTED: u8 = 65;
 
 #[derive(Debug)]
 pub enum CliError {
@@ -18,6 +22,7 @@ pub enum CliError {
     Output(io::Error),
     GuiStartup(GuiStartupError),
     Diagnostics(endfield_unix_diagnostics::DiagnosticsError),
+    Ipc(endfield_unix_ipc::ClientError),
 }
 
 impl CliError {
@@ -27,6 +32,22 @@ impl CliError {
             Self::Output(_) => EXIT_IO_ERROR,
             Self::GuiStartup(_) => EXIT_GUI_STARTUP_ERROR,
             Self::Diagnostics(_) => EXIT_IO_ERROR,
+            Self::Ipc(error) => match error {
+                endfield_unix_ipc::ClientError::RuntimeDirectoryUnavailable
+                | endfield_unix_ipc::ClientError::UnsafeSocketPath
+                | endfield_unix_ipc::ClientError::DaemonUnavailable
+                | endfield_unix_ipc::ClientError::ConnectionTimeout
+                | endfield_unix_ipc::ClientError::RequestTimeout
+                | endfield_unix_ipc::ClientError::ServiceShuttingDown
+                | endfield_unix_ipc::ClientError::ServerBusy
+                | endfield_unix_ipc::ClientError::UnsupportedPlatform => EXIT_IPC_UNAVAILABLE,
+                endfield_unix_ipc::ClientError::AuthenticationDenied => {
+                    EXIT_IPC_AUTHENTICATION_ERROR
+                }
+                endfield_unix_ipc::ClientError::ProtocolMismatch
+                | endfield_unix_ipc::ClientError::InvalidResponse => EXIT_IPC_PROTOCOL_ERROR,
+                endfield_unix_ipc::ClientError::RequestRejected => EXIT_IPC_REQUEST_REJECTED,
+            },
         }
     }
 }
@@ -38,6 +59,7 @@ impl fmt::Display for CliError {
             Self::Output(_) => formatter.write_str("failed to write command output."),
             Self::GuiStartup(error) => error.fmt(formatter),
             Self::Diagnostics(error) => fmt::Display::fmt(error, formatter),
+            Self::Ipc(error) => fmt::Display::fmt(error, formatter),
         }
     }
 }
@@ -49,6 +71,7 @@ impl Error for CliError {
             Self::Output(error) => Some(error),
             Self::GuiStartup(error) => Some(error),
             Self::Diagnostics(error) => Some(error),
+            Self::Ipc(error) => Some(error),
         }
     }
 }
@@ -118,6 +141,73 @@ where
                 .map_err(CliError::Diagnostics)?;
             write_report_success(stdout, &path).map_err(CliError::Output)
         }
+        Command::ServicePing => {
+            let client =
+                endfield_unix_ipc::Client::from_environment(std::time::Duration::from_secs(2))
+                    .map_err(CliError::Ipc)?;
+            client.ping().map_err(CliError::Ipc)?;
+            writeln!(stdout, "Pong from endfield-unixd.").map_err(CliError::Output)
+        }
+        Command::ServiceStatus => {
+            let client =
+                endfield_unix_ipc::Client::from_environment(std::time::Duration::from_secs(2))
+                    .map_err(CliError::Ipc)?;
+            let status = client.status().map_err(CliError::Ipc)?;
+            writeln!(stdout, "Daemon: {}", lifecycle_name(status.lifecycle))
+                .map_err(CliError::Output)?;
+            writeln!(stdout, "IPC: connected").map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "Protocol: {}.{}",
+                endfield_unix_ipc::SUPPORTED_PROTOCOL.major,
+                endfield_unix_ipc::SUPPORTED_PROTOCOL.minor
+            )
+            .map_err(CliError::Output)?;
+            writeln!(stdout, "Service: {}", status.service).map_err(CliError::Output)?;
+            writeln!(stdout, "Daemon version: {}", status.daemon_package_version)
+                .map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "Application version: {}",
+                status.application_package_version
+            )
+            .map_err(CliError::Output)?;
+            let implemented = status
+                .implemented_capabilities
+                .iter()
+                .map(|capability| match capability {
+                    endfield_unix_ipc::ImplementedCapability::LocalIpc => "local_ipc",
+                    endfield_unix_ipc::ImplementedCapability::Ping => "ping",
+                    endfield_unix_ipc::ImplementedCapability::Status => "status",
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(stdout, "Implemented capabilities: {implemented}")
+                .map_err(CliError::Output)?;
+            let unimplemented = status
+                .unimplemented_capabilities
+                .iter()
+                .map(|capability| match capability {
+                    endfield_unix_ipc::UnimplementedCapability::Telemetry => "telemetry",
+                    endfield_unix_ipc::UnimplementedCapability::GameSessionSupervision => {
+                        "game_session_supervision"
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(stdout, "Not implemented: {unimplemented}").map_err(CliError::Output)?;
+            Ok(())
+        }
+    }
+}
+
+fn lifecycle_name(state: endfield_unix_ipc::DaemonLifecycle) -> &'static str {
+    match state {
+        endfield_unix_ipc::DaemonLifecycle::Starting => "starting",
+        endfield_unix_ipc::DaemonLifecycle::Running => "running",
+        endfield_unix_ipc::DaemonLifecycle::Stopping => "stopping",
+        endfield_unix_ipc::DaemonLifecycle::Stopped => "stopped",
+        endfield_unix_ipc::DaemonLifecycle::Failed => "failed",
     }
 }
 

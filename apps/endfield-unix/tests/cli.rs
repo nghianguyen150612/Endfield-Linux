@@ -21,9 +21,8 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("endfield-unix"));
     assert!(stdout.contains("native GTK4 desktop application"));
     assert!(stdout.contains("diagnose report --output PATH"));
-    assert!(stdout.contains(
-        "Hardware probes, telemetry, game/runtime services, and the daemon are under development."
-    ));
+    assert!(stdout.contains("service ping"));
+    assert!(stdout.contains("service status"));
     assert!(!stdout.contains("  game "));
     assert!(output.stderr.is_empty());
 }
@@ -43,12 +42,15 @@ fn help_aliases_and_command_are_equivalent() {
 fn command_specific_help_describes_gui_and_about() {
     let gui = invoke(&["help", "gui"]);
     let about = invoke(&["help", "about"]);
+    let service = invoke(&["help", "service"]);
 
     assert_eq!(gui.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&gui.stdout).contains("same startup path"));
     assert!(String::from_utf8_lossy(&gui.stdout).contains("graphical session"));
     assert_eq!(about.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&about.stdout).contains("static purpose, version"));
+    assert_eq!(service.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&service.stdout).contains("authenticated local Ping/Pong"));
 }
 
 #[test]
@@ -153,7 +155,12 @@ fn static_commands_do_not_create_application_directories_or_logs() {
     let state = directory.path().join("state");
     let config = directory.path().join("config");
     let data = directory.path().join("data");
-    for arguments in [&["--help"][..], &["--version"][..], &["about"][..]] {
+    for arguments in [
+        &["--help"][..],
+        &["--version"][..],
+        &["about"][..],
+        &["help", "service"][..],
+    ] {
         let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unix"));
         command
             .env_clear()

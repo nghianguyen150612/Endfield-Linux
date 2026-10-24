@@ -51,6 +51,11 @@ enum SubcommandArgs {
         #[command(subcommand)]
         command: DiagnoseArgs,
     },
+    /// Query the authenticated local daemon.
+    Service {
+        #[command(subcommand)]
+        command: ServiceArgs,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -66,10 +71,19 @@ enum DiagnoseArgs {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum ServiceArgs {
+    /// Complete an authenticated Ping/Pong exchange with the daemon.
+    Ping,
+    /// Print validated lifecycle and capability status from the daemon.
+    Status,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum HelpTopicArg {
     Gui,
     About,
+    Service,
 }
 
 /// Parses operating-system arguments into a typed command without exiting the process.
@@ -110,11 +124,18 @@ where
         Some(SubcommandArgs::Help { topic }) => Command::Help(topic.map(|topic| match topic {
             HelpTopicArg::Gui => HelpTopic::Gui,
             HelpTopicArg::About => HelpTopic::About,
+            HelpTopicArg::Service => HelpTopic::Service,
         })),
         Some(SubcommandArgs::About) => Command::About,
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Report { output, overwrite },
         }) => Command::DiagnoseReport { output, overwrite },
+        Some(SubcommandArgs::Service {
+            command: ServiceArgs::Ping,
+        }) => Command::ServicePing,
+        Some(SubcommandArgs::Service {
+            command: ServiceArgs::Status,
+        }) => Command::ServiceStatus,
     })
 }
 
@@ -188,6 +209,20 @@ mod tests {
     #[test]
     fn help_command_accepts_about_topic() {
         assert_command(&["help", "about"], Command::Help(Some(HelpTopic::About)));
+    }
+
+    #[test]
+    fn help_command_accepts_service_topic() {
+        assert_command(
+            &["help", "service"],
+            Command::Help(Some(HelpTopic::Service)),
+        );
+    }
+
+    #[test]
+    fn service_ping_and_status_are_typed_headless_commands() {
+        assert_command(&["service", "ping"], Command::ServicePing);
+        assert_command(&["service", "status"], Command::ServiceStatus);
     }
 
     #[test]

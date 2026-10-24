@@ -20,8 +20,8 @@ The daemon provides an independently running lifecycle process. It can be
 stopped with SIGTERM or Ctrl+C (SIGINT). Running without options is the same
 as --foreground; the process stays attached to its supervisor and terminal.
 
-This milestone implements lifecycle management and local diagnostics only.
-It does not provide IPC, telemetry, game-session tracking, or game management.
+The daemon provides authenticated, read-only local IPC for ping and status.
+Telemetry, game-session tracking, and game management are not implemented.
 No systemd unit is installed or enabled by this application.
 ";
 

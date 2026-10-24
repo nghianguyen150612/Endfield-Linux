@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, probing hardware, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers.
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, probing hardware, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
 
 ## Available commands
 
@@ -14,8 +14,10 @@
 | `endfield-unix --version` | Print the package version | No |
 | `endfield-unix about` | Print static application and repository metadata | No |
 | `endfield-unix diagnose report --output PATH` | Write a versioned, privacy-safe JSON report to the explicit path | No |
+| `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
+| `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
 
-Help lists only implemented commands. Game, runtime, optimization, benchmarking, daemon, and hardware-probe services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Game, runtime, optimization, benchmarking, and hardware-probe services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -34,8 +36,9 @@ Daemon exit statuses are `0` for successful signal-driven shutdown, `2` for
 invalid arguments, `70` for signal, lifecycle, worker, worker-timeout, or
 cleanup failure, and `74` for help/version output I/O failure. Optional
 diagnostic write failures produce a sanitized warning but retain status `0` on
-otherwise orderly shutdown. The daemon has no IPC, telemetry,
-session tracking, service-management command, or systemd installation in P009.
+otherwise orderly shutdown. The daemon's P010 IPC provides only read-only
+Ping and Status; telemetry, session tracking, service-management commands,
+and systemd installation remain unimplemented.
 
 Examples:
 
@@ -46,6 +49,8 @@ endfield-unix about
 endfield-unix diagnose report --output ./support-report.json
 endfield-unix diagnose report --output ./support-report.json --overwrite
 endfield-unix help gui
+endfield-unix service ping
+endfield-unix service status
 endfield-unix gui
 ```
 
@@ -55,7 +60,7 @@ Clap parses OS-string arguments through its non-terminating `try_get_matches_fro
 
 Both default startup and the `gui` command invoke the existing `start_gui()` boundary. No CLI command constructs GTK widgets or accesses UI types. The report command calls the diagnostics library directly; it does not initialize GTK or the logger, create application state directories, run hardware probes, or contact the network. Reports contain static application/component metadata and validated allowlisted event history when available. The command writes only to the requested output file, refuses symlink destinations, uses mode `0600`, and refuses an existing file unless `--overwrite` is set.
 
-Output writers can be injected through `run_with_io` for deterministic dispatch tests. Output and diagnostic write failures are handled without panicking, including closed pipes.
+Output writers can be injected through `run_with_io` for deterministic dispatch tests. Output and diagnostic write failures are handled without panicking, including closed pipes. The service commands use the shared `endfield-unix-ipc` client, enforce a 2-second total deadline, validate the response envelope and status fields, and never initialize GTK or auto-start `endfield-unixd`.
 
 ## Exit statuses
 
@@ -65,22 +70,27 @@ Output writers can be injected through `run_with_io` for deterministic dispatch 
 | `2` | Invalid arguments, unknown command, unsupported argument combination, or extra argument |
 | `69` | GUI startup failed, including unavailable graphical session |
 | `74` | Standard output or standard error write failed |
+| `75` | Local daemon unavailable, connection/request timeout, shutdown, or saturation |
+| `76` | Protocol mismatch or invalid daemon response |
+| `77` | Socket permission or peer authentication denied |
+| `65` | Daemon rejected an unsupported operation |
 
 Status `74` also covers report destination and file-write failures. Invalid
-syntax or an unsupported report option remains status `2`.
+syntax or an unsupported report option remains status `2`. IPC failures use
+the statuses above rather than the GUI startup status `69`.
 
 ## Planned command namespaces
 
-The following service namespaces are reserved for later work. The `diagnose`
+The following namespaces are reserved for later work. The `diagnose`
 namespace currently implements only the safe report export described above;
-hardware diagnostics remain unimplemented.
+hardware diagnostics remain unimplemented. `service` currently implements
+only `ping` and `status`.
 
 ```text
 endfield-unix game ...
 endfield-unix runtime ...
 endfield-unix optimize ...
 endfield-unix benchmark ...
-endfield-unix service ...
 endfield-unix profile ...
 ```
 

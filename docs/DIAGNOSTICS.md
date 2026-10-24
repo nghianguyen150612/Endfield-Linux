@@ -171,8 +171,10 @@ top-level fields are:
 - `application`: fixed name, package version, and development/release status.
 - `components`: truthful availability for the application, CLI, GUI,
   diagnostics, storage, P007 models, optimizer skeleton, hardware probes,
-  telemetry, and daemon. The daemon status is `partial`: lifecycle support is
-  implemented, while IPC, telemetry, and session tracking are unavailable.
+  telemetry, and daemon. The daemon status is `partial`: authenticated IPC,
+  Ping, Status, and lifecycle support work, while telemetry and session
+  tracking are unavailable. The report does not query whether a daemon is
+  currently running.
 - `log_history`: available/missing/unavailable state, omitted corrupt record
   count, and `ERROR`/`WARN`/`INFO`/`DEBUG`/`TRACE` counts.
 - `diagnostics`: up to the most recent 128 validated, allowlisted events.
@@ -212,7 +214,8 @@ telemetry are unimplemented.
 `endfield-unixd` depends on this library without GTK and does not install the
 GUI's global tracing subscriber. It records only the fixed daemon lifecycle
 events through `LogHandle`, sharing the same bounded worker, private paths,
-retention, and cross-process lock. At shutdown it uses `shutdown_bounded()`;
+retention, and cross-process lock. P010 deliberately adds no per-ping or
+peer-identity events. At shutdown it uses `shutdown_bounded()`;
 the queue-drain timeout is bounded, but a filesystem operation already in
 progress cannot be forcibly canceled. Logging remains optional, and failure
 emits one sanitized notice without failing daemon lifecycle cleanup. Neither
@@ -228,5 +231,7 @@ mapping, operation outcomes, line-size rejection, rotation, age/count
 retention, permissions, symlink refusal, concurrent writers, truncated and
 oversized records, worker shutdown, report export, and temporary-file cleanup.
 P009 adds daemon event serialization and component checks, support-report
-availability compatibility, and real headless lifecycle integration. Workspace
-and hosted CI results are recorded in [TESTING.md](TESTING.md).
+availability compatibility, and real headless lifecycle integration. P010
+retains the schema-version-1 support report while updating the meaning of the
+daemon's `partial` availability. Workspace and hosted CI results are recorded
+in [TESTING.md](TESTING.md).

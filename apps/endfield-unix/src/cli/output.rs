@@ -12,6 +12,7 @@ pub fn write_help<W: Write>(topic: Option<HelpTopic>, output: &mut W) -> io::Res
         None => write_general_help(output),
         Some(HelpTopic::Gui) => write_gui_help(output),
         Some(HelpTopic::About) => write_about_help(output),
+        Some(HelpTopic::Service) => write_service_help(output),
     }
 }
 
@@ -49,6 +50,11 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
         output,
         "  diagnose report --output PATH  Write a privacy-safe support report"
     )?;
+    writeln!(output, "  service ping  Verify authenticated daemon IPC")?;
+    writeln!(
+        output,
+        "  service status  Show validated daemon lifecycle status"
+    )?;
     writeln!(output, "Options:")?;
     writeln!(output, "  -h, --help    Show this help message")?;
     writeln!(output, "  --version     Show the application version\n")?;
@@ -62,7 +68,7 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "Hardware probes, telemetry, game/runtime services, and the daemon are under development."
+        "The service commands require an independently running endfield-unixd daemon."
     )
 }
 
@@ -81,6 +87,22 @@ fn write_about_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
         "Display the application's static purpose, version, development stage, license, and repository metadata."
+    )
+}
+
+fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
+    writeln!(output, "Usage: {APPLICATION_NAME} service <ping|status>\n")?;
+    writeln!(
+        output,
+        "Ping verifies a real authenticated local Ping/Pong exchange."
+    )?;
+    writeln!(
+        output,
+        "Status prints lifecycle and implemented component capabilities."
+    )?;
+    writeln!(
+        output,
+        "The commands never start the daemon or initialize GTK."
     )
 }
 

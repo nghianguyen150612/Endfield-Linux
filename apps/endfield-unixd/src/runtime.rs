@@ -6,6 +6,7 @@ use endfield_unix_diagnostics::{
 };
 
 use crate::errors::{DaemonError, OptionalDiagnosticsFailure};
+use crate::ipc_service::IpcService;
 use crate::lifecycle::{FailureReason, LifecycleState, ShutdownCoordinator};
 use crate::signals::SignalListener;
 
@@ -52,36 +53,77 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
 
     record(&log_handle, Severity::Info, EventCode::DaemonStarting);
 
-    let startup_state = coordinator.snapshot()?.state;
-    match startup_state {
-        LifecycleState::Starting => match coordinator.mark_running() {
-            Ok(()) => record(&log_handle, Severity::Info, EventCode::DaemonRunning),
-            Err(_) if coordinator.snapshot()?.state == LifecycleState::Stopping => {}
-            Err(error) => {
+    let mut ipc_service = match IpcService::start(coordinator.clone()) {
+        Ok(service) => Some(service),
+        Err(error) => match coordinator.snapshot()?.state {
+            LifecycleState::Stopping => None,
+            _ => {
                 record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
                 let _ = coordinator.fail(FailureReason::WorkerStartup);
                 stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
                 close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
-                return Err(error.into());
+                let _ = coordinator.wait_for_workers(policy.worker_timeout);
+                return Err(error);
             }
         },
+    };
+
+    let startup_state = coordinator.snapshot()?.state;
+    match startup_state {
+        LifecycleState::Starting => {
+            if let Err(error) = coordinator.mark_running() {
+                if coordinator.snapshot()?.state != LifecycleState::Stopping {
+                    record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
+                    let _ = coordinator.fail(FailureReason::WorkerStartup);
+                    if let Some(service) = ipc_service.as_mut() {
+                        let _ = service.shutdown(policy.worker_timeout);
+                    }
+                    stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
+                    close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+                    let _ = coordinator.wait_for_workers(policy.worker_timeout);
+                    return Err(error.into());
+                }
+            }
+            if coordinator.snapshot()?.state == LifecycleState::Running {
+                if let Some(service) = ipc_service.as_mut() {
+                    if let Err(error) = service.activate() {
+                        record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
+                        let _ = coordinator.fail(FailureReason::WorkerStartup);
+                        let _ = service.shutdown(policy.worker_timeout);
+                        stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
+                        close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+                        let _ = coordinator.wait_for_workers(policy.worker_timeout);
+                        return Err(error);
+                    }
+                }
+                record(&log_handle, Severity::Info, EventCode::DaemonRunning);
+            }
+        }
         LifecycleState::Stopping => {}
         LifecycleState::Failed(_) => {
             record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
+            if let Some(service) = ipc_service.as_mut() {
+                let _ = service.shutdown(policy.worker_timeout);
+            }
             stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
             close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+            let _ = coordinator.wait_for_workers(policy.worker_timeout);
             return Err(DaemonError::WorkerFailure);
         }
         LifecycleState::Running | LifecycleState::Stopped => {
             let _ = coordinator.fail(FailureReason::WorkerStartup);
+            if let Some(service) = ipc_service.as_mut() {
+                let _ = service.shutdown(policy.worker_timeout);
+            }
             stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
             close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+            let _ = coordinator.wait_for_workers(policy.worker_timeout);
             return Err(DaemonError::WorkerStartup);
         }
     }
 
     let snapshot = coordinator.wait_for_shutdown_or_failure()?;
-    let failed = matches!(snapshot.state, LifecycleState::Failed(_));
+    let mut failed = matches!(snapshot.state, LifecycleState::Failed(_));
     if failed {
         record(&log_handle, Severity::Error, EventCode::DaemonRuntimeFailed);
     } else {
@@ -90,14 +132,29 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
             Severity::Info,
             EventCode::DaemonShutdownRequested,
         );
-        record(&log_handle, Severity::Info, EventCode::DaemonStopped);
     }
 
-    stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
+    if let Some(service) = ipc_service.as_mut() {
+        if let Err(error) = service.shutdown(policy.worker_timeout) {
+            failed = true;
+            let reason = if matches!(error, DaemonError::ShutdownTimeout) {
+                FailureReason::ShutdownTimeout
+            } else if matches!(error, DaemonError::ResourceCleanup) {
+                FailureReason::ResourceCleanup
+            } else {
+                FailureReason::WorkerFailure
+            };
+            let _ = coordinator.fail(reason);
+        }
+    }
 
-    close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+    if let Err(error) = close_signals(&mut signals, &coordinator, policy.worker_timeout) {
+        stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
+        return Err(error);
+    }
 
     if let Err(error) = coordinator.wait_for_workers(policy.worker_timeout) {
+        stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
         match error {
             crate::lifecycle::LifecycleError::ShutdownTimeout => {
                 let _ = coordinator.fail(FailureReason::ShutdownTimeout);
@@ -111,8 +168,12 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
     }
 
     if failed {
+        record(&log_handle, Severity::Error, EventCode::DaemonRuntimeFailed);
+        stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
         return Err(DaemonError::WorkerFailure);
     }
+    record(&log_handle, Severity::Info, EventCode::DaemonStopped);
+    stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
     coordinator.complete_shutdown()?;
     Ok(())
 }

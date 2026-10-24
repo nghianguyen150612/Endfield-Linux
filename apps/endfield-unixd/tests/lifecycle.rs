@@ -1,5 +1,7 @@
 use std::fs;
 use std::io::Read;
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
@@ -276,6 +278,7 @@ struct TestDaemon {
     child: Child,
     _directory: TempDir,
     state_home: PathBuf,
+    runtime_dir: PathBuf,
 }
 
 #[cfg(target_os = "linux")]
@@ -291,6 +294,10 @@ impl TestDaemon {
     fn start_inner(unavailable_diagnostics: bool) -> Self {
         let directory = tempfile::tempdir().expect("isolated daemon test directory");
         let state_home = directory.path().join("state");
+        let runtime_dir = directory.path().join("runtime");
+        fs::create_dir(&runtime_dir).expect("runtime directory");
+        fs::set_permissions(&runtime_dir, fs::Permissions::from_mode(0o700))
+            .expect("private runtime directory");
         if unavailable_diagnostics {
             fs::write(&state_home, b"not a directory").expect("block log directory creation");
         }
@@ -298,6 +305,7 @@ impl TestDaemon {
             .env_clear()
             .env("HOME", directory.path().join("home"))
             .env("XDG_STATE_HOME", &state_home)
+            .env("XDG_RUNTIME_DIR", &runtime_dir)
             .arg("--foreground")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -308,6 +316,7 @@ impl TestDaemon {
             child,
             _directory: directory,
             state_home,
+            runtime_dir,
         }
     }
 
@@ -370,6 +379,13 @@ impl TestDaemon {
         let deadline = Instant::now() + timeout;
         loop {
             if let Some(status) = self.child.try_wait().expect("poll daemon exit") {
+                assert!(
+                    !self
+                        .runtime_dir
+                        .join("endfield-unix/endfield-unixd.sock")
+                        .exists(),
+                    "daemon removed its owned socket"
+                );
                 return status;
             }
             if Instant::now() >= deadline {

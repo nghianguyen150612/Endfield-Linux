@@ -2,13 +2,13 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the lifecycle-only daemon. Operating-system adapters, candidate generation, authenticated IPC, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel. Operating-system probes, candidate generation, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
                                   │                             │
                                   ├──> platform adapters        └──> C17 planner
-                                  ├──> storage crate and IPC
+                                  ├──> storage crate and shared IPC client
                                   └──> session daemon client
 ```
 
@@ -147,15 +147,28 @@ P009 opens no socket, starts no process, collects no telemetry, and does not ini
 
 ## P010 authenticated IPC boundary
 
-P010 will add a versioned, size-bounded, authenticated local protocol. The initial Linux transport is expected to use a per-user Unix-domain socket with filesystem permissions and peer-credential checks. It must not listen on a network interface. Validate message size, version, operation, and caller identity. Service installation and control belong to later service-manager work; P009 installs or enables no systemd unit.
+`crates/ipc` is the library-only `endfield-unix-ipc` crate. Its typed protocol
+models and response validation are independent from GTK and the daemon's
+lifecycle implementation. Linux transport uses a private per-user Unix-domain
+socket, a lock-protected socket owner, bounded JSON framing, and kernel peer
+credentials. The GTK application and CLI share the same client library; P010
+does not make GUI startup depend on the daemon. The daemon owns its bounded
+listener and handler workers through P009 completion tokens. P010 implements
+only Ping and GetStatus. See [IPC.md](IPC.md) for the wire schema, limits,
+ownership policy, shutdown behavior, and portability boundary.
 
 ## P005 typed CLI and command dispatch
 
 The app package uses pinned Clap 4.5.53, whose crate metadata declares Rust 1.74 support, below the workspace's Rust 1.85 minimum. Parsing uses Clap's non-terminating matches API and consumes `OsString` arguments. Parser errors return to the dispatcher, which owns predictable exit-status mapping and injected stdout/stderr writers. The `cli` module separates the typed command model, parser, output formatting, and dispatch.
 
-The implemented command model contains general and command-specific help, version, about, and GUI startup. Help documents only implemented commands. About reads its version, purpose, license, and repository from Cargo package metadata and static development-stage text; it does not probe hardware, runtimes, or games. The future game, runtime, optimize, benchmark, diagnose, service, and profile namespaces are documented as planned and are not parsed as operational commands.
+The implemented command model contains general and command-specific help,
+version, about, GUI startup, report export, and P010's `service ping` and
+`service status`. Help documents only implemented commands. About reads its
+version, purpose, license, and repository from Cargo package metadata and
+static development-stage text; it does not probe hardware, runtimes, or games.
+The game, runtime, optimize, benchmark, and profile namespaces remain planned.
 
-Static CLI commands run before GTK or libadwaita initialization. Both no-argument startup and `gui` call the same existing `start_gui` boundary. The CLI model has no GTK widget types. As future services are introduced, both frontends must call the same Rust application services rather than duplicating Wine/Proton, optimizer, benchmark, or game-management behavior. Exit statuses remain 0 for success, 2 for invalid arguments, 69 for GUI startup failure, and 74 for standard-stream write failure.
+Static CLI commands run before GTK or libadwaita initialization. Both no-argument startup and `gui` call the same existing `start_gui` boundary. The CLI model has no GTK widget types. `service ping` and `service status` use the shared typed IPC client and return distinct IPC exit statuses without blocking GUI startup. Future frontends must call the same Rust application services rather than duplicating Wine/Proton, optimizer, benchmark, or game-management behavior.
 
 ## P006 Rust storage crate
 

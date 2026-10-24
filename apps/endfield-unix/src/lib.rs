@@ -10,7 +10,7 @@ pub const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const APPLICATION_PURPOSE: &str = env!("CARGO_PKG_DESCRIPTION");
 pub const APPLICATION_LICENSE: &str = env!("CARGO_PKG_LICENSE");
 pub const APPLICATION_REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
-pub const APPLICATION_STAGE: &str = "Early development. The native desktop shell and static CLI are available; game, runtime, and optimization services are under development.";
+pub const APPLICATION_STAGE: &str = "Early development. The native desktop shell, typed CLI, and authenticated Linux daemon IPC are available; game, runtime, telemetry, and optimization services are under development.";
 pub const APPLICATION_ID: &str = "io.github.nghianguyen150612.endfieldunix";
 
 pub use cli::dispatch::{

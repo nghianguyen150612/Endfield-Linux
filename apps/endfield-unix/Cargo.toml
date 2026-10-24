@@ -12,10 +12,12 @@ default-run = "endfield-unix"
 [dependencies]
 clap = { version = "=4.5.53", default-features = false, features = ["derive", "error-context", "help", "std", "usage"] }
 endfield-unix-diagnostics = { path = "../../crates/diagnostics" }
+endfield-unix-ipc = { path = "../../crates/ipc" }
 adw = { package = "libadwaita", version = "=0.7.2", features = ["v1_4"] }
 gtk = { package = "gtk4", version = "=0.9.6" }
 relm4 = { version = "=0.9.1", features = ["libadwaita"] }
 
 [dev-dependencies]
+nix = { version = "=0.29.0", features = ["signal"] }
 serde_json = "=1.0.145"
 tempfile = "=3.15.0"

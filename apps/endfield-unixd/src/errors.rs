@@ -8,6 +8,7 @@ use crate::lifecycle::LifecycleError;
 pub enum DaemonError {
     SignalHandlerInitialization,
     WorkerStartup,
+    IpcStartup,
     Lifecycle(LifecycleError),
     WorkerFailure,
     ShutdownTimeout,
@@ -26,6 +27,7 @@ impl fmt::Display for DaemonError {
         formatter.write_str(match self {
             Self::SignalHandlerInitialization => "could not initialize shutdown signal handling",
             Self::WorkerStartup => "could not start an owned daemon worker",
+            Self::IpcStartup => "could not initialize the authenticated local IPC service",
             Self::Lifecycle(_) => "the daemon lifecycle transition failed",
             Self::WorkerFailure => "an owned daemon worker failed",
             Self::ShutdownTimeout => "daemon shutdown did not complete within its configured limit",

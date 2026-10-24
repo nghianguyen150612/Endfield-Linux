@@ -29,7 +29,7 @@ fn help_is_headless_deterministic_and_describes_the_current_boundary() {
         "--foreground",
         "SIGTERM",
         "Ctrl+C",
-        "does not provide IPC",
+        "authenticated, read-only local IPC",
         "No systemd unit is installed or enabled",
     ] {
         assert!(help.contains(phrase), "missing help text: {phrase}");

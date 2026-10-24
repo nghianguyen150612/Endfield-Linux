@@ -60,21 +60,25 @@ pins `signal-hook` 0.3.18; Cargo resolves `signal-hook-registry` 1.4.8 and
 the repository's Rust 1.85.0 toolchain. Foreground startup registers SIGTERM
 and SIGINT through the signal iterator, which uses a self-pipe so raw
 asynchronous handlers do not perform filesystem work, allocate, or lock the
-lifecycle. It then starts optional diagnostics and
-records `DAEMON_STARTING`. Only after signal setup succeeds does the lifecycle
-enter Running and record `DAEMON_RUNNING`. A signal received during startup
-produces a clean Starting → Stopping path without reporting Running.
+lifecycle. It starts optional diagnostics, validates the runtime root, takes
+the IPC instance lock, binds and permissions the socket, starts its bounded
+workers, and waits for listener readiness before entering Running. The
+listener begins accepting only after that transition. A signal received
+during startup produces a clean Starting → Stopping path without reporting
+Running.
 
-While idle, the main thread waits on a condition variable and the signal
-listener blocks on its signal pipe. There is no polling loop, periodic
-filesystem read, child process, hardware query, network activity, or heartbeat
-event.
+While idle, the lifecycle owner waits on a condition variable, the signal
+listener blocks on its signal pipe, and the IPC listener blocks in `poll()` on
+its socket and private shutdown wake stream. The fixed IPC workers wait on a
+bounded channel. There is no busy-spin, periodic filesystem read, child
+process, hardware query, network activity, or heartbeat event.
 
 The first SIGTERM or SIGINT changes Starting or Running to Stopping. The
-runtime records one `DAEMON_SHUTDOWN_REQUESTED`, stops accepting future work,
-queues `DAEMON_STOPPED`, drains and stops optional diagnostics, closes the
-signal listener, waits for its completion notification and registered workers,
-then transitions to Stopped.
+runtime records one `DAEMON_SHUTDOWN_REQUESTED`, wakes the IPC listener, stops
+accepting, allows or cancels active requests within their overall deadline,
+removes the socket it owns, releases the instance lock, closes the signal
+listener, and waits for registered worker completion. It then records
+`DAEMON_STOPPED`, drains optional diagnostics, and transitions to Stopped.
 Repeated signals during cleanup do not repeat cleanup. Successful handling
 returns status 0.
 
@@ -100,10 +104,10 @@ OS error strings, paths, and arbitrary details are not persisted. Logging
 failure is optional, reported once with sanitized text, and never recursively
 logged.
 
-Support reports now mark the daemon `partial`, meaning lifecycle-only daemon
-support exists while IPC, telemetry, and session tracking remain unavailable.
-The report keeps schema version 1 and does not claim that a daemon process is
-currently running; no live status check exists.
+Support reports mark the daemon `partial`: lifecycle and authenticated
+read-only IPC are implemented, while telemetry and session tracking remain
+unavailable. The report keeps schema version 1 and does not claim that a
+daemon process is currently running; it does not perform a live status check.
 
 Signal registration, worker startup, invalid lifecycle transitions, worker
 failure, shutdown timeout, and resource cleanup have typed failure paths. A
@@ -120,10 +124,11 @@ the daemon; closing the GUI does not stop an independently supervised daemon.
 This process independence alone does not guarantee that a game survives GUI
 closure; that behavior belongs to P019 session supervision.
 
-P010 can attach an authenticated local IPC service to the foreground runtime's
-startup and shutdown ownership. P010 still needs a versioned local protocol,
-peer-credential validation, permissions, message-size limits, and bounded
-connection handling; none is implied by P009.
+P010 attaches the authenticated local IPC service to the foreground runtime's
+startup and shutdown ownership. It provides protocol 1.0, Linux peer-credential
+validation, private paths and permissions, 16 KiB frames, a bounded worker
+pool, 1.5-second request deadlines, and only Ping and GetStatus. Wire contracts,
+stale socket recovery, and Linux test evidence are in [IPC.md](IPC.md).
 
 ## Validation
 
@@ -133,7 +138,9 @@ that start the real executable in isolated XDG directories, observe its
 cleanup events, and reap the child on every test path. The idle test compares
 process CPU ticks during a quiet interval. Timeout tests show that a timed-out
 worker remains active until it explicitly completes; they do not claim
-cancellation.
+cancellation. P010 adds secure path, protocol, framing, local authentication,
+real socket Ping/Status, malformed-request, timeout, reconnection, and
+subprocess shutdown tests.
 
 The qualified commands and hosted GTK, C17, and CI results are recorded in
 [TESTING.md](TESTING.md).

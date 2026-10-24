@@ -2,6 +2,7 @@
 
 pub mod cli;
 pub mod errors;
+pub mod ipc_service;
 pub mod lifecycle;
 pub mod runtime;
 pub mod signals;
