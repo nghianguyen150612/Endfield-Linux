@@ -13,15 +13,19 @@ security audit of the application.
 The diagnostics crate depends on the P007 domain crate for the existing
 `Diagnostic`, `DiagnosticCategory`, `ProbeError`, and `ProbeErrorKind` contracts.
 It has no GTK4, libadwaita, Relm4, Wine/Proton, C17, or executable dependency.
-It is library-only and forbids unsafe Rust. The application and a future
-`endfield-unixd` service can use the same event types and storage policy.
+It is library-only and forbids unsafe Rust. The application and P009's
+`endfield-unixd` process use the same event types and storage policy.
 
 `LogStore` is injectable through an explicit directory and retention policy.
 `LogWorker` owns filesystem work on a bounded background thread. The GTK
 lifecycle uses a queue with 256 event slots; event submission is nonblocking.
 After the GTK loop returns, a flush waits up to 250 ms for queued lifecycle
-events to finish. A timeout does not block the GTK event loop. Embedders that
-own a `LogWorker` can explicitly shut it down with a caller-selected timeout.
+events to finish. A timeout does not block the GTK event loop. `shutdown()`
+waits for the worker thread to exit and is appropriate when the caller accepts
+that join behavior. `shutdown_bounded()` waits for queue drain and a shutdown
+acknowledgement, then detaches the worker's final return path so it never makes
+an unbounded thread join. If filesystem I/O blocks beyond the timeout, the
+method reports a timeout; the operation itself is not cancellable.
 
 The global tracing subscriber is installed only on GUI startup. It accepts
 events only for the private `endfield_unix::lifecycle` target and the five
@@ -46,7 +50,12 @@ logging defaults to `INFO`; `DEBUG` and `TRACE` are filtered. Lowering the
 threshold cannot add arbitrary fields: events still use the typed model, and
 the tracing layer still discards all field values. P008 lifecycle events are
 application starting, GUI initialized, GUI startup failed, normal window
-closure, and diagnostics unavailable.
+closure, and diagnostics unavailable. P009 adds the fixed daemon codes
+`DAEMON_STARTING`, `DAEMON_RUNNING`, `DAEMON_SHUTDOWN_REQUESTED`,
+`DAEMON_STOPPED`, `DAEMON_STARTUP_FAILED`, and `DAEMON_RUNTIME_FAILED`. They
+require `component: daemon`, carry no operation fields, and use compiled-in
+messages. Existing event codes, field meanings, and schema version 1 are
+preserved.
 
 ## Domain diagnostic mapping
 
@@ -162,7 +171,8 @@ top-level fields are:
 - `application`: fixed name, package version, and development/release status.
 - `components`: truthful availability for the application, CLI, GUI,
   diagnostics, storage, P007 models, optimizer skeleton, hardware probes,
-  telemetry, and daemon.
+  telemetry, and daemon. The daemon status is `partial`: lifecycle support is
+  implemented, while IPC, telemetry, and session tracking are unavailable.
 - `log_history`: available/missing/unavailable state, omitted corrupt record
   count, and `ERROR`/`WARN`/`INFO`/`DEBUG`/`TRACE` counts.
 - `diagnostics`: up to the most recent 128 validated, allowlisted events.
@@ -190,7 +200,7 @@ command does not initialize GTK, start logging, create an application state
 directory, run a hardware probe, or contact the network. File and standard
 stream failures use CLI exit status `74`; invalid command syntax remains `2`.
 
-## GUI and future daemon integration
+## GUI and daemon integration
 
 The shared executable initializes the logger only after CLI parsing selects GUI
 startup. Static help, version, about, and report generation do not create log
@@ -199,11 +209,16 @@ metadata. Filesystem writes run on the diagnostics worker, not the GTK main
 loop. The Diagnostics page continues to state that hardware probes and
 telemetry are unimplemented.
 
-A future `endfield-unixd` can depend on this library without GTK. Each process
-gets its own bounded worker and subscriber installation while sharing the
-cross-process lock. Future service adapters should emit stable codes and
-registered IDs, preserve P007 category semantics, and omit provider-controlled
-free-form details at collection time.
+`endfield-unixd` depends on this library without GTK and does not install the
+GUI's global tracing subscriber. It records only the fixed daemon lifecycle
+events through `LogHandle`, sharing the same bounded worker, private paths,
+retention, and cross-process lock. At shutdown it uses `shutdown_bounded()`;
+the queue-drain timeout is bounded, but a filesystem operation already in
+progress cannot be forcibly canceled. Logging remains optional, and failure
+emits one sanitized notice without failing daemon lifecycle cleanup. Neither
+process writes periodic idle events. Future service adapters should emit stable
+codes and registered IDs, preserve P007 category semantics, and omit
+provider-controlled free-form details at collection time.
 
 ## Validation
 
@@ -212,4 +227,6 @@ diagnostics tests cover event schema validation, allowlist redaction, category
 mapping, operation outcomes, line-size rejection, rotation, age/count
 retention, permissions, symlink refusal, concurrent writers, truncated and
 oversized records, worker shutdown, report export, and temporary-file cleanup.
-Workspace and hosted CI results are recorded in [TESTING.md](TESTING.md).
+P009 adds daemon event serialization and component checks, support-report
+availability compatibility, and real headless lifecycle integration. Workspace
+and hosted CI results are recorded in [TESTING.md](TESTING.md).

@@ -17,6 +17,26 @@
 
 Help lists only implemented commands. Game, runtime, optimization, benchmarking, daemon, and hardware-probe services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
+## Companion daemon executable
+
+The workspace also builds `endfield-unixd`, a separate foreground lifecycle
+process. It does not require GTK or a display server. With no arguments it runs
+in the foreground; `--foreground` is explicit. SIGTERM and SIGINT request a
+graceful stop. The GUI does not start or stop it.
+
+| Invocation | Behavior |
+| --- | --- |
+| `endfield-unixd --help`, `-h` | Show daemon purpose, stop signals, and current limitations |
+| `endfield-unixd --version` | Print the daemon package version |
+| `endfield-unixd [--foreground]` | Run the lifecycle daemon until SIGTERM or SIGINT |
+
+Daemon exit statuses are `0` for successful signal-driven shutdown, `2` for
+invalid arguments, `70` for signal, lifecycle, worker, worker-timeout, or
+cleanup failure, and `74` for help/version output I/O failure. Optional
+diagnostic write failures produce a sanitized warning but retain status `0` on
+otherwise orderly shutdown. The daemon has no IPC, telemetry,
+session tracking, service-management command, or systemd installation in P009.
+
 Examples:
 
 ```sh

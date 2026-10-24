@@ -1,6 +1,6 @@
 # Roadmap P001–P090
 
-This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005–P008 are completed. Other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
+This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005–P008 are completed. P009 implementation is present and awaiting its hosted qualification gate. Other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
 
 ## Linux-first foundation and product: P001–P060
 
@@ -14,7 +14,7 @@ This roadmap preserves the requested development order. P001 established the doc
 - **P006** — **Completed** — Implement versioned TOML configuration and transactional SQLite storage. Rust workspace, CLI/storage tests, GTK smoke/build, Cargo metadata, GCC, and Clang CI checks passed on `main`.
 - **P007** — **Completed** — Add the `endfield-unix-domain` portable library, stable capability and measurement identifiers, typed platform/hardware/display/snapshot contracts, provenance and diagnostics, partial provider composition, and synthetic contract tests. Workspace regression checks, GTK smoke and screenshot checks, Cargo metadata validation, and GCC/Clang C17 ABI jobs passed in hosted CI. No real platform or hardware probing is implemented.
 - **P008** — **Completed** — Add the reusable diagnostics library, typed allowlisted local logging, bounded private retention, safe P007 adapters, and headless JSON support reports. No hardware probing or network upload is included.
-- **P009** — Create the `endfield-unixd` daemon skeleton and lifecycle contract.
+- **P009** — **Implementation complete; hosted qualification pending** — Add the standalone `endfield-unixd` lifecycle daemon, safe SIGTERM/SIGINT handling, bounded shutdown coordination, and P008 lifecycle events. IPC, telemetry, session tracking, and service installation remain future milestones.
 - **P010** — Implement versioned, authenticated, bounded local IPC and the Linux per-user socket transport.
 
 ### Linux capabilities, telemetry, and sessions: P011–P020

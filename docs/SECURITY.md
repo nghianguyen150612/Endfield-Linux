@@ -10,11 +10,15 @@ P001 sets the baseline requirements. P006 implements the storage protections bel
 - Download runtimes only from verified trusted sources with integrity metadata. Do not invent game distribution endpoints or collect store credentials. Use supported authentication mechanisms and avoid retaining credentials.
 - Never patch game binaries, disable or evade anti-cheat, or interfere with game integrity checks.
 
-## IPC and daemon
+## Daemon and future IPC
 
-`endfield-unixd` is unprivileged by default and communicates over authenticated local IPC. On Linux, place its socket in a user-owned runtime directory with restrictive permissions, verify peer credentials, enforce a protocol version and message-size limits, and validate every operation. Do not expose a listening network socket. Apply equivalent local-user authentication on future platforms.
+P009's `endfield-unixd` runs as the logged-in user. It opens no socket, starts no process, reads no game data, and collects no telemetry. It uses `signal-hook`'s self-pipe based iterator to move SIGTERM/SIGINT handling out of asynchronous signal context; callbacks do not perform filesystem access or lock lifecycle state. The daemon has no root helper and installs no systemd unit.
 
-The daemon must tolerate malformed or stale client messages, disconnects, GUI closure, interrupted shutdown, and partial telemetry availability. Diagnostics should redact user names, home paths, process arguments, tokens, and other sensitive values unless a user explicitly chooses to include them in a report.
+The lifecycle coordinator synchronizes one typed state, makes repeated stop requests idempotent, and tracks registered worker completion. A timeout reports that work is still active; it does not cancel the operation. In particular, synchronous filesystem calls cannot be forcibly canceled. Before the lifecycle reaches Stopped, the signal iterator releases its registration and reports worker completion; shutdown avoids an unbounded thread join. Optional log failures emit only a sanitized, one-time notice and do not stop the daemon.
+
+The GUI neither starts nor owns the daemon process. Closing the GUI does not stop an independently launched daemon. P009 does not supervise game sessions, so this process independence alone does not promise a running game will survive GUI closure.
+
+P010 will add authenticated local IPC. On Linux, use a user-owned runtime directory with restrictive socket permissions, verify peer credentials, enforce a protocol version and message-size limits, and validate every operation. Do not expose a listening network socket. Apply equivalent local-user authentication on future platforms. Future handlers must tolerate malformed or stale messages, disconnects, and partial service availability. Persistent diagnostics must exclude user names, home paths, process arguments, tokens, and other arbitrary details.
 
 ## Data and consent
 

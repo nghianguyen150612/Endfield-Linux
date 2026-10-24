@@ -40,6 +40,9 @@ jobs:
       - name: Run workspace, CLI, FFI, storage, domain, and diagnostics contract tests
         run: cargo test --locked --workspace
 
+      - name: Run bounded headless daemon lifecycle gate
+        run: cargo test --locked -p endfield-unixd --test lifecycle -- --test-threads=1
+
       - name: Run graphical smoke test
         env:
           ENDFIELD_GUI_SCREENSHOT: /tmp/endfield-unix-gtk-smoke.png
@@ -72,7 +75,11 @@ jobs:
               for target in package["targets"]
               if "bin" in target["kind"]
           ]
-          assert binaries == [("endfield-unix", "endfield-unix")], binaries
+          binaries.sort()
+          assert binaries == [
+              ("endfield-unix", "endfield-unix"),
+              ("endfield-unixd", "endfield-unixd"),
+          ], binaries
           domain = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-domain")
           assert domain["dependencies"] == [], domain["dependencies"]
           assert any("lib" in target["kind"] for target in domain["targets"]), domain["targets"]
@@ -82,6 +89,9 @@ jobs:
           assert not any("bin" in target["kind"] for target in diagnostics["targets"]), diagnostics["targets"]
           gui_dependencies = {"gtk4", "libadwaita", "relm4"}
           assert not any(dependency["name"] in gui_dependencies for dependency in diagnostics["dependencies"]), diagnostics["dependencies"]
+          daemon = next(package for package in metadata["packages"] if package["name"] == "endfield-unixd")
+          assert any("bin" in target["kind"] and target["name"] == "endfield-unixd" for target in daemon["targets"]), daemon["targets"]
+          assert not any(dependency["name"] in gui_dependencies for dependency in daemon["dependencies"]), daemon["dependencies"]
           PY
 
   c17:

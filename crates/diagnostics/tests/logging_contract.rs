@@ -328,3 +328,26 @@ fn severity_filter_and_worker_shutdown_are_bounded_and_deterministic() {
     assert_eq!(read.events.len(), 1);
     assert_eq!(read.events[0].severity(), Severity::Info);
 }
+
+#[test]
+fn bounded_worker_shutdown_drains_events_without_an_unbounded_join() {
+    let directory = tempdir().expect("temporary root");
+    let store = store_at(directory.path());
+    let worker =
+        LogWorker::start_with_store(store.clone(), 8, Severity::Info).expect("logging worker");
+    let handle = worker.handle();
+    handle
+        .try_record(event(Severity::Info, 4))
+        .expect("enqueue event");
+    worker
+        .shutdown_bounded(Duration::from_secs(2))
+        .expect("bounded shutdown acknowledgement");
+
+    assert_eq!(
+        handle.try_record(event(Severity::Info, 5)),
+        Err(DiagnosticsError::WorkerStopped)
+    );
+    let read = store.read_events().expect("read drained event");
+    assert_eq!(read.events.len(), 1);
+    assert_eq!(read.events[0].timestamp_unix_nanos(), 4);
+}

@@ -47,6 +47,9 @@ fn support_report_is_bounded_and_has_no_measured_hardware_claims() {
     assert!(components.iter().any(|component| {
         component["component"] == "hardware_probes" && component["status"] == "not_implemented"
     }));
+    assert!(components.iter().any(|component| {
+        component["component"] == "daemon" && component["status"] == "partial"
+    }));
     assert!(
         !json
             .windows(b"temperature".len())

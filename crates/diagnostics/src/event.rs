@@ -78,6 +78,12 @@ pub enum EventCode {
     ProbeFailure,
     ProbeSucceeded,
     OperationNotImplemented,
+    DaemonStarting,
+    DaemonRunning,
+    DaemonShutdownRequested,
+    DaemonStopped,
+    DaemonStartupFailed,
+    DaemonRuntimeFailed,
 }
 
 impl EventCode {
@@ -92,6 +98,12 @@ impl EventCode {
             Self::ProbeFailure => "PROBE_FAILURE",
             Self::ProbeSucceeded => "PROBE_SUCCEEDED",
             Self::OperationNotImplemented => "OPERATION_NOT_IMPLEMENTED",
+            Self::DaemonStarting => "DAEMON_STARTING",
+            Self::DaemonRunning => "DAEMON_RUNNING",
+            Self::DaemonShutdownRequested => "DAEMON_SHUTDOWN_REQUESTED",
+            Self::DaemonStopped => "DAEMON_STOPPED",
+            Self::DaemonStartupFailed => "DAEMON_STARTUP_FAILED",
+            Self::DaemonRuntimeFailed => "DAEMON_RUNTIME_FAILED",
         }
     }
 
@@ -106,6 +118,12 @@ impl EventCode {
             Self::ProbeFailure => "A platform probe operation failed or was unavailable.",
             Self::ProbeSucceeded => "A platform probe operation completed successfully.",
             Self::OperationNotImplemented => "This operation is not implemented in this build.",
+            Self::DaemonStarting => "The daemon is starting.",
+            Self::DaemonRunning => "The daemon entered the running state.",
+            Self::DaemonShutdownRequested => "The daemon received a shutdown request.",
+            Self::DaemonStopped => "The daemon stopped cleanly.",
+            Self::DaemonStartupFailed => "The daemon failed during startup.",
+            Self::DaemonRuntimeFailed => "The daemon encountered a runtime failure.",
         }
     }
 }
@@ -318,6 +336,20 @@ impl DiagnosticEvent {
                 | EventCode::ProbeSucceeded
                 | EventCode::OperationNotImplemented
         );
+        let daemon_lifecycle_event = matches!(
+            self.code,
+            EventCode::DaemonStarting
+                | EventCode::DaemonRunning
+                | EventCode::DaemonShutdownRequested
+                | EventCode::DaemonStopped
+                | EventCode::DaemonStartupFailed
+                | EventCode::DaemonRuntimeFailed
+        );
+        if daemon_lifecycle_event && self.component != Component::Daemon {
+            return Err(DiagnosticsError::InvalidEvent(
+                "daemon lifecycle events require the daemon component",
+            ));
+        }
         if self.correlation_id.is_some() && !operation_event {
             return Err(DiagnosticsError::InvalidEvent(
                 "correlation identifiers require an operation event",

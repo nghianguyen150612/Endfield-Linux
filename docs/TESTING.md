@@ -147,3 +147,17 @@ The CLI integration tests run without display variables and assert that help/ver
 - The local full-workspace test/build and GTK smoke test were not run because GTK4/libadwaita development libraries and Xvfb are unavailable. Clang is also unavailable locally. The GitHub workflow retains the real GTK build, full workspace tests/build, GTK smoke and screenshot, and GCC/Clang ABI jobs.
 - GitHub Actions — [Rust CI run for commit `c863739`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40071954339) completed successfully: formatting, native workspace check, Clippy, full workspace tests, GTK smoke and screenshot upload, workspace build, Cargo metadata assertions, and GCC/Clang C17 ABI jobs passed.
 - No credentials, environment dumps, or real hardware were read by the diagnostics and redaction tests.
+
+## P009 validation record — 2026-10-24
+
+- Rust toolchain — pinned Rust 1.85.0. The daemon's locked dependency tree resolves `signal-hook` 0.3.18, `signal-hook-registry` 1.4.8, `libc` 0.2.191, and `thiserror` 2.0.11; the daemon package and all its targets compile with Rust 1.85.0.
+- `cargo +1.85.0 fmt --all -- --check` — passed.
+- `cargo +1.85.0 check --locked -p endfield-unixd --all-targets` — passed.
+- `cargo +1.85.0 clippy --locked -p endfield-unixd -p endfield-unix-diagnostics --all-targets -- -D warnings` — passed.
+- `cargo +1.85.0 test --locked -p endfield-unixd --all-targets` — passed: 5 lifecycle/diagnostics unit tests, 5 CLI tests, and 11 lifecycle tests. Linux subprocess coverage started the actual executable, observed `DAEMON_RUNNING`, sent SIGTERM and SIGINT, checked orderly status 0 and one cleanup event, exercised repeated signals and optional diagnostics failure, reaped each child, and confirmed unchanged CPU ticks during a 300 ms idle observation. Controlled-worker tests verified typed failure and timeout behavior without cancellation claims.
+- `cargo +1.85.0 test --locked -p endfield-unix-diagnostics --all-targets` — passed: 30 tests, including bounded logger shutdown, P008 event compatibility, schema-version-1 daemon events, and partial daemon support-report metadata.
+- `cargo +1.85.0 test --locked -p endfield-unix-domain -p endfield-unix-storage -p optimizer-ffi --all-targets` — passed: 61 domain, storage, and Rust FFI tests.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed; ABI 1.0 and the public C header are unchanged.
+- `cargo metadata --locked --no-deps --format-version 1` — passed; exactly two application binaries are reported, `endfield-unix` and `endfield-unixd`. The daemon's direct dependencies contain no GTK4, libadwaita, or Relm4.
+- Full local `cargo check --locked --workspace --all-targets` — blocked because this container lacks GLib, GTK4, and libadwaita development files. Xvfb and Clang are also absent, so the full GUI smoke and Clang C17 jobs require hosted CI. The native workspace check, Clippy, tests/build, graphical smoke, screenshot, and GCC/Clang jobs remain enabled in `.github/workflows/ci.yml`; hosted qualification is pending.
+- `git diff --check` — passed.

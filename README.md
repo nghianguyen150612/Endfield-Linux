@@ -2,9 +2,9 @@
 
 `endfield-unix` is an independent community launcher and goal-driven optimization application for Arknights: Endfield on Unix-like systems. Linux is the first implementation target. The frontend is Rust 2024 with GTK4, libadwaita, Relm4, GTK CSS, and locally included SVG resources. Optimization decisions belong to the portable C17 library; Rust will validate and execute only user-approved actions.
 
-**Status:** P001 documents the product and architecture. P002 established the Rust 2024 workspace and the single `endfield-unix` executable. P003 established the C17 ABI 1.0 and safe Rust wrapper; valid planner requests still return an empty plan set. P004 adds the first real GTK4/libadwaita/Relm4 application shell with six navigable pages. P005 is completed with typed CLI commands. P006 is completed with a reusable Rust storage library for versioned TOML preferences, safe XDG paths, atomic conflict-aware saves, and transactional SQLite migrations. P007 adds an independent portable domain library with typed platform identities, capabilities, hardware contracts, provenance, snapshot validation, and synchronous probe interfaces. P008 adds structured local logging, typed domain diagnostic adapters, bounded retention, and allowlist-only JSON support reports. P007 and P008 do not add operating-system or hardware detection; platform adapters remain future work. The GTK Settings page does not yet edit or apply stored preferences. Game installation and launch, runtime management, optimization candidates, hardware probes, telemetry, benchmark execution, and the daemon are not implemented.
+**Status:** P001 documents the product and architecture. P002 established the Rust 2024 workspace and `endfield-unix` executable. P003 established C17 ABI 1.0 and its safe Rust wrapper; valid planner requests still return an empty plan set. P004 adds the GTK4/libadwaita/Relm4 application shell. P005 adds typed CLI commands. P006 adds versioned TOML preferences and transactional SQLite migrations. P007 adds portable domain models and probe interfaces. P008 adds structured local logging and privacy-safe support reports. P009 adds the independent `endfield-unixd` foreground daemon with a typed lifecycle, SIGTERM/SIGINT handling, and graceful shutdown. The workspace now has exactly two application executables: `endfield-unix` (GUI and CLI) and `endfield-unixd` (daemon). P009 does not add IPC, systemd installation, telemetry, game-session tracking, or game management; authenticated IPC is P010. P007 and P008 do not add operating-system or hardware detection, and platform adapters remain future work. The GTK Settings page does not yet edit or apply stored preferences.
 
-The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). Local application and executable naming is `endfield-unix`; the future companion daemon is reserved as `endfield-unixd`.
+The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
 ## Documentation
 
@@ -20,13 +20,14 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [Storage paths, configuration, SQLite, and recovery](docs/STORAGE.md)
 - [Portable domain models and platform interfaces](docs/DOMAIN.md)
 - [Structured diagnostics, log retention, privacy, and support reports](docs/DIAGNOSTICS.md)
+- [Daemon lifecycle and shutdown behavior](docs/DAEMON.md)
 - [Rust and C17 architecture decision](docs/adr/0001-rust-c17-architecture.md)
 - [Cross-platform boundary decision](docs/adr/0002-cross-platform-boundaries.md)
 - [Runtime and rollback decision](docs/adr/0003-runtime-and-rollback-policy.md)
 
 ## Build dependencies
 
-Use the pinned Rust 1.85.0 toolchain, a C17 compiler, GTK4 development files, and libadwaita development files. The current adaptive navigation uses libadwaita 1.4 APIs.
+Use the pinned Rust 1.85.0 toolchain. Building the GUI also requires a C17 compiler, GTK4 development files, and libadwaita development files; the daemon itself does not require GTK. The current adaptive navigation uses libadwaita 1.4 APIs.
 
 Arch Linux:
 
@@ -54,10 +55,12 @@ cargo +1.85.0 run --locked -p endfield-unix -- diagnose report --output ./suppor
 cargo +1.85.0 run --locked -p endfield-unix -- help gui
 cargo +1.85.0 run --locked -p endfield-unix -- gui
 cargo +1.85.0 run --locked -p endfield-unix
+cargo +1.85.0 run --locked -p endfield-unixd -- --help
+cargo +1.85.0 run --locked -p endfield-unixd -- --foreground
 ```
 
 The no-argument command and `gui` open the same native application window. Help, version, and about do not initialize GTK or create application directories. `diagnose report` is headless and writes only to its explicit output path; it does not probe hardware or upload data. If GTK cannot connect to a working display, GUI startup prints a display-initialization diagnostic and exits with status 69. Invalid arguments print a diagnostic and exit with status 2; report and command output failures use status 74. The application does not infer display availability from `DISPLAY` or `WAYLAND_DISPLAY` alone. See [CLI usage and exit statuses](docs/CLI.md).
 
-The shell provides Home, Optimize, Benchmark, Library, Diagnostics, and Settings. Pages distinguish unavailable services from detected facts. In particular, Play stays disabled until a launch backend exists; system detection and optimization recommendations are not claimed; and the current C17 implementation returns an empty plan set. P005 implements static CLI subcommands; game management, runtime setup, optimization, benchmarking, diagnostics, and daemon interaction remain future work. P006 provides a storage API, but GTK settings are not yet wired to it and stored preferences are not reported as applied. P007 provides a portable representation for future normalized probe results; it does not probe this machine or display synthetic fixture data.
+The shell provides Home, Optimize, Benchmark, Library, Diagnostics, and Settings. Pages distinguish unavailable services from detected facts. In particular, Play stays disabled until a launch backend exists; system detection and optimization recommendations are not claimed; and the current C17 implementation returns an empty plan set. P005 implements static CLI subcommands; game management, runtime setup, optimization, benchmarking, hardware diagnostics, and GUI-to-daemon interaction remain future work. P006 provides a storage API, but GTK settings are not yet wired to it and stored preferences are not reported as applied. P007 provides a portable representation for future normalized probe results; it does not probe this machine or display synthetic fixture data.
 
-The application does not access game credentials, modify Wine prefixes or system settings, run privileged commands, contact game services, collect telemetry, or start a daemon. Structured logs are local and allowlist-only; generated reports omit private paths, free-form provider details, correlation IDs, credentials, and environment contents. See [diagnostics policy and limitations](docs/DIAGNOSTICS.md). macOS and BSD UI behavior is unverified; Linux-first CI does not establish support on those platforms.
+The GUI does not start the daemon, and closing the GUI does not stop an independently launched daemon. `endfield-unixd` remains a lifecycle foundation: it does not start game processes, collect hardware telemetry, initialize networking, provide IPC, install a systemd unit, or supervise game sessions. Neither executable accesses game credentials or runs privileged commands. Structured logs are local and allowlist-only; generated reports omit private paths, free-form provider details, correlation IDs, credentials, and environment contents. See [diagnostics policy](docs/DIAGNOSTICS.md) and [daemon limitations](docs/DAEMON.md). macOS and BSD UI behavior is unverified; Linux-first CI does not establish support on those platforms.

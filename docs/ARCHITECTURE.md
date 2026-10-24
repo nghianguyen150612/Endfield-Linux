@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports. Operating-system adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the lifecycle-only daemon. Operating-system adapters, candidate generation, authenticated IPC, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -18,13 +18,13 @@ The desktop stack is fixed: Rust 2024, GTK4, libadwaita, Relm4, GTK CSS, and SVG
 
 ## P002 workspace and entry point
 
-The Cargo workspace uses resolver version 3 and contains one application package at `apps/endfield-unix`. The package is Rust 2024 with MSRV 1.85 and produces exactly one application binary, `endfield-unix`. Its library contains argument dispatch and startup routing so those behaviors can be tested without a GUI. P004 adds Relm4 0.9.1, GTK4-rs 0.9.6, and libadwaita-rs 0.7.2; these bindings use the matching GTK4 0.9 / GLib 0.20 generation.
+The Cargo workspace uses resolver version 3 and Rust 2024 with MSRV 1.85. It contains two application packages and exactly two application binaries: `apps/endfield-unix` produces `endfield-unix` (GTK GUI and CLI), and `apps/endfield-unixd` produces `endfield-unixd` (foreground daemon). The daemon package has no GTK, libadwaita, or Relm4 dependency. P004 adds Relm4 0.9.1, GTK4-rs 0.9.6, and libadwaita-rs 0.7.2; these bindings use the matching GTK4 0.9 / GLib 0.20 generation.
 
 At the P002 baseline, dispatch recognized only `--help`, `--version`, and no arguments. P005 replaces that initial parser with the typed subcommand architecture below. `main` still obtains arguments as OS strings, skips the executable name, and delegates process work to the shared library. Help, version, about, and argument errors are resolved before GTK initialization. No arguments and `gui` call the same `start_gui` function; P004 initializes GTK/libadwaita on the main thread and starts the Relm4 application. Display initialization errors return status 69 with a diagnostic rather than panicking.
 
 P002 performs no hardware, filesystem, process, network, Wine, Proton, or game probing. Invalid input and output failures return explicit nonzero statuses and diagnostics.
 
-P003 adds a workspace library package, `optimizer-ffi`, for the C17 build integration and safe FFI wrapper without changing the executable entry point. The workspace still has one application binary, `endfield-unix`; the FFI package is a library and adds no executable. P004 implements the GTK shell in that application package. There is no second GUI/CLI executable.
+P003 adds a workspace library package, `optimizer-ffi`, for the C17 build integration and safe FFI wrapper without adding an executable. P004 implements the GTK shell in the `endfield-unix` package. P009 adds the sole companion executable `endfield-unixd`; no separate GUI or CLI executable is introduced.
 
 ## P004 native application shell
 
@@ -135,11 +135,19 @@ Runtime acquisition is verified, user-scoped, integrity-checked, and pin-aware. 
 
 SQLite is suitable for structured local session/benchmark records; TOML is suitable for human-editable application configuration and profile definitions. Schema and config versions must support safe migrations. Telemetry remains local by default. Do not store passwords or platform credentials when a supported system authentication flow can avoid it.
 
-## Daemon and IPC
+## P009 daemon lifecycle foundation
 
-`endfield-unixd` is the sole companion executable. It tracks game sessions, gathers available hardware/FPS/frametime/thermal/power data, records benchmark observations, and provides diagnostic reports to GUI and CLI clients. It is lightweight, unprivileged by default, and session-scoped where practical. Closing the GUI does not terminate a game session. Shutdown is graceful; the daemon may stop when no client or supervised session requires it.
+`apps/endfield-unixd` builds the independent `endfield-unixd` Rust executable. It does not link the GTK application, initialize a display, or depend on GUI libraries. With no arguments or `--foreground`, it registers SIGTERM/SIGINT handling, starts optional P008 diagnostics, transitions through its typed lifecycle, then blocks on a condition variable until shutdown. It does not poll while idle. `--help` and `--version` return before diagnostics or long-running startup.
 
-Use authenticated local IPC with a versioned, bounded message protocol. On Linux, the initial transport should be a per-user Unix-domain socket in a user-owned runtime directory, with filesystem permissions and peer-credential checks tied to the current user. Do not listen on a network interface. Validate message size, version, operation, and caller identity. Keep future transport choices behind the IPC adapter so other platforms can use their native local transport while preserving authorization and protocol semantics. Service installation and control use the user service manager; root is not required by default.
+`ShutdownCoordinator` owns one synchronized lifecycle state and worker count. It validates Starting → Running → Stopping → Stopped; failure reasons are typed and terminal. A shutdown request during Starting goes directly to Stopping and skips Running. The first request owns cleanup; repeated requests are idempotent. Worker registration returns an explicit completion token. A dropped token records a typed worker failure. Before Stopped, the runtime closes the signal iterator and waits for the signal registration and worker token to be released. It detaches only the thread's final return path, avoiding an unbounded join. Shutdown timeouts bound coordinator waits and diagnostic queue draining; they cannot cancel a thread blocked inside synchronous filesystem I/O. The daemon reports optional logger failures with one sanitized notice and proceeds without persistent logging.
+
+The daemon writes only approved fixed lifecycle events using `Component::Daemon` and the existing schema-version-1 diagnostics event type. Its private log worker uses P008's bounded queue, private XDG paths, advisory lock, rotation, and retention. Error strings and signal-handler details are never added to persistent events. There are no periodic idle events. Support reports mark the daemon **Partial** to mean lifecycle-only support; the serialized report schema remains version 1. The report does not claim the daemon is live.
+
+P009 opens no socket, starts no process, collects no telemetry, and does not initialize storage. GUI startup does not start the daemon, and closing the GUI does not stop an independently supervised daemon. This independence alone does not guarantee game-session survival; that requires P019 session supervision.
+
+## P010 authenticated IPC boundary
+
+P010 will add a versioned, size-bounded, authenticated local protocol. The initial Linux transport is expected to use a per-user Unix-domain socket with filesystem permissions and peer-credential checks. It must not listen on a network interface. Validate message size, version, operation, and caller identity. Service installation and control belong to later service-manager work; P009 installs or enables no systemd unit.
 
 ## P005 typed CLI and command dispatch
 

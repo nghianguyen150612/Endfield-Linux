@@ -319,7 +319,7 @@ fn component_statuses() -> Vec<ComponentStatus> {
         },
         ComponentStatus {
             component: Id::Daemon,
-            status: No,
+            status: Partial,
         },
     ]
 }

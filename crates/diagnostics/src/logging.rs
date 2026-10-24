@@ -136,6 +136,30 @@ impl LogWorker {
         }
         Ok(())
     }
+
+    /// Requests shutdown and waits up to `timeout` for the worker to drain the
+    /// queued events and acknowledge shutdown. After the acknowledgement, the
+    /// worker performs no more filesystem work; its final thread return is
+    /// detached rather than joined so callers do not make an unbounded join.
+    /// If draining exceeds the timeout, the worker remains best-effort and the
+    /// error reports that it did not complete.
+    pub fn shutdown_bounded(mut self, timeout: Duration) -> Result<(), DiagnosticsError> {
+        let deadline = deadline_after(timeout);
+        let (sender, receiver) = mpsc::sync_channel(1);
+        enqueue_control_message(
+            &self.handle.sender,
+            WorkerMessage::Shutdown(sender),
+            deadline,
+        )?;
+        receiver
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            .map_err(|_| DiagnosticsError::Timeout)?;
+        // The worker acknowledged only after all earlier event writes finished,
+        // and its shutdown branch does no further I/O. Dropping JoinHandle is
+        // deliberate: std does not provide a bounded join operation.
+        self.join.take();
+        Ok(())
+    }
 }
 
 impl Drop for LogWorker {
@@ -205,6 +229,7 @@ fn worker_main<F>(
         }
     };
 
+    let mut shutdown_acknowledgement = None;
     while let Ok(message) = receiver.recv() {
         match message {
             WorkerMessage::Event(event) => write_event(&mut sink, &event),
@@ -212,10 +237,14 @@ fn worker_main<F>(
                 let _ = acknowledge.send(());
             }
             WorkerMessage::Shutdown(acknowledge) => {
-                let _ = acknowledge.send(());
+                shutdown_acknowledgement = Some(acknowledge);
                 break;
             }
         }
+    }
+    drop(receiver);
+    if let Some(acknowledge) = shutdown_acknowledgement {
+        let _ = acknowledge.send(());
     }
 }
 
