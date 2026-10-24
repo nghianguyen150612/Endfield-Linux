@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt;
 use std::io::{self, Write};
+use std::path::Path;
 
 use super::commands::Command;
 use super::{output, parser};
@@ -16,6 +17,7 @@ pub enum CliError {
     InvalidArguments(clap::Error),
     Output(io::Error),
     GuiStartup(GuiStartupError),
+    Diagnostics(endfield_unix_diagnostics::DiagnosticsError),
 }
 
 impl CliError {
@@ -24,6 +26,7 @@ impl CliError {
             Self::InvalidArguments(_) => EXIT_INVALID_ARGUMENTS,
             Self::Output(_) => EXIT_IO_ERROR,
             Self::GuiStartup(_) => EXIT_GUI_STARTUP_ERROR,
+            Self::Diagnostics(_) => EXIT_IO_ERROR,
         }
     }
 }
@@ -34,6 +37,7 @@ impl fmt::Display for CliError {
             Self::InvalidArguments(error) => fmt::Display::fmt(error, formatter),
             Self::Output(_) => formatter.write_str("failed to write command output."),
             Self::GuiStartup(error) => error.fmt(formatter),
+            Self::Diagnostics(error) => fmt::Display::fmt(error, formatter),
         }
     }
 }
@@ -44,6 +48,7 @@ impl Error for CliError {
             Self::InvalidArguments(error) => Some(error),
             Self::Output(error) => Some(error),
             Self::GuiStartup(error) => Some(error),
+            Self::Diagnostics(error) => Some(error),
         }
     }
 }
@@ -105,7 +110,19 @@ where
         Command::Version => output::write_version(stdout).map_err(CliError::Output),
         Command::About => output::write_about(stdout).map_err(CliError::Output),
         Command::LaunchGui => gui_start().map_err(CliError::GuiStartup),
+        Command::DiagnoseReport {
+            output: path,
+            overwrite,
+        } => {
+            endfield_unix_diagnostics::export_support_report(&path, overwrite)
+                .map_err(CliError::Diagnostics)?;
+            write_report_success(stdout, &path).map_err(CliError::Output)
+        }
     }
+}
+
+fn write_report_success<W: Write>(output: &mut W, path: &Path) -> io::Result<()> {
+    writeln!(output, "Support report written to {path:?}.")
 }
 
 fn report_error<E>(stderr: &mut E, message: &str, exit_status: u8) -> u8

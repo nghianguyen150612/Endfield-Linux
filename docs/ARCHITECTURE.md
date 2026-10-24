@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces. Operating-system adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the initial Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the first native GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports. Operating-system adapters, candidate generation, daemon, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -61,6 +61,22 @@ The runtime, telemetry, session, planner, executor, benchmark, and service-manag
 The crate defines the P001 platform-family and capability identifiers, the four availability states, measurement units and origins, typed CPU/GPU/memory/display contracts, provenance and diagnostic records, and a schema-versioned `SystemSnapshot`. Validation rejects unknown numeric identifiers, contradictory units and availability/value combinations, unresolved instance/provenance references, and duplicate capability identities. `normalize` sorts unordered inventories and records to create deterministic in-memory snapshots. Snapshot schema version 1 is independent of package, configuration, database, and C ABI versions; no snapshot serialization or persistence is introduced.
 
 `PlatformProbe` and `CapabilityProvider` are synchronous, portable traits. `CompositePlatformProbe` runs providers independently and preserves successful results alongside typed diagnostics when one provider fails. It returns a typed total error if there are no providers or none can produce a valid report. The test adapters and desktop, laptop, and incomplete fixtures are in-memory synthetic data; they never read the host machine.
+
+## P008 diagnostics library
+
+`crates/diagnostics` is the library-only `endfield-unix-diagnostics` crate. It
+depends on the P007 domain contracts and has no GTK4, libadwaita, Relm4, Wine,
+Proton, C17, or executable dependency. It maps safe domain categories and
+registered identifiers into typed event records while discarding provider
+messages and probe error details. A custom tracing layer accepts only static
+application lifecycle names and ignores arbitrary fields.
+
+Persistent JSON Lines writes use a bounded worker, private XDG state directory,
+advisory cross-process lock, size rotation, age/count cleanup, and no-follow
+file handling. The support report serializer has a separate allowlist schema;
+it includes validated events and static subsystem availability without
+probing hardware or reading application configuration. The logger is
+initialized only for GUI startup, after static CLI parsing.
 
 ## Rust and C17 ownership
 

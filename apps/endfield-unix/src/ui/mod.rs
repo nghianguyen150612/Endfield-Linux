@@ -66,6 +66,11 @@ fn initialize_graphics() -> Result<(), GuiError> {
 
 fn run_application(init: app::AppInit) -> Result<(), GuiError> {
     initialize_graphics()?;
+    if endfield_unix_diagnostics::global_logging_initialized() {
+        endfield_unix_diagnostics::record_lifecycle(
+            endfield_unix_diagnostics::LifecycleEvent::GuiInitialized,
+        );
+    }
     RelmApp::<messages::AppMessage>::new(APPLICATION_ID)
         .with_args(vec![APPLICATION_NAME.to_owned()])
         .run::<app::App>(init);

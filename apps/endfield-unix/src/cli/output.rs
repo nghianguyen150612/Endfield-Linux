@@ -45,6 +45,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
         output,
         "  about         Show application and repository information\n"
     )?;
+    writeln!(
+        output,
+        "  diagnose report --output PATH  Write a privacy-safe support report"
+    )?;
     writeln!(output, "Options:")?;
     writeln!(output, "  -h, --help    Show this help message")?;
     writeln!(output, "  --version     Show the application version\n")?;
@@ -58,7 +62,7 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "Game, runtime, optimization, benchmarking, and daemon services are under development."
+        "Hardware probes, telemetry, game/runtime services, and the daemon are under development."
     )
 }
 

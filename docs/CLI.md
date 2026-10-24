@@ -13,8 +13,9 @@
 | `endfield-unix help about` | Show about command help | No |
 | `endfield-unix --version` | Print the package version | No |
 | `endfield-unix about` | Print static application and repository metadata | No |
+| `endfield-unix diagnose report --output PATH` | Write a versioned, privacy-safe JSON report to the explicit path | No |
 
-Help lists only implemented commands. Game, runtime, optimization, benchmarking, and daemon services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Game, runtime, optimization, benchmarking, daemon, and hardware-probe services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 Examples:
 
@@ -22,6 +23,8 @@ Examples:
 endfield-unix --help
 endfield-unix --version
 endfield-unix about
+endfield-unix diagnose report --output ./support-report.json
+endfield-unix diagnose report --output ./support-report.json --overwrite
 endfield-unix help gui
 endfield-unix gui
 ```
@@ -30,7 +33,7 @@ endfield-unix gui
 
 Clap parses OS-string arguments through its non-terminating `try_get_matches_from` API. The typed command model, parser, output formatters, and dispatcher live in separate modules under `apps/endfield-unix/src/cli/`. `main.rs` continues to pass OS arguments to the library entry point. Parser failures become status 2 and are written to stderr; static command output goes to stdout.
 
-Both default startup and the `gui` command invoke the existing `start_gui()` boundary. No CLI command constructs GTK widgets or accesses UI types. Future CLI and GUI operations must call the same Rust application services when those services exist; P005 does not implement game, runtime, optimizer, benchmark, diagnostics, or daemon behavior.
+Both default startup and the `gui` command invoke the existing `start_gui()` boundary. No CLI command constructs GTK widgets or accesses UI types. The report command calls the diagnostics library directly; it does not initialize GTK or the logger, create application state directories, run hardware probes, or contact the network. Reports contain static application/component metadata and validated allowlisted event history when available. The command writes only to the requested output file, refuses symlink destinations, uses mode `0600`, and refuses an existing file unless `--overwrite` is set.
 
 Output writers can be injected through `run_with_io` for deterministic dispatch tests. Output and diagnostic write failures are handled without panicking, including closed pipes.
 
@@ -43,16 +46,20 @@ Output writers can be injected through `run_with_io` for deterministic dispatch 
 | `69` | GUI startup failed, including unavailable graphical session |
 | `74` | Standard output or standard error write failed |
 
+Status `74` also covers report destination and file-write failures. Invalid
+syntax or an unsupported report option remains status `2`.
+
 ## Planned command namespaces
 
-The following namespaces are reserved for later work and are not implemented by P005:
+The following service namespaces are reserved for later work. The `diagnose`
+namespace currently implements only the safe report export described above;
+hardware diagnostics remain unimplemented.
 
 ```text
 endfield-unix game ...
 endfield-unix runtime ...
 endfield-unix optimize ...
 endfield-unix benchmark ...
-endfield-unix diagnose ...
 endfield-unix service ...
 endfield-unix profile ...
 ```

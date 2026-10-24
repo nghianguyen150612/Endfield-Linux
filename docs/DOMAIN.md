@@ -155,8 +155,26 @@ observation, and not yet probed. A diagnostic can also carry a stable provider
 name; provider names are restricted to short identifier characters, not paths
 or free-form command output. Optional diagnostic text is bounded; adapters must
 not put usernames, home paths, full command arguments, or other private machine
-identifiers in it. P008 will define structured logging and support report
-redaction.
+identifiers in it. P008 defines the structured logging and support report
+boundary for these values.
+
+## P008 diagnostic conversion
+
+The `endfield-unix-diagnostics` crate adapts these existing domain types rather
+than defining replacement categories. It preserves all seven category IDs and
+maps them to explicit outcomes: unsupported capability and missing provider
+are `unavailable`; permission, temporary, and malformed-source failures are
+`failed`; stale observations are `incomplete`; and not-yet-probed is
+`not_attempted`. A missing provider never becomes a hardware incompatibility
+claim. Successful operations and known unimplemented operations use separate
+outcomes.
+
+The adapter drops `Diagnostic.message` and `ProbeError.detail()` at the
+collection boundary. It exports only a registered capability ID and provider
+names from the diagnostics crate's fixed allowlist. Unknown provider names are
+omitted. These adapters do not invoke `PlatformProbe`, `CapabilityProvider`,
+or a hardware source. See [DIAGNOSTICS.md](DIAGNOSTICS.md) for event and report
+schemas.
 
 ## Probe interfaces and partial failures
 

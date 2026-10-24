@@ -132,3 +132,17 @@ The CLI integration tests run without display variables and assert that help/ver
 - A native `cargo check --locked --workspace --all-targets` — blocked because this environment lacks the GLib/GTK4/libadwaita development packages; `pkg-config` could not find `glib-2.0`. With temporary pkg-config metadata used only for Rust type checking, workspace check and clippy passed locally; this did not verify native linking or GUI runtime. The hosted runner performed the real workspace build and tests.
 - GitHub Actions — [P007 CI run for commit `9d43753`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40067387932) completed successfully: formatting, workspace check, clippy, full workspace tests, GTK smoke and screenshot checks, Cargo metadata validation, and GCC/Clang C17 ABI jobs passed. Xvfb and Clang are not installed locally.
 - No real hardware, display server, Vulkan library, or operating-system probe was used by the domain tests.
+
+## P008 validation record — 2026-10-24
+
+- Rust toolchain — installed and used pinned Rust 1.85.0. Locked Cargo metadata resolved 145 packages; none declares an MSRV above 1.85.0, and 24 packages omit `rust-version` metadata.
+- `cargo fmt --all -- --check` and `git diff --check` — passed.
+- `cargo test --locked -p endfield-unix-diagnostics --all-targets` — passed: 29 tests total (2 unit, 12 logging contract, 7 redaction contract, and 8 report contract tests). Coverage includes strict event schema checks, dropped domain details, all seven category mappings, bounded worker behavior, concurrent thread writers, permissions, retention, malformed and oversized records, symlink refusal, report export and overwrite policy, and incomplete-export cleanup. Cross-process coordination is implemented with the advisory lock but was not separately exercised in a process-level test.
+- `cargo clippy --locked -p endfield-unix-diagnostics --all-targets -- -D warnings` — passed.
+- `cargo test --locked -p endfield-unix-domain -p endfield-unix-storage -p optimizer-ffi --all-targets` — passed: 22 domain, 26 storage, and 13 FFI tests. The domain tests use synthetic fixtures; no host hardware was queried.
+- `cargo clippy --locked -p endfield-unix-domain -p endfield-unix-storage -p optimizer-ffi --all-targets -- -D warnings` — passed.
+- `cargo check --locked --workspace --all-targets` and `cargo clippy --locked --workspace --all-targets -- -D warnings` — passed using temporary pkg-config metadata for Rust type checking. A native GTK build is unavailable in this container: GTK4/libadwaita and GLib development packages are absent. The metadata stubs do not validate native linking or GUI runtime.
+- `cargo metadata --locked --no-deps --format-version 1` — passed; exactly one application binary remains: `endfield-unix`.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed. No C17 header, ABI, or optimizer FFI implementation was changed.
+- The local full-workspace test/build and GTK smoke test were not run because GTK4/libadwaita development libraries and Xvfb are unavailable. Clang is also unavailable locally. The GitHub workflow retains the real GTK build, full workspace tests/build, GTK smoke and screenshot, and GCC/Clang ABI jobs; its result is reported for the pushed revision.
+- No credentials, environment dumps, or real hardware were read by the diagnostics and redaction tests.

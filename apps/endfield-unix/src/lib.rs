@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::time::Duration;
 
 pub mod cli;
 pub mod ui;
@@ -18,7 +19,22 @@ pub use cli::dispatch::{
 
 /// Starts the existing GTK application on the calling thread.
 pub fn start_gui() -> Result<(), GuiStartupError> {
-    ui::run().map_err(|error| GuiStartupError::new(error.to_string()))
+    if endfield_unix_diagnostics::initialize_global_logging().is_err() {
+        endfield_unix_diagnostics::record_lifecycle(
+            endfield_unix_diagnostics::LifecycleEvent::DiagnosticsUnavailable,
+        );
+    }
+    endfield_unix_diagnostics::record_lifecycle(
+        endfield_unix_diagnostics::LifecycleEvent::AppStarting,
+    );
+    let result = ui::run().map_err(|error| GuiStartupError::new(error.to_string()));
+    endfield_unix_diagnostics::record_lifecycle(if result.is_ok() {
+        endfield_unix_diagnostics::LifecycleEvent::WindowClosedNormally
+    } else {
+        endfield_unix_diagnostics::LifecycleEvent::GuiStartupFailed
+    });
+    let _ = endfield_unix_diagnostics::flush_global_logging(Duration::from_millis(250));
+    result
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

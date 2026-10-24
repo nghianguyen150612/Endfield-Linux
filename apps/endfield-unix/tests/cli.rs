@@ -1,4 +1,7 @@
+use std::fs;
 use std::process::{Command, Output};
+
+use tempfile::tempdir;
 
 fn invoke(arguments: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unix"));
@@ -17,8 +20,9 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("endfield-unix"));
     assert!(stdout.contains("native GTK4 desktop application"));
+    assert!(stdout.contains("diagnose report --output PATH"));
     assert!(stdout.contains(
-        "Game, runtime, optimization, benchmarking, and daemon services are under development."
+        "Hardware probes, telemetry, game/runtime services, and the daemon are under development."
     ));
     assert!(!stdout.contains("  game "));
     assert!(output.stderr.is_empty());
@@ -140,4 +144,112 @@ fn startup_attempts_real_graphics_initialization_without_game_or_network() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("could not initialize GTK display"));
     assert!(!stderr.contains("GUI mode is unavailable"));
+}
+
+#[test]
+fn static_commands_do_not_create_application_directories_or_logs() {
+    let directory = tempdir().expect("temporary root");
+    let home = directory.path().join("home");
+    let state = directory.path().join("state");
+    let config = directory.path().join("config");
+    let data = directory.path().join("data");
+    for arguments in [&["--help"][..], &["--version"][..], &["about"][..]] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unix"));
+        command
+            .env_clear()
+            .env("HOME", &home)
+            .env("XDG_STATE_HOME", &state)
+            .env("XDG_CONFIG_HOME", &config)
+            .env("XDG_DATA_HOME", &data)
+            .args(arguments);
+        let output = command.output().expect("run static command");
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stderr.is_empty());
+    }
+    assert!(!home.exists());
+    assert!(!state.exists());
+    assert!(!config.exists());
+    assert!(!data.exists());
+}
+
+#[test]
+fn diagnose_report_writes_only_to_its_explicit_path_and_is_headless() {
+    let directory = tempdir().expect("temporary root");
+    let report_path = directory.path().join("support-report.json");
+    let state_path = directory.path().join("state");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unix"));
+    command
+        .env_clear()
+        .env("HOME", directory.path().join("home"))
+        .env("XDG_STATE_HOME", &state_path)
+        .args(["diagnose", "report", "--output"])
+        .arg(&report_path);
+    let output = command.output().expect("run report command");
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Support report written"));
+    let report: serde_json::Value =
+        serde_json::from_slice(&fs::read(&report_path).expect("report output"))
+            .expect("valid report JSON");
+    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["application"]["name"], "endfield-unix");
+    assert_eq!(report["log_history"]["status"], "missing");
+    assert!(!state_path.exists());
+}
+
+#[test]
+fn diagnose_report_requires_explicit_overwrite_and_has_no_hardware_subcommand() {
+    let directory = tempdir().expect("temporary root");
+    let report_path = directory.path().join("support-report.json");
+    fs::write(&report_path, b"existing report").expect("existing destination");
+
+    let no_overwrite = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .args(["diagnose", "report", "--output"])
+        .arg(&report_path)
+        .output()
+        .expect("run report without overwrite");
+    assert_eq!(no_overwrite.status.code(), Some(74));
+    assert_eq!(
+        fs::read(&report_path).expect("preserved destination"),
+        b"existing report"
+    );
+
+    let overwrite = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .args(["diagnose", "report", "--output"])
+        .arg(&report_path)
+        .arg("--overwrite")
+        .output()
+        .expect("run report with overwrite");
+    assert_eq!(overwrite.status.code(), Some(0));
+    assert_ne!(
+        fs::read(&report_path).expect("replaced destination"),
+        b"existing report"
+    );
+
+    let fake_hardware = invoke(&["diagnose", "hardware"]);
+    assert_eq!(fake_hardware.status.code(), Some(2));
+}
+
+#[cfg(unix)]
+#[test]
+fn diagnose_report_refuses_symlink_destination() {
+    use std::os::unix::fs::symlink;
+
+    let directory = tempdir().expect("temporary root");
+    let target = directory.path().join("target.json");
+    let report_path = directory.path().join("report.json");
+    fs::write(&target, b"preserve").expect("target file");
+    symlink(&target, &report_path).expect("destination symlink");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unix"));
+    command
+        .env_clear()
+        .args(["diagnose", "report", "--output"])
+        .arg(&report_path)
+        .arg("--overwrite");
+    let output = command.output().expect("run report command");
+    assert_eq!(output.status.code(), Some(74));
+    assert_eq!(fs::read(target).expect("target unchanged"), b"preserve");
 }

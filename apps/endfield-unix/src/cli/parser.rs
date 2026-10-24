@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 use std::iter;
+use std::path::PathBuf;
 
 use clap::error::{ContextKind, ContextValue, ErrorKind};
 use clap::{ArgAction, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -45,6 +46,24 @@ enum SubcommandArgs {
     },
     /// Show static application and repository information.
     About,
+    /// Generate an allowlist-only support report without probing the system.
+    Diagnose {
+        #[command(subcommand)]
+        command: DiagnoseArgs,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DiagnoseArgs {
+    /// Write a privacy-safe JSON support report to an explicit path.
+    Report {
+        /// Destination file for the generated report.
+        #[arg(long, value_name = "PATH")]
+        output: PathBuf,
+        /// Replace an existing regular file at the destination.
+        #[arg(long)]
+        overwrite: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -93,6 +112,9 @@ where
             HelpTopicArg::About => HelpTopic::About,
         })),
         Some(SubcommandArgs::About) => Command::About,
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::Report { output, overwrite },
+        }) => Command::DiagnoseReport { output, overwrite },
     })
 }
 

@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/endfield-unix", "crates/domain", "crates/optimizer-ffi", "crates/storage"]
+members = ["apps/endfield-unix", "crates/diagnostics", "crates/domain", "crates/optimizer-ffi", "crates/storage"]
 resolver = "3"
 
 [workspace.package]

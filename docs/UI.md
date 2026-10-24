@@ -12,7 +12,7 @@ Each module in `ui::pages` builds only its view subtree. Home sends a destinatio
 
 ## Main-thread and future service boundaries
 
-GTK, libadwaita, Relm4 model updates, CSS setup, and window lifecycle work occur on the GUI main thread. P004 starts no asynchronous runtime and has no background workers. Future blocking probes, downloads, optimization execution, and telemetry should run through Relm4 workers or other service boundaries and return typed messages to the component; GTK widgets must still be mutated on the main thread.
+GTK, libadwaita, Relm4 model updates, CSS setup, and window lifecycle work occur on the GUI main thread. P008 adds a bounded diagnostics worker for local log writes; event submission is nonblocking, and the worker never mutates GTK state. Future blocking probes, downloads, optimization execution, and telemetry should run through Relm4 workers or other service boundaries and return typed messages to the component; GTK widgets must still be mutated on the main thread.
 
 The page text currently represents implementation availability, not detected machine state. A future service integration should replace those labels with explicit `unknown`, `unavailable`, or measured states. It must not treat missing hardware/telemetry data as zero or infer runtime detection from the absence of configuration.
 
@@ -37,6 +37,6 @@ Native typography, system font scaling, keyboard traversal, and GTK focus indica
 
 ## Unimplemented work
 
-The Optimize page reserves sections for target FPS, playing preference, intensity, capabilities, candidate plans, benchmark results, review, and rollback. They are status-only placeholders. The C17 ABI still returns an empty plan set, so the interface does not claim that the planner produces recommendations. Benchmark, Library, Diagnostics, and Settings likewise identify unavailable behavior without fabricated system details. P006 supplies a storage library with theme and language preferences, but the Settings page neither edits those values nor reports them as applied.
+The Optimize page reserves sections for target FPS, playing preference, intensity, capabilities, candidate plans, benchmark results, review, and rollback. They are status-only placeholders. The C17 ABI still returns an empty plan set, so the interface does not claim that the planner produces recommendations. The Diagnostics page reports that hardware probes are unavailable and points users to the headless support-report command; it does not display synthetic hardware values. Benchmark, Library, and Settings likewise identify unavailable behavior without fabricated system details. P006 supplies a storage library with theme and language preferences, but the Settings page neither edits those values nor reports them as applied.
 
 The shell is validated for Linux CI only. macOS and BSD GTK/libadwaita packaging and behavior remain unverified.

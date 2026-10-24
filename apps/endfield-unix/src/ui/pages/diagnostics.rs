@@ -40,6 +40,13 @@ pub(crate) fn view() -> gtk::Widget {
         ),
         -1,
     );
+    status.insert(
+        &card(
+            "Support report",
+            "Run `endfield-unix diagnose report --output ./support-report.json` to write an allowlisted report without probing hardware.",
+        ),
+        -1,
+    );
     page.append(&status);
     page.upcast()
 }

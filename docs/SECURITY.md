@@ -24,6 +24,19 @@ Configuration and state updates should be versioned and recoverable. Use atomic 
 
 P006 creates Linux app-owned config/data directories with mode `0700` and TOML, lock, temporary, and database files with mode `0600`. It refuses final-component symlinks and non-regular config/database paths, uses same-directory atomic TOML replacement, and does not automatically delete or recreate unreadable, unsupported, or corrupt data. Its SQLite v1 migration is transactional. P006 has no database backup feature; copying an active WAL database file alone is not a consistent backup.
 
+P008 stores only typed allowlisted event fields under
+`${XDG_STATE_HOME:-$HOME/.local/state}/endfield-unix/logs/`. Its application
+namespace and log directory use mode `0700`; files use mode `0600`. It refuses
+final-component symlinks and hard-linked log files, coordinates library writers
+with an advisory lock, and bounds event size, segment size, age, and retained
+file count. Arbitrary tracing fields and P007 free-form diagnostic messages
+are not persisted. The support-report schema excludes raw paths, credentials,
+environment values, command arguments, device IDs, and correlation IDs. The
+report is written only to an explicit destination, with mode `0600`; an existing
+file requires an overwrite option and symlink destinations are refused.
+See [DIAGNOSTICS.md](DIAGNOSTICS.md) for the data flow and limits. These P008
+controls do not constitute a security audit of the whole application.
+
 ## Runtime and prefix safety
 
 Verify runtime source and integrity before activation. Keep known-good versions pinned and do not automatically upgrade them. Stage a new runner separately, validate it, and retain the previous runner until the user elects to change or remove it. Back up prefixes before risky migrations or repair operations. Explain what is included in a backup and where it is stored. Never silently delete or overwrite a prefix, runtime, or user data. Provide rollback steps for any applied optimization or runtime change.
