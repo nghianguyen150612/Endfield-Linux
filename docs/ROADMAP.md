@@ -1,6 +1,6 @@
 # Roadmap P001–P090
 
-This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005 is completed; other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
+This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005 and P006 are completed; other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
 
 ## Linux-first foundation and product: P001–P060
 
@@ -11,7 +11,7 @@ This roadmap preserves the requested development order. P001 established the doc
 - **P003** — **Completed** — Establish the portable C17 ABI 1.0 library, safe Rust FFI wrapper, independent native/Rust contract tests, and headless CI checks. Valid requests currently return an empty plan set; candidate generation remains P041–P048.
 - **P004** — **Completed** — Build the GTK4, libadwaita, and Relm4 application shell with responsive six-page navigation, GTK CSS, SVG resources, display-safe startup, and graphical smoke coverage. Game/runtime/planner services remain future work.
 - **P005** — **Completed** — Add typed CLI subcommand parsing, static help/version/about output, shared GUI dispatch, and native CI coverage to the existing executable.
-- **P006** — **In validation** — Implement versioned TOML configuration and transactional SQLite storage. Hosted GUI/CLI regression and CI checks are pending the direct `main` push.
+- **P006** — **Completed** — Implement versioned TOML configuration and transactional SQLite storage. Rust workspace, CLI/storage tests, GTK smoke/build, Cargo metadata, GCC, and Clang CI checks passed on `main`.
 - **P007** — Define portable domain models and capability-oriented platform interfaces.
 - **P008** — Add application diagnostics, structured local logging, and support-report redaction rules.
 - **P009** — Create the `endfield-unixd` daemon skeleton and lifecycle contract.

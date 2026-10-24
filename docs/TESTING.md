@@ -110,5 +110,10 @@ The CLI integration tests run without display variables and assert that help/ver
 - `cargo test --locked -p optimizer-ffi` — passed: 13 unit and integration tests. The public C header and C17 ABI were not changed.
 - `CC=gcc native/optimizer/tests/run-c-tests.sh` and `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed.
 - `cargo metadata --locked --format-version 1` — passed; the workspace contains exactly one application binary, `endfield-unix`. Dependency metadata was checked for declared Rust versions through 1.85.0.
-- The full Rust workspace test/build and graphical smoke test cannot be linked or run in this container because GTK4/libadwaita development libraries and Xvfb are absent. Clang is also unavailable locally. The existing hosted workflow retains these checks; its P006 run is pending the direct push to `main`.
-- Power-loss recovery was not tested. Hosted CI status will be recorded after the workflow completes.
+- The full Rust workspace test/build and graphical smoke test cannot be linked or run in this container because GTK4/libadwaita development libraries and Xvfb are absent. Clang is also unavailable locally. The hosted workflow completed those checks successfully on the native runner.
+- `cargo test --locked --workspace` — passed in hosted CI, including existing CLI and FFI tests and the 26 storage tests.
+- GTK regression — the Xvfb/D-Bus smoke test passed and uploaded the screenshot artifact.
+- `cargo build --locked --workspace` and `cargo metadata --locked --no-deps --format-version 1` — passed in hosted CI; exactly one application executable remains.
+- GCC and Clang C17 ABI jobs — passed in hosted CI. The C17 ABI and public header are unchanged.
+- GitHub Actions — [Rust CI run for commit `3a345e6`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40064013008) completed successfully.
+- Power-loss recovery was not tested.
