@@ -3,9 +3,10 @@
 P011 adds read-only Linux platform identity discovery and P012 extends the same
 adapter with CPU, memory, cgroup, scheduling, cpufreq, and power-interface
 discovery in `crates/platform-linux`, published as the library crate
-`endfield-unix-platform-linux`. P012's hosted CI qualification is pending.
-P011's hosted Linux qualification passed in [CI run
-40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204).
+`endfield-unix-platform-linux`. P011's hosted Linux qualification passed in
+[CI run 40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204),
+and P012's complete hosted qualification passed in [CI run
+40161140586](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40161140586).
 Linux CI does not establish support on Arch Linux, CachyOS, or the user's
 physical devices.
 

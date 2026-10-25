@@ -178,7 +178,8 @@ The deterministic P012 tests include the synthetic reference configurations:
 
 These are test-only inputs, not measurements from actual machines or
 production defaults. Hosted Linux CI runs parser/contract tests, a live
-read-only probe and the actual CLI command against its Ubuntu runner. Ubuntu
-CI does not establish Arch Linux or physical-device support. Real Arch device
-validation: **UNVERIFIED**. For manual comparison commands, see
+read-only probe and the actual CLI command against its Ubuntu runner; all P012
+gates passed in [CI run 40161140586](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40161140586).
+Ubuntu CI does not establish Arch Linux or physical-device support. Real Arch
+device validation: **UNVERIFIED**. For manual comparison commands, see
 [PLATFORM-LINUX.md](PLATFORM-LINUX.md).

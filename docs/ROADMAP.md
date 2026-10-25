@@ -1,6 +1,6 @@
 # Roadmap P001–P090
 
-This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005–P011 are completed. P012 code and local validation are in place; hosted CI qualification is pending. Other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
+This roadmap preserves the requested development order. P001 established the documentation baseline, and P002 completed the initial Rust workspace and shared executable skeleton. P005–P012 are completed. Other remaining items describe intended work, not shipped features. Linux-first implementation and validation runs through P060; macOS and FreeBSD are experimental in their respective ranges; cross-platform stabilization is P081–P090. No game compatibility claim is implied by a roadmap item.
 
 ## Linux-first foundation and product: P001–P060
 
@@ -20,7 +20,7 @@ This roadmap preserves the requested development order. P001 established the doc
 ### Linux capabilities, telemetry, and sessions: P011–P020
 
 - **P011** — **Completed** — Add the read-only Linux platform adapter, distribution parser, running-kernel and architecture identity, conservative container/WSL assessment, safe runtime-directory assessment, and headless `diagnose platform` command. Hosted Rust, GTK smoke/screenshot, IPC/daemon, metadata, GCC, and Clang checks passed in [CI run 40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204). No Arch Linux physical-device validation is claimed.
-- **P012** — **Code implemented; hosted qualification pending** — Add bounded, read-only Linux CPU topology/model, process affinity and scheduler queries, RAM/swap, cgroup v2 resource controls, cpufreq and platform profile discovery, typed P007 mapping, partial reports, and headless `diagnose hardware`. Real Arch physical-device validation remains unverified.
+- **P012** — **Completed** — Add bounded, read-only Linux CPU topology/model, process affinity and scheduler queries, RAM/swap, cgroup v2 resource controls, cpufreq and platform profile discovery, typed P007 mapping, partial reports, and headless `diagnose hardware`. Hosted Rust, GTK smoke/screenshot, CLI, IPC/daemon, metadata, GCC, and Clang qualification passed in [CI run 40161140586](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40161140586). Real Arch physical-device validation remains unverified.
 - **P013** — Discover GPUs, graphics drivers, Vulkan devices, and hardware-acceleration capabilities.
 - **P014** — Discover display modes, compositor/session characteristics, and relevant display capabilities.
 - **P015** — Define normalized telemetry units, timestamps, provenance, and missing-data semantics.

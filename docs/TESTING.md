@@ -216,8 +216,10 @@ GLib development packages, and it is not an Arch Linux device.
 
 ## P012 validation record — 2026-10-25
 
-P012 implementation is in place; hosted qualification is pending. This
-workspace does not include native GTK4/libadwaita development packages or
+P012 implementation and hosted qualification are complete. The hosted workflow
+for commit `6d01cb41bb3d495a0b6b3f4f19215feee34e49da` passed in [CI run
+40161140586](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40161140586).
+This workspace does not include native GTK4/libadwaita development packages or
 Xvfb, and it is not an Arch Linux device.
 
 - Rust toolchain — pinned Rust 1.85.0; P012 directly pins `libc` 0.2.191 and
@@ -243,12 +245,52 @@ Xvfb, and it is not an Arch Linux device.
 - Locked Cargo metadata — passed; exactly two application binaries remain:
   `endfield-unix` and `endfield-unixd`. The Linux adapter is library-only and
   its dependencies contain no GTK, libadwaita, or Relm4.
-- The CLI executable and its application tests could not be linked or run
-  locally because GTK4/libadwaita development libraries are absent. The
-  hosted workflow now builds the binaries, runs the actual headless
-  `diagnose hardware` command, executes full workspace tests/build, graphical
-  smoke and screenshot, P009/P010 subprocess gates, metadata assertions, and
-  the GCC/Clang C17 matrix. Hosted results will be recorded after the push.
+- Hosted workflow gates — passed: format, native GTK workspace check,
+  workspace Clippy, application binaries, `diagnose platform`,
+  `diagnose hardware`, platform adapter tests, full workspace tests, P009
+  lifecycle, P010 IPC end-to-end, GTK smoke and screenshot artifact,
+  workspace build, metadata assertions, and both GCC and Clang C17 ABI jobs.
+- Actual hosted `diagnose hardware` output from the Ubuntu runner:
+
+  ```text
+  Hardware probe: Linux
+  CPU:
+    Model: AMD EPYC 7763 64-Core Processor
+    Logical CPUs online: 4
+    Physical cores: unknown
+    CPUs present: 4
+    CPUs possible: 4
+    CPUs offline: 0
+    CPUs allowed to process: 4
+  CPU scheduling:
+    Affinity query: available and queryable
+    Scheduler policy query: available and queryable
+    Current policy: other
+    Current static priority: 0
+    Scheduling control permission: not assessed; no settings were changed
+  CPU frequency/power:
+    cpufreq interface: unavailable
+    Policies: none detected
+    Platform profile: unknown
+    Power interface: unavailable
+    Control write permission: not assessed
+    Momentary frequency: not sampled
+  Memory:
+    Host-visible total RAM: 15.61 GiB
+    Host-visible available RAM: 14.14 GiB
+    Swap: 2.99 GiB total, 2.99 GiB free
+    Cgroup status: v2
+    Cgroup CPU-time quota: unlimited
+    Cgroup effective CPU set: 4 CPUs
+    Cgroup memory limit: unlimited
+    Cgroup memory usage: 2.82 GiB
+    Cgroup swap limit: unlimited
+    Cgroup ancestor limits: not assessed; leaf limits are shown separately from host RAM
+  Probe result: partial
+  ```
+
+- The hosted output is an Ubuntu CI runner observation and does not substitute
+  for testing on an Arch Linux machine or physical devices.
 - No manual Arch Linux, CachyOS, or physical-device validation has been
   performed: real Arch device validation is **UNVERIFIED**. Synthetic desktop
   and laptop fixtures are test inputs, not measurements from user hardware.
