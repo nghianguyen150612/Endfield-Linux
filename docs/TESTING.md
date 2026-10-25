@@ -449,3 +449,49 @@ for implementation commit
 - Real Wayland compositor, Arch desktop, Dell Vostro, Hyprland, and Niri
   validation remains **UNVERIFIED**. Deterministic fixtures do not establish
   real compositor integration.
+
+## P015 validation record — 2026-10-25
+
+P015 is implemented on `main` in commit
+`4e6fb09bfc079b8dc74e6f72e2aac70c2de05198`. Hosted qualification passed after
+rerunning the failed Rust job in [CI run 40184991675](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40184991675).
+
+- Rust 1.85.0 — used locally and pinned in CI. `cargo fmt --all -- --check`,
+  workspace `cargo check --locked --workspace --all-targets`, and workspace
+  Clippy with `-D warnings` passed locally. Workspace check and Clippy used
+  temporary pkg-config metadata only to type-check Rust targets because this
+  container lacks GTK4, GLib, and libadwaita development files; native linking
+  was verified on the hosted runner.
+- `cargo test --locked -p endfield-unix-telemetry --all-targets` — passed
+  locally: 50 deterministic tests across metric/unit, timestamp, freshness,
+  provenance, missing-data, quality/counter, synthetic-example, and batch
+  contracts.
+- `cargo test --locked --workspace --exclude endfield-unix` — passed locally:
+  315 tests covering the telemetry crate and existing domain, diagnostics,
+  storage, platform adapter, daemon, IPC library, and Rust FFI targets. The
+  Linux application IPC subprocess test is part of the GTK-linked application
+  package and was run by hosted CI.
+- Local `cargo build --locked --workspace --exclude endfield-unix`, metadata
+  assertions, and `git diff --check` — passed. Metadata retains exactly the
+  `endfield-unix` and `endfield-unixd` binaries; telemetry is library-only and
+  depends directly only on the dependency-free domain crate.
+- GCC C17 ABI tests and sanitizer tests — passed locally. Clang, GTK/Xvfb,
+  graphical CLI package tests, and the complete workspace build/test require
+  native dependencies absent from this container and were run in hosted CI.
+- Hosted run `40184991675` passed formatting, native workspace check, Clippy,
+  both executable builds, all four headless platform/hardware/GPU/display CLI
+  commands, Xvfb/RandR display smoke, Linux platform-adapter tests, all 50
+  telemetry tests, full workspace tests, the bounded daemon lifecycle gate,
+  authenticated IPC subprocess gate, graphical smoke and screenshot upload,
+  workspace build, and Cargo metadata assertions. GCC and Clang C17 ABI jobs
+  also passed.
+- The first hosted attempt failed once in the existing IPC saturation test at
+  `apps/endfield-unix/tests/ipc_e2e.rs:144`: its one-second read observed
+  `WouldBlock` instead of EOF on the over-capacity socket. The failed Rust job
+  was rerun without changing or weakening IPC code or tests; the full workspace
+  test and dedicated bounded IPC gate both passed on retry. This timing failure
+  is recorded separately from P015 telemetry validation.
+- The hosted platform/hardware/GPU/display commands exercised existing Linux
+  discovery probes. P015's telemetry examples remain synthetic; no real
+  CPU/GPU/FPS/thermal collection is implemented or claimed. P016 can implement
+  Linux CPU and memory providers against these contracts.

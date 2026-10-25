@@ -169,8 +169,9 @@ refer to the same device. Unassociated readings remain explicit; enumeration
 order is not used to select a GPU.
 
 Every observation carries a `TelemetryProvenance`: a provider ID validated by
-P007's provider-name policy, a fixed sampling-method classification, and the
-P007 measurement origin. A conversion to P007 `Provenance` requires a caller
+P007's provider-name policy (ASCII letters, digits, `.`, `_`, or `-`, up to 128
+bytes), a fixed sampling-method classification, and the P007 measurement
+origin. A conversion to P007 `Provenance` requires a caller
 allocated `ProvenanceId` and can carry the optional wall-clock timestamp.
 Diagnostics store only P007 category codes. The model excludes usernames,
 paths, command lines, credentials, serials, GPU UUIDs, container IDs,
