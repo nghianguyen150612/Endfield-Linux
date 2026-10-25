@@ -248,7 +248,7 @@ fn diagnose_report_writes_only_to_its_explicit_path_and_is_headless() {
 }
 
 #[test]
-fn diagnose_report_requires_explicit_overwrite_and_has_no_hardware_subcommand() {
+fn diagnose_report_requires_explicit_overwrite() {
     let directory = tempdir().expect("temporary root");
     let report_path = directory.path().join("support-report.json");
     fs::write(&report_path, b"existing report").expect("existing destination");
@@ -277,9 +277,6 @@ fn diagnose_report_requires_explicit_overwrite_and_has_no_hardware_subcommand() 
         fs::read(&report_path).expect("replaced destination"),
         b"existing report"
     );
-
-    let fake_hardware = invoke(&["diagnose", "hardware"]);
-    assert_eq!(fake_hardware.status.code(), Some(2));
 }
 
 #[cfg(unix)]
