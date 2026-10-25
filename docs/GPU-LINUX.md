@@ -36,6 +36,10 @@ The adapter uses fixed source-family APIs, strict identifiers, bounded reads/enu
 
 Synthetic tests are not measurements of a user's system. Hosted Ubuntu smoke coverage accepts no physical GPU and does not qualify target Arch hardware.
 
+## Hosted CI validation
+
+The hosted workflow passed for commit `438b58aa14fc74ce09b09cc4de758dddfeacb744` in [Rust CI run 40170150212](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40170150212), including the real headless CLI, 92 platform-adapter tests, full workspace tests, IPC/daemon gates, GTK smoke/screenshot, metadata, and GCC/Clang C17 jobs. The Ubuntu 24.04.5 runner reported zero PCI graphics-class devices, one DRM node without a validated PCI relationship, and Vulkan instance initialization failure; it returned a valid partial report with unknown Vulkan device counts. This is a CI environment observation, not target hardware validation.
+
 ## Manual Arch Linux comparison
 
 ```sh

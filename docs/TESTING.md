@@ -297,14 +297,17 @@ Xvfb, and it is not an Arch Linux device.
 
 ## P013 validation record — 2026-10-25
 
-P013 implementation is present on `main`; hosted GitHub Actions qualification is
-pending the first push of this change. Local validation used Rust 1.85.0.
+P013 is implemented on `main` and hosted qualification passed in [Rust CI run
+40170150212](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40170150212)
+for commit `438b58aa14fc74ce09b09cc4de758dddfeacb744`. Local validation used
+Rust 1.85.0.
 
 - `cargo +1.85.0 fmt --all` and `git diff --check` — passed.
 - `cargo +1.85.0 test --locked -p endfield-unix-platform-linux --all-targets`
-  — passed: 92 adapter tests, including deterministic PCI/DRM limit and mapping tests, hybrid
-  multi-GPU correlation, software Vulkan, missing-loader, initialization
-  failure, zero-device, malformed metadata, and live Linux smoke tests.
+  — passed: 92 adapter tests, including deterministic PCI/DRM limit and mapping
+  tests, hybrid multi-GPU correlation, software Vulkan, missing-loader,
+  initialization failure, zero-device, malformed metadata, and live Linux
+  smoke tests.
 - `cargo +1.85.0 check --locked --workspace --all-targets` and workspace
   Clippy with `-D warnings` — passed using temporary pkg-config metadata stubs
   because this workspace has no GTK4/libadwaita development libraries. These
@@ -312,21 +315,46 @@ pending the first push of this change. Local validation used Rust 1.85.0.
   native GUI.
 - `cargo +1.85.0 test --locked --workspace --exclude endfield-unix` — passed,
   covering domain, diagnostics/redaction, storage/recovery, IPC crate,
-  platform-adapter, daemon lifecycle, and Rust FFI tests. The app CLI tests,
-  P010 app/daemon IPC saturation end-to-end test, full workspace test, GTK
-  smoke/screenshot, and native workspace build require the hosted GTK runner
-  and remain pending there. No IPC test was changed or weakened.
+  platform-adapter, daemon lifecycle, and Rust FFI tests. The hosted full
+  workspace test passed, including app CLI and GPU formatting tests. The
+  P010 authenticated IPC end-to-end test, including its unchanged over-capacity
+  saturation and recovery check, passed. No IPC test was changed or weakened.
 - Cargo metadata assertions — passed: exactly two application binaries, a
   library-only Linux adapter, no Linux/Vulkan dependency in the domain, and no
   GTK dependency in the adapter or daemon.
 - `CC=gcc native/optimizer/tests/run-c-tests.sh` and the GCC sanitizer script
-  — passed. Clang is not installed in this local environment; hosted matrix
-  validation remains pending.
+  — passed. Clang is not installed locally; both hosted GCC and Clang C17 jobs
+  passed.
+- Hosted workspace check, Clippy, both executable builds, `diagnose platform`,
+  `diagnose hardware`, `diagnose gpu`, all 92 adapter tests, the full workspace
+  tests, daemon lifecycle, IPC end-to-end, Xvfb/DBus GUI smoke and screenshot,
+  workspace build, and Cargo metadata assertions all passed. Metadata retained
+  exactly `endfield-unix` and `endfield-unixd`; the Linux adapter is
+  library-only and the domain remains dependency-free.
+- Actual hosted `diagnose gpu` output from Ubuntu 24.04.5 LTS:
+
+  ```text
+  GPU discovery: Linux
+  PCI graphics devices: 0
+  DRM nodes: 1 validated (partial)
+  Vulkan:
+    Loader: present, initialization failed
+    Physical devices: unknown
+    Software devices: unknown
+    Unmatched devices: unknown
+    Detail: Vulkan instance initialization failed
+  Probe result: partial
+  ```
+
+  This runner observation had no PCI graphics-class candidates and one DRM
+  node without a validated PCI relationship. Vulkan instance initialization
+  failed, so device counts remain unknown. No physical GPU was fabricated.
 - Actual local Linux GPU smoke: PCI source available with zero graphics-class
-  devices, DRM sysfs source missing, Vulkan loader loaded but instance
-  initialization failed, zero enumerated devices, and P012 CPU and memory
-  facts present. The valid combined report was partial. This is the current
-  container observation, not a target desktop or laptop measurement.
+  devices, DRM sysfs source missing, and the Vulkan loader loaded but instance
+  initialization failed before physical-device enumeration; P012 CPU and
+  memory facts remained present. The valid combined report was partial. This
+  is the current container observation, not a target desktop or laptop
+  measurement.
 - Real Arch desktop/NVIDIA RTX 5070 and Dell Vostro 3510/Intel Iris Xe plus
-  NVIDIA MX350 checks — **UNVERIFIED**. See [GPU-LINUX.md](GPU-LINUX.md) for
-  manual comparisons and interpretation.
+  NVIDIA MX350 checks — **UNVERIFIED**. Ubuntu CI is not a substitute. See
+  [GPU-LINUX.md](GPU-LINUX.md) for manual comparisons and interpretation.
