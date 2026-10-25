@@ -9,6 +9,11 @@ mod cgroup;
 mod cpu;
 mod cpu_topology;
 mod cpufreq;
+mod display;
+mod display_mapping;
+mod display_probe;
+mod display_sources;
+mod drm_connectors;
 mod environment;
 mod errors;
 mod gpu_probe;
@@ -23,8 +28,11 @@ mod os_release;
 mod pci;
 mod probe;
 mod scheduler;
+mod session;
 mod sources;
 mod vulkan;
+mod wayland;
+mod x11;
 
 pub use cgroup::{CgroupLimit, CgroupResourceFacts, CgroupStatus, CpuTimeQuota};
 pub use cpu::{CpuInfoParseError, parse_cpu_model};
@@ -33,6 +41,18 @@ pub use cpu_topology::{
     parse_cpu_list,
 };
 pub use cpufreq::{CpuFrequencyFacts, CpuFrequencyPolicyFacts, FrequencyRange, PlatformPowerFacts};
+pub use display::{
+    BackendDisplayOutput, BackendError, BackendErrorKind, BackendObservation, CompositorAssessment,
+    ConnectorEnabled, ConnectorState, DisplayOutputSource, DisplayOutputState, DisplayProtocol,
+    DisplayProtocolFacts, DrmConnector, ExactRefreshRate, LINUX_DISPLAY_REPORT_SCHEMA_VERSION,
+    LinuxDisplayCompleteness, LinuxDisplayMode, LinuxDisplayOutput, LogicalGeometry,
+    MAX_DISPLAY_MODES, MAX_DISPLAY_OUTPUTS, MAX_DRM_CONNECTORS, OutputInventoryStatus,
+    ProviderStatus, ScaleFactor, SessionAssessment, SessionTypeHint, VerifiedDisplayProtocol,
+};
+pub use display_probe::{LinuxDisplayProbe, LinuxDisplayReport};
+pub use display_sources::{
+    LinuxDisplayDataSource, MAX_DRM_CONNECTOR_ATTRIBUTE_BYTES, RawDrmConnector,
+};
 pub use environment::{
     EnvironmentClassification, EnvironmentConfidence, EnvironmentStatus,
     RuntimeDirectoryAssessment, RuntimeDirectoryStatus, RuntimeEnvironmentFacts,
@@ -68,6 +88,7 @@ pub use probe::{
     LinuxReportCompleteness,
 };
 pub use scheduler::{QueryAvailability, SchedulingFacts};
+pub use session::{LocalWaylandEndpoint, LocalX11Endpoint, SessionEnvironmentHints};
 pub use sources::{
     ContainerMarker, LinuxDataSource, OsReleaseFile, RuntimeDirectoryMetadata,
     SystemLinuxDataSource,
@@ -76,3 +97,5 @@ pub use vulkan::{
     SystemVulkanBackend, VulkanBackend, VulkanDeviceType, VulkanDriverIdentity, VulkanFacts,
     VulkanLoaderStatus, VulkanPhysicalDevice,
 };
+pub use wayland::{SystemWaylandBackend, WaylandDisplayBackend};
+pub use x11::{SystemX11Backend, X11DisplayBackend};

@@ -105,3 +105,21 @@ Do not claim a recommendation will increase FPS unless relevant benchmark eviden
 ## P013 graphics discovery
 
 `diagnose gpu` reads only fixed bounded PCI/DRM sysfs families and dynamically loads Vulkan via ash. It does not open DRM nodes or execute commands. Vulkan vendor driver code runs in-process and may block; no hard cancellation guarantee is claimed. Sysfs topology links are constrained to `/sys/devices`. See [GPU-LINUX.md](GPU-LINUX.md) for bounds and correlation semantics.
+
+## P014 display discovery
+
+`diagnose display` reads five bounded session-hint variables, a validated
+private local Wayland socket, a local-only X11 display string, Wayland
+`wl_output`/optional xdg-output observations, read-only X11 RandR replies, and
+bounded `/sys/class/drm` connector attributes. It rejects remote X11 hosts,
+retains normal Xauthority authentication, does not create a Wayland surface,
+and sends no display-changing request. It does not read EDID, open DRM device
+nodes, run display utilities, inspect process lists, read compositor
+configuration, or write display state. Output names are restricted to
+sanitized local labels and are not added to support reports or persistent
+logs.
+
+Wayland roundtrips, X11 queries, and caller waits are bounded, but an OS
+connect or protocol-library call that blocks cannot be forcibly cancelled.
+Such a worker may finish after the CLI has returned a timeout result. See
+[DISPLAY-LINUX.md](DISPLAY-LINUX.md) for exact bounds and source semantics.

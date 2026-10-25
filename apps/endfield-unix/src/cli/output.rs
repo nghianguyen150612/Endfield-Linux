@@ -1,9 +1,12 @@
 use std::io::{self, Write};
 
+use endfield_unix_domain::DisplayConnection;
 use endfield_unix_platform_linux::{
-    CgroupLimit, CgroupStatus, CpuTimeQuota, EnvironmentClassification, LinuxHardwareCompleteness,
-    LinuxHardwareReport, LinuxPlatformReport, LinuxReportCompleteness, QueryAvailability,
-    RuntimeDirectoryStatus,
+    CgroupLimit, CgroupStatus, ConnectorEnabled, ConnectorState, CpuTimeQuota, DisplayOutputSource,
+    DisplayOutputState, EnvironmentClassification, GpuSourceStatus, LinuxDisplayCompleteness,
+    LinuxDisplayMode, LinuxDisplayReport, LinuxHardwareCompleteness, LinuxHardwareReport,
+    LinuxPlatformReport, LinuxReportCompleteness, OutputInventoryStatus, ProviderStatus,
+    QueryAvailability, RuntimeDirectoryStatus, SessionTypeHint, VerifiedDisplayProtocol,
 };
 
 use super::commands::HelpTopic;
@@ -614,6 +617,371 @@ pub fn write_gpu_report<W: Write>(
     )
 }
 
+pub fn write_display_report<W: Write>(
+    report: &LinuxDisplayReport,
+    output: &mut W,
+) -> io::Result<()> {
+    writeln!(output, "Display discovery: Linux")?;
+    writeln!(output, "Session:")?;
+    writeln!(
+        output,
+        "  Type hint: {}",
+        session_type_name(report.session.hint)
+    )?;
+    writeln!(
+        output,
+        "  Verified display protocol: {}",
+        verified_protocol_name(report.session.verified_protocol)
+    )?;
+    let compositor = if let Some(identity) = &report.compositor.verified_identity {
+        format!("{identity} (verified)")
+    } else if report.compositor.advertised_desktops.is_empty() {
+        "unknown".to_owned()
+    } else {
+        format!(
+            "unverified hint: {}",
+            report.compositor.advertised_desktops.join(", ")
+        )
+    };
+    writeln!(output, "  Compositor: {compositor}")?;
+    write_protocol_summary("Wayland", &report.wayland, output)?;
+    write_protocol_summary("X11/RandR", &report.x11, output)?;
+
+    match report.output_source {
+        Some(DisplayOutputSource::Wayland) => writeln!(output, "Display output source: Wayland")?,
+        Some(DisplayOutputSource::X11RandR) => {
+            writeln!(output, "Display output source: X11 RandR")?
+        }
+        None => writeln!(
+            output,
+            "Display output source: unknown (no protocol inventory verified)"
+        )?,
+    }
+    if report.outputs.is_empty() {
+        writeln!(output, "Displays: none verified")?;
+    }
+    for (index, display) in report.outputs.iter().enumerate() {
+        writeln!(output, "Display {}:", index + 1)?;
+        writeln!(
+            output,
+            "  Name: {}",
+            display.info.label.as_deref().unwrap_or("unknown")
+        )?;
+        writeln!(
+            output,
+            "  Connection: {}",
+            display.info.connection.map_or("unknown", connection_name)
+        )?;
+        writeln!(output, "  State: {}", output_state_name(display.state))?;
+        writeln!(
+            output,
+            "  Mode resolution: {}",
+            display.info.resolution.map_or_else(
+                || "unknown".to_owned(),
+                |resolution| format!(
+                    "{}×{} pixels",
+                    resolution.width_pixels, resolution.height_pixels
+                )
+            )
+        )?;
+        let current_rate = display
+            .modes
+            .iter()
+            .find(|mode| mode.current)
+            .and_then(|mode| mode.refresh_rate)
+            .map(format_exact_refresh_rate)
+            .or_else(|| {
+                display
+                    .info
+                    .refresh_rate
+                    .map(|rate| format!("{} Hz", rate.0))
+            })
+            .unwrap_or_else(|| "unknown".to_owned());
+        writeln!(output, "  Refresh rate: {current_rate}")?;
+        writeln!(
+            output,
+            "  Logical resolution: {}",
+            display.logical_geometry.map_or_else(
+                || "unknown".to_owned(),
+                |geometry| format!("{}×{} pixels", geometry.width, geometry.height)
+            )
+        )?;
+        writeln!(
+            output,
+            "  Logical position: {}",
+            display.logical_geometry.map_or_else(
+                || "unknown".to_owned(),
+                |geometry| format!("{}, {}", geometry.x, geometry.y)
+            )
+        )?;
+        writeln!(
+            output,
+            "  Scale: {}",
+            display.scale.map_or_else(
+                || "unknown".to_owned(),
+                |scale| format!("{}/{}", scale.numerator, scale.denominator)
+            )
+        )?;
+        writeln!(
+            output,
+            "  Rotation: {}",
+            display
+                .rotation_degrees
+                .map_or_else(|| "unknown".to_owned(), |degrees| format!("{degrees}°"))
+        )?;
+        writeln!(
+            output,
+            "  Primary: {}",
+            display
+                .info
+                .primary
+                .map_or("unknown", |primary| if primary { "yes" } else { "no" })
+        )?;
+        if display.modes.is_empty() {
+            writeln!(output, "  Advertised modes: unknown")?;
+        } else {
+            writeln!(output, "  Advertised modes:")?;
+            for mode in &display.modes {
+                writeln!(output, "    {}", format_display_mode(mode))?;
+            }
+        }
+    }
+
+    match (&report.drm_connectors, report.drm_connector_status) {
+        (Some(connectors), GpuSourceStatus::Available) => {
+            writeln!(output, "DRM connectors: {}", connectors.len())?;
+            for connector in connectors {
+                write_drm_connector(connector, output)?;
+            }
+        }
+        (Some(connectors), GpuSourceStatus::Degraded) => {
+            writeln!(
+                output,
+                "DRM connectors: {} enumerated (partial)",
+                connectors.len()
+            )?;
+            for connector in connectors {
+                write_drm_connector(connector, output)?;
+            }
+        }
+        (Some(_), GpuSourceStatus::Missing) | (None, _) => {
+            writeln!(output, "DRM connectors: unknown (source unavailable)")?
+        }
+    }
+    writeln!(
+        output,
+        "Probe result: {}",
+        match report.completeness {
+            LinuxDisplayCompleteness::Complete => "complete",
+            LinuxDisplayCompleteness::Partial => "partial",
+        }
+    )
+}
+
+fn write_drm_connector<W: Write>(
+    connector: &endfield_unix_platform_linux::DrmConnector,
+    output: &mut W,
+) -> io::Result<()> {
+    writeln!(
+        output,
+        "  {}: {}, {}, {}; GPU mapping: {}",
+        connector.label,
+        connector_state_name(connector.state),
+        connector_enabled_name(connector.enabled),
+        connection_name(connector.connection),
+        connector.gpu_instance.map_or_else(
+            || "unknown".to_owned(),
+            |instance| format!("GPU instance {}", instance.get())
+        )
+    )?;
+    match &connector.advertised_modes {
+        None => writeln!(output, "    Advertised kernel modes: unknown"),
+        Some(modes) if modes.is_empty() => {
+            writeln!(output, "    Advertised kernel modes: none reported")
+        }
+        Some(modes) => {
+            writeln!(output, "    Advertised kernel modes:")?;
+            for mode in modes {
+                writeln!(
+                    output,
+                    "      {}×{} pixels",
+                    mode.width_pixels, mode.height_pixels
+                )?;
+            }
+            Ok(())
+        }
+    }
+}
+
+fn write_protocol_summary<W: Write>(
+    name: &str,
+    protocol: &endfield_unix_platform_linux::DisplayProtocolFacts,
+    output: &mut W,
+) -> io::Result<()> {
+    writeln!(
+        output,
+        "  {name}: {} (output inventory: {})",
+        provider_status_name(protocol.status),
+        inventory_status_name(protocol.inventory)
+    )?;
+    if let Some((major, minor)) = protocol.protocol_version {
+        writeln!(output, "    Protocol version: {major}.{minor}")?;
+    }
+    if let Some(count) = protocol.output_count {
+        writeln!(output, "    Output records: {count}")?;
+    }
+    if let Some((width, height)) = protocol.screen_geometry {
+        writeln!(output, "    Screen geometry: {width}×{height} pixels")?;
+    }
+    if let Some(logical_output) = protocol.optional_logical_output_protocol {
+        writeln!(
+            output,
+            "    Optional logical-output protocol: {}",
+            if logical_output {
+                "available"
+            } else {
+                "unavailable"
+            }
+        )?;
+    }
+    if let Some(diagnostic) = protocol.diagnostic {
+        writeln!(output, "    Note: {diagnostic}")?;
+    }
+    Ok(())
+}
+
+fn format_display_mode(mode: &LinuxDisplayMode) -> String {
+    let refresh = mode
+        .refresh_rate
+        .map(format_exact_refresh_rate)
+        .unwrap_or_else(|| "unknown refresh".to_owned());
+    let mut details = Vec::new();
+    if mode.current {
+        details.push("current");
+    }
+    if mode.preferred {
+        details.push("preferred");
+    }
+    if mode.interlaced == Some(true) {
+        details.push("interlaced");
+    }
+    if mode.doublescan == Some(true) {
+        details.push("doublescan");
+    }
+    if details.is_empty() {
+        format!("{}×{} @ {refresh}", mode.width_pixels, mode.height_pixels)
+    } else {
+        format!(
+            "{}×{} @ {refresh} ({})",
+            mode.width_pixels,
+            mode.height_pixels,
+            details.join(", ")
+        )
+    }
+}
+
+fn format_exact_refresh_rate(rate: endfield_unix_platform_linux::ExactRefreshRate) -> String {
+    if rate.numerator_hz == 0 || rate.denominator == 0 {
+        return "unknown refresh".to_owned();
+    }
+    if let Some(millihertz) = rate
+        .numerator_hz
+        .checked_mul(1_000)
+        .filter(|value| value % rate.denominator == 0)
+        .map(|value| value / rate.denominator)
+    {
+        let whole = millihertz / 1_000;
+        let fraction = millihertz % 1_000;
+        if fraction == 0 {
+            format!("{whole} Hz")
+        } else {
+            let fractional = format!("{fraction:03}").trim_end_matches('0').to_owned();
+            format!("{whole}.{fractional} Hz")
+        }
+    } else {
+        format!("{}/{} Hz (exact)", rate.numerator_hz, rate.denominator)
+    }
+}
+
+fn session_type_name(value: SessionTypeHint) -> &'static str {
+    match value {
+        SessionTypeHint::Wayland => "Wayland (hint)",
+        SessionTypeHint::X11 => "X11 (hint)",
+        SessionTypeHint::Mixed => "mixed or ambiguous",
+        SessionTypeHint::Headless => "headless",
+        SessionTypeHint::Unknown => "unknown",
+    }
+}
+
+fn verified_protocol_name(value: VerifiedDisplayProtocol) -> &'static str {
+    match value {
+        VerifiedDisplayProtocol::Wayland => "Wayland",
+        VerifiedDisplayProtocol::X11 => "X11",
+        VerifiedDisplayProtocol::Both => "Wayland and X11",
+        VerifiedDisplayProtocol::None => "none connected",
+        VerifiedDisplayProtocol::Unknown => "unknown",
+    }
+}
+
+fn provider_status_name(value: ProviderStatus) -> &'static str {
+    match value {
+        ProviderStatus::NotAdvertised => "not advertised",
+        ProviderStatus::NotAttempted => "not attempted",
+        ProviderStatus::Connected => "connected",
+        ProviderStatus::RejectedRemote => "remote endpoint rejected",
+        ProviderStatus::InvalidEndpoint => "invalid endpoint",
+        ProviderStatus::AuthenticationFailed => "authentication failed",
+        ProviderStatus::PermissionDenied => "permission denied",
+        ProviderStatus::TimedOut => "timed out",
+        ProviderStatus::Unavailable => "unavailable",
+        ProviderStatus::Failed => "failed",
+    }
+}
+
+fn inventory_status_name(value: OutputInventoryStatus) -> &'static str {
+    match value {
+        OutputInventoryStatus::Enumerated => "enumerated",
+        OutputInventoryStatus::ProtocolUnavailable => "protocol unavailable",
+        OutputInventoryStatus::NotAttempted => "not attempted",
+        OutputInventoryStatus::Failed => "failed",
+        OutputInventoryStatus::Inconsistent => "partial or inconsistent",
+    }
+}
+
+fn output_state_name(value: DisplayOutputState) -> &'static str {
+    match value {
+        DisplayOutputState::Active => "active",
+        DisplayOutputState::ConnectedInactive => "connected, inactive",
+        DisplayOutputState::Disconnected => "disconnected",
+        DisplayOutputState::Unknown => "unknown",
+    }
+}
+
+fn connection_name(value: DisplayConnection) -> &'static str {
+    match value {
+        DisplayConnection::Internal => "internal",
+        DisplayConnection::External => "external",
+        DisplayConnection::Virtual => "virtual",
+        DisplayConnection::Unknown => "unknown",
+    }
+}
+
+fn connector_state_name(value: ConnectorState) -> &'static str {
+    match value {
+        ConnectorState::Connected => "connected",
+        ConnectorState::Disconnected => "disconnected",
+        ConnectorState::Unknown => "unknown state",
+    }
+}
+
+fn connector_enabled_name(value: ConnectorEnabled) -> &'static str {
+    match value {
+        ConnectorEnabled::Enabled => "enabled",
+        ConnectorEnabled::Disabled => "disabled",
+        ConnectorEnabled::Unknown => "enabled state unknown",
+    }
+}
+
 fn query_availability_name(value: QueryAvailability) -> &'static str {
     match value {
         QueryAvailability::Available => "available and queryable",
@@ -783,6 +1151,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
         output,
         "  diagnose gpu  Inspect Linux PCI, DRM, graphics-driver, and Vulkan facts"
     )?;
+    writeln!(
+        output,
+        "  diagnose display  Inspect Linux outputs, sessions, and DRM connectors"
+    )?;
     writeln!(output, "  service ping  Verify authenticated daemon IPC")?;
     writeln!(
         output,
@@ -842,11 +1214,11 @@ fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu>\n"
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display>\n"
     )?;
     writeln!(
         output,
-        "Platform, hardware, and GPU perform bounded, read-only Linux discovery without GTK or the daemon."
+        "Platform, hardware, GPU, and display perform bounded, read-only Linux discovery without GTK or the daemon."
     )?;
     writeln!(
         output,
@@ -925,6 +1297,72 @@ mod tests {
         assert!(String::from_utf8_lossy(&output).contains("diagnose platform"));
         assert!(String::from_utf8_lossy(&output).contains("diagnose hardware"));
         assert!(String::from_utf8_lossy(&output).contains("diagnose gpu"));
+        assert!(String::from_utf8_lossy(&output).contains("diagnose display"));
+    }
+
+    #[test]
+    fn display_rate_formatting_preserves_exact_fractional_values() {
+        use endfield_unix_platform_linux::ExactRefreshRate;
+
+        assert_eq!(
+            format_exact_refresh_rate(ExactRefreshRate::new(60, 1).unwrap()),
+            "60 Hz"
+        );
+        assert_eq!(
+            format_exact_refresh_rate(ExactRefreshRate::new(2_997, 50).unwrap()),
+            "59.94 Hz"
+        );
+        assert_eq!(
+            format_exact_refresh_rate(ExactRefreshRate::new(1, 3).unwrap()),
+            "1/3 Hz (exact)"
+        );
+        assert_eq!(
+            format_exact_refresh_rate(ExactRefreshRate {
+                numerator_hz: 60,
+                denominator: 0,
+            }),
+            "unknown refresh"
+        );
+        assert_eq!(
+            format_display_mode(&LinuxDisplayMode {
+                width_pixels: 2560,
+                height_pixels: 1440,
+                refresh_rate: ExactRefreshRate::new(1_999, 20),
+                current: true,
+                preferred: true,
+                interlaced: None,
+                doublescan: None,
+            }),
+            "2560×1440 @ 99.95 Hz (current, preferred)"
+        );
+    }
+
+    #[test]
+    fn drm_connector_output_distinguishes_unavailable_and_empty_mode_lists() {
+        let connector = |advertised_modes| endfield_unix_platform_linux::DrmConnector {
+            label: "DP-1".to_owned(),
+            state: ConnectorState::Connected,
+            enabled: ConnectorEnabled::Disabled,
+            advertised_modes,
+            connection: DisplayConnection::External,
+            gpu_instance: None,
+        };
+
+        let mut unavailable = Vec::new();
+        write_drm_connector(&connector(None), &mut unavailable).unwrap();
+        assert!(
+            String::from_utf8(unavailable)
+                .unwrap()
+                .contains("Advertised kernel modes: unknown")
+        );
+
+        let mut empty = Vec::new();
+        write_drm_connector(&connector(Some(Vec::new())), &mut empty).unwrap();
+        assert!(
+            String::from_utf8(empty)
+                .unwrap()
+                .contains("Advertised kernel modes: none reported")
+        );
     }
 
     #[test]

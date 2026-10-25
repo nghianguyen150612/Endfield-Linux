@@ -21,6 +21,7 @@ pub enum Command {
     DiagnosePlatform,
     DiagnoseHardware,
     DiagnoseGpu,
+    DiagnoseDisplay,
     ServicePing,
     ServiceStatus,
 }

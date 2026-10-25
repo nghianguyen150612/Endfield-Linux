@@ -184,12 +184,32 @@ runner provides live Linux smoke coverage but does not substitute for a manual
 Arch, CachyOS, or physical-device validation session. Real Arch device
 validation: **UNVERIFIED**.
 
-## Non-goals
+## P012 non-goals
 
-P012 does not detect display, Wayland/X11,
-refresh-rate, Wine, or Proton state. It does not create IPC requests, start the
-daemon, change system configuration, install services, tune a kernel, or
-launch a game. macOS and FreeBSD probing is not implemented.
+P012 does not collect telemetry, change system configuration, install
+services, tune a kernel, or launch a game. P014 adds one-shot display/session
+discovery separately; neither probe detects Wine/Proton or changes system
+state. macOS and FreeBSD probing is not implemented.
 ## P013 GPU integration
 
 P013 extends the existing Linux adapter with bounded PCI and DRM enumeration and dynamic Vulkan discovery. The GPU report composes the P011/P012 snapshot without changing platform schema, storage, IPC, or C ABI contracts. It does not expose GPU probing over IPC or add daemon work. See [GPU-LINUX.md](GPU-LINUX.md) for PCI classes, topology, correlation, memory semantics, and Arch validation.
+
+## P014 display and graphical-session integration
+
+P014 adds `LinuxDisplayProbe` and `LinuxDisplayReport` to the same adapter.
+The probe preserves P011–P013 facts and appends P007 display and
+compositor/session capabilities 40 and 41. It uses validated local Wayland
+and X11 endpoints, reads Wayland `wl_output` with optional xdg-output v1,
+queries X11 RandR, and independently reads bounded DRM connector attributes.
+When both Wayland and X11 are live, Wayland supplies the one output inventory
+to avoid duplicating the XWayland view; both protocol facts remain visible.
+No output is associated with a DRM connector by label matching. See
+[DISPLAY-LINUX.md](DISPLAY-LINUX.md) for exact mode semantics, privacy,
+timeouts, tests, and manual Arch/Dell validation steps.
+
+The adapter pins `wayland-client` 0.31.11, `wayland-protocols` 0.32.9, and
+`x11rb` 0.13.2 under Rust 1.85.0. It remains library-only, keeps the domain
+dependency-free, does not initialize GTK or contact the daemon, and does not
+send display-changing requests. The `diagnose display` command returns
+partial results for stale endpoints or headless sessions rather than treating
+an unverified session hint as a connected display.

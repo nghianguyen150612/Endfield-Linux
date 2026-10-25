@@ -270,3 +270,7 @@ preempting those contracts.
 ## P013 Linux GPU facts
 
 The portable P007 schema remains v1 and gains no Linux or Vulkan dependencies. P013 maps validated PCI GPUs to existing `GpuInfo` fields and capability IDs 10–14, allocates snapshot-local IDs after the P012 CPU, and validates typed values against scalar capability records. PCI/DRM/Vulkan-specific details and unmatched devices stay in `LinuxGpuReport`; unknown VRAM, classification, driver, or Vulkan mappings are preserved.
+
+## P014 Linux display facts
+
+The portable P007 schema remains v1 and gains no Linux display-protocol dependencies. P014 reuses `DisplayInfo`, `Resolution`, `Hertz`, `Availability`, `InstanceId`, `CapabilityRecord`, `Provenance`, `Diagnostic`, and `SystemSnapshot`. Capability IDs 40 (display) and 41 (compositor/session) retain their existing meanings. Display instances use IDs from the reserved 1,000,001 range and do not collide with CPU or GPU instances. Fractional refresh rates stay in the Linux-specific `LinuxDisplayReport`; P007 `Hertz` is populated only for an exact whole-Hz current mode. Session hints, successful protocol connections, compositor identity, current output state, connector state, and mode enumeration remain independent observations. No FPS, frame pacing, or display-to-DRM mapping is added to the portable snapshot.

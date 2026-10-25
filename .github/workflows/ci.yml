@@ -49,6 +49,17 @@ jobs:
       - name: Run the headless Linux GPU CLI against this runner
         run: ./target/debug/endfield-unix diagnose gpu
 
+      - name: Run the headless Linux display CLI against this runner
+        run: ./target/debug/endfield-unix diagnose display
+
+      - name: Run the Linux X11/RandR display smoke under Xvfb
+        run: |
+          xvfb-run -a -s "-screen 0 1600x900x24 +extension RANDR" dbus-run-session -- sh -eu -c '
+            ./target/debug/endfield-unix diagnose display | tee /tmp/endfield-unix-xvfb-display.txt
+            grep -Fq "X11/RandR: connected (output inventory: enumerated)" /tmp/endfield-unix-xvfb-display.txt
+            grep -Fq "Screen geometry: 1600×900 pixels" /tmp/endfield-unix-xvfb-display.txt
+          '
+
       - name: Run Linux platform-adapter parser and live-probe tests
         run: cargo test --locked -p endfield-unix-platform-linux --all-targets
 
@@ -111,6 +122,7 @@ jobs:
           assert any("lib" in target["kind"] for target in platform["targets"]), platform["targets"]
           assert not any("bin" in target["kind"] for target in platform["targets"]), platform["targets"]
           assert not any(dependency["name"] in gui_dependencies for dependency in platform["dependencies"]), platform["dependencies"]
+          assert {"wayland-client", "wayland-protocols", "x11rb"}.issubset({dependency["name"] for dependency in platform["dependencies"]})
           ipc = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-ipc")
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]
@@ -118,6 +130,8 @@ jobs:
           daemon = next(package for package in metadata["packages"] if package["name"] == "endfield-unixd")
           assert any("bin" in target["kind"] and target["name"] == "endfield-unixd" for target in daemon["targets"]), daemon["targets"]
           assert not any(dependency["name"] in gui_dependencies for dependency in daemon["dependencies"]), daemon["dependencies"]
+          optimizer = next(package for package in metadata["packages"] if package["name"] == "optimizer-ffi")
+          assert not any(dependency["name"] in {"wayland-client", "wayland-protocols", "x11rb"} for dependency in optimizer["dependencies"]), optimizer["dependencies"]
           PY
 
   c17:

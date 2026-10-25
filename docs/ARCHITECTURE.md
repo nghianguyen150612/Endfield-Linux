@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource discovery; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery in the same adapter. Candidate generation, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource discovery; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter. Candidate generation, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -56,7 +56,7 @@ The runtime, telemetry, session, planner, executor, benchmark, and service-manag
 
 ## P007 portable domain library
 
-`crates/domain` is the `endfield-unix-domain` Rust library. It uses only the Rust standard library and forbids unsafe code. It has no dependency on the application, GUI, storage, optimizer FFI, or operating-system APIs. Application services and platform adapters may depend on it; the P011 CLI consumes its P007 snapshot through the separate Linux adapter.
+`crates/domain` is the `endfield-unix-domain` Rust library. It uses only the Rust standard library and forbids unsafe code. It has no dependency on the application, GUI, storage, optimizer FFI, or operating-system APIs. Application services and platform adapters may depend on it; the P011–P014 CLI commands consume its P007 snapshot through the separate Linux adapter.
 
 ## P011–P012 Linux platform adapter
 
@@ -67,6 +67,29 @@ The crate defines the P001 platform-family and capability identifiers, the four 
 P012 extends the same crate with an injectable `LinuxHardwareDataSource` that names fixed procfs/sysfs families. The composite `LinuxHardwareProbe` first keeps P011's validated kernel/distribution/environment result, then collects CPU topology, process affinity and scheduler queries, model text, meminfo, current-process cgroup v2 controls, cpufreq policies, and platform-profile state independently. It returns a versioned `LinuxHardwareReport` beside the normalized P007 snapshot, with provider provenance and safe bounded diagnostics. Optional hardware-source failures produce partial results instead of discarding P011 identity or unrelated valid CPU/memory facts. The adapter remains library-only and has no GTK or daemon dependency. A narrowly documented `libc` affinity query handles dynamic masks; it never calls a setter.
 
 P007 snapshot schema 1, C17 ABI 1.0, TOML/SQLite schemas, and P010 IPC v1.0 are unchanged. Linux-specific cgroup, cpufreq policy, CPU-set and platform-profile details stay outside the portable snapshot where P007 has no suitable field. The CLI requests a one-shot report; the probe does not monitor resources or apply policies. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md) for source precedence, limits, and known gaps.
+
+## P014 Linux display and session adapter
+
+P014 composes `LinuxDisplayProbe` over the validated P013 report and retains
+P011 platform plus P012 CPU/memory facts. Its injectable source reads only
+allowlisted session hints and bounded `/sys/class/drm` connector attributes;
+the Wayland and X11 adapters query local protocol endpoints. The pinned native
+dependencies are `wayland-client` 0.31.11, `wayland-protocols` 0.32.9, and
+`x11rb` 0.13.2. They remain scoped to the Linux library and do not enter the
+domain, GUI toolkit, daemon, IPC, or C17 optimizer crates.
+
+Environment session type, local endpoint validation, live protocol
+connection, output inventory, compositor-name hints, and DRM connector state
+remain separate evidence. Wayland is selected for the output inventory when
+both Wayland and X11 connect, avoiding a duplicate XWayland view; both
+protocol statuses remain reportable. Desktop environment strings never
+verify compositor identity. Current pixel mode and exact rational refresh,
+advertised modes, logical geometry, scale, primary status, and DRM connectors
+are retained in a Linux-specific report. P007 capability IDs 40 and 41 and its
+existing `DisplayInfo` are reused without changing snapshot schema 1. No
+output-to-connector mapping is inferred from matching labels. See
+[DISPLAY-LINUX.md](DISPLAY-LINUX.md) for protocol behavior, bounds, privacy,
+partial failures, validation status, and known provider cancellation limits.
 
 `PlatformProbe` and `CapabilityProvider` are synchronous, portable traits. `CompositePlatformProbe` runs providers independently and preserves successful results alongside typed diagnostics when one provider fails. It returns a typed total error if there are no providers or none can produce a valid report. The test adapters and desktop, laptop, and incomplete fixtures are in-memory synthetic data; they never read the host machine.
 

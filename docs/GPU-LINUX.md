@@ -22,7 +22,7 @@ A successful Vulkan enumeration with zero physical devices marks each PCI GPU's 
 
 ## Snapshot and memory semantics
 
-P013 reuses P007 `GpuInfo` and capability IDs 10–14. GPU instance IDs are deterministic within normalized input and start at 2; P012 CPU retains ID 1. P014 can use the reserved display range starting at 1,000,000. Provenance IDs 10–12 identify PCI, DRM, and Vulkan facts after existing P011/P012 IDs. Typed fields and capability records are validated together. GPU probe failures preserve P012 CPU and memory observations.
+P013 reuses P007 `GpuInfo` and capability IDs 10–14. GPU instance IDs are deterministic within normalized input and start at 2; P012 CPU retains ID 1. P014 uses the reserved display range beginning at 1,000,001. Provenance IDs 10–12 identify PCI, DRM, and Vulkan facts after existing P011/P012 IDs; P014 adds source IDs 13–16. Typed fields and capability records are validated together. GPU probe failures preserve P012 CPU and memory observations.
 
 Integrated/discrete classification comes only from Vulkan physical-device type after an exact `VK_EXT_pci_bus_info` BDF correlation. Other types and uncorrelated PCI GPUs remain unknown. Vulkan CPU/software implementations are counted and labeled separately; they are not dedicated graphics hardware.
 
@@ -52,4 +52,4 @@ vulkaninfo --summary # only when already installed
 
 The reference desktop check must verify NVIDIA RTX 5070 identification, real driver binding, DRM mapping, Vulkan identity, and avoid VRAM assumptions. The Dell Vostro 3510 check must independently verify Intel Iris Xe and NVIDIA MX350 and their mappings. No active game GPU or solved power-delivery issue is implied. Both physical-machine checks remain **UNVERIFIED** until run on those machines.
 
-P014 may add display/compositor observations. P017 owns dynamic GPU utilization, thermal, power, and memory usage. Optimizer work must not interpret Vulkan enumeration as benchmark, compatibility, or default GPU-selection evidence.
+P014 adds display and graphical-session observations in the same adapter; see [DISPLAY-LINUX.md](DISPLAY-LINUX.md). P017 owns dynamic GPU utilization, thermal, power, and memory usage. Optimizer work must not interpret Vulkan enumeration as benchmark, compatibility, or default GPU-selection evidence.

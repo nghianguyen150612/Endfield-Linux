@@ -358,3 +358,44 @@ Rust 1.85.0.
 - Real Arch desktop/NVIDIA RTX 5070 and Dell Vostro 3510/Intel Iris Xe plus
   NVIDIA MX350 checks — **UNVERIFIED**. Ubuntu CI is not a substitute. See
   [GPU-LINUX.md](GPU-LINUX.md) for manual comparisons and interpretation.
+
+## P014 validation record — 2026-10-25
+
+P014 is implemented on `main`; hosted qualification remains pending. Local
+validation used Rust 1.85.0.
+
+- `cargo +1.85.0 fmt --all -- --check` and `git diff --check` — passed.
+- `cargo +1.85.0 test --locked -p endfield-unix-platform-linux --all-targets
+  -- --nocapture` — passed: 44 unit tests, the live display smoke, and the
+  existing GPU, hardware, and platform contract/live suites. Coverage includes
+  mixed Wayland/XWayland selection, headless preservation of P011–P013 facts,
+  exact fractional modes, duplicate/sanitized labels, unknown primary state,
+  stale endpoints, X11 authentication failure, DRM connector parsing and GPU
+  mapping, sysfs containment, and bounded mode lists.
+- `cargo +1.85.0 check --locked --workspace --all-targets` and workspace
+  Clippy with `-D warnings` — passed using temporary pkg-config metadata stubs
+  because the worker lacks GLib/GTK/libadwaita development packages. These
+  commands type-check application and test targets but do not link or run the
+  native application. The app CLI, Xvfb, GTK screenshot, and full native
+  workspace checks require hosted CI.
+- `cargo +1.85.0 test --locked --workspace --exclude endfield-unix` — passed,
+  covering domain, diagnostics/redaction, storage/recovery, IPC, the Linux
+  adapter, daemon lifecycle, and Rust FFI tests. App CLI tests, the IPC
+  subprocess gate, and GTK smoke remain for hosted CI.
+- `cargo metadata --locked --no-deps --format-version 1` plus the CI metadata
+  assertions — passed: exactly two executables remain, the Linux adapter is
+  library-only, the domain crate has no dependencies, GTK stays out of the
+  adapter and daemon, and display protocol dependencies stay out of the C17
+  optimizer.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and
+  `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed. Clang is not
+  installed locally; hosted CI retains the GCC/Clang matrix.
+- The live display smoke produced this valid local partial/headless result:
+
+  ```text
+  live display smoke: session_hint=Headless, verified_protocol=None, wayland=NotAdvertised/NotAttempted, x11=NotAdvertised/NotAttempted, selected_source=None, outputs=0, drm_status=Missing, drm_connectors=0, completeness=Partial, snapshot_valid=true
+  ```
+
+- Real Wayland compositor, Arch desktop, Dell Vostro, Hyprland, and Niri
+  validation remains **UNVERIFIED**. Deterministic fixtures do not establish
+  real compositor integration.

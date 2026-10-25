@@ -8,7 +8,8 @@ use super::{output, parser};
 use crate::{APPLICATION_NAME, GuiStartupError, start_gui};
 use endfield_unix_domain::{ProbeError, ProbeErrorKind};
 use endfield_unix_platform_linux::{
-    LinuxGpuProbe, LinuxHardwareProbe, LinuxHardwareReport, LinuxPlatformProbe, LinuxPlatformReport,
+    LinuxDisplayProbe, LinuxGpuProbe, LinuxHardwareProbe, LinuxHardwareReport, LinuxPlatformProbe,
+    LinuxPlatformReport,
 };
 
 pub const EXIT_SUCCESS: u8 = 0;
@@ -32,6 +33,7 @@ pub enum CliError {
     PlatformProbe(ProbeError),
     HardwareProbe(ProbeError),
     GpuProbe(ProbeError),
+    DisplayProbe(ProbeError),
 }
 
 impl CliError {
@@ -78,6 +80,13 @@ impl CliError {
                     EXIT_PLATFORM_PROBE_FAILED
                 }
             }
+            Self::DisplayProbe(error) => {
+                if error.kind() == ProbeErrorKind::Unsupported {
+                    EXIT_PLATFORM_UNSUPPORTED
+                } else {
+                    EXIT_PLATFORM_PROBE_FAILED
+                }
+            }
         }
     }
 }
@@ -93,6 +102,7 @@ impl fmt::Display for CliError {
             Self::PlatformProbe(error) => fmt::Display::fmt(error, formatter),
             Self::HardwareProbe(error) => fmt::Display::fmt(error, formatter),
             Self::GpuProbe(error) => fmt::Display::fmt(error, formatter),
+            Self::DisplayProbe(error) => fmt::Display::fmt(error, formatter),
         }
     }
 }
@@ -108,6 +118,7 @@ impl Error for CliError {
             Self::PlatformProbe(error) => Some(error),
             Self::HardwareProbe(error) => Some(error),
             Self::GpuProbe(error) => Some(error),
+            Self::DisplayProbe(error) => Some(error),
         }
     }
 }
@@ -263,6 +274,12 @@ where
                 .inspect()
                 .map_err(CliError::GpuProbe)?;
             output::write_gpu_report(&report, stdout).map_err(CliError::Output)
+        }
+        Command::DiagnoseDisplay => {
+            let report = LinuxDisplayProbe::system()
+                .inspect()
+                .map_err(CliError::DisplayProbe)?;
+            output::write_display_report(&report, stdout).map_err(CliError::Output)
         }
         Command::ServicePing => {
             let client =

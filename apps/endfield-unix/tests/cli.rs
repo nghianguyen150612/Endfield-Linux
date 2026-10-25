@@ -23,6 +23,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("diagnose report --output PATH"));
     assert!(stdout.contains("diagnose platform"));
     assert!(stdout.contains("diagnose hardware"));
+    assert!(stdout.contains("diagnose display"));
     assert!(stdout.contains("service ping"));
     assert!(stdout.contains("service status"));
     assert!(!stdout.contains("  game "));
@@ -57,7 +58,7 @@ fn command_specific_help_describes_gui_and_about() {
     assert_eq!(diagnose.status.code(), Some(0));
     assert!(
         String::from_utf8_lossy(&diagnose.stdout)
-            .contains("diagnose <report|platform|hardware|gpu>")
+            .contains("diagnose <report|platform|hardware|gpu|display>")
     );
 }
 
@@ -121,6 +122,28 @@ fn diagnose_gpu_runs_headlessly_without_a_daemon() {
     assert!(stdout.contains("GPU discovery: Linux"));
     assert!(stdout.contains("Vulkan:"));
     assert!(stdout.contains("Probe result: "));
+}
+
+#[test]
+fn diagnose_display_runs_headlessly_without_a_daemon_or_graphical_session() {
+    let output = invoke(&["diagnose", "display"]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Display discovery: Linux"));
+    assert!(stdout.contains("Type hint: headless"));
+    assert!(stdout.contains("Verified display protocol: none connected"));
+    assert!(stdout.contains("Displays: none verified"));
+    assert!(stdout.contains("Probe result: partial"));
+    assert!(!stdout.contains("Daemon:"));
+    assert!(!stdout.contains("/sys/"));
+    assert!(!stdout.contains("/run/user/"));
 }
 
 #[test]
