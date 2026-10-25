@@ -151,10 +151,14 @@ Deterministic fixtures cover headless Linux, independent DRM connectors,
 Wayland plus XWayland, multiple outputs, an unverified Hyprland hint, exact
 fractional mode rates, scaling/logical geometry, X11 primary and disconnected
 outputs, stale Wayland endpoints, X11 authentication failure, snapshot
-validation, and preservation of CPU/memory/GPU facts. Hosted CI runs the
-headless CLI plus an Xvfb/RandR smoke and checks live X11 reachability and
-screen geometry. A synthetic Wayland fixture is not evidence of a real
-Hyprland, Niri, KWin, or wlroots session.
+validation, and preservation of CPU/memory/GPU facts. Hosted qualification passed
+in [CI run 40176731426](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40176731426).
+The headless runner reported no connected display protocol and independently
+discovered one connected, enabled virtual DRM connector. The Xvfb/RandR smoke
+reported a verified X11 connection, one output, and 1600×900 screen geometry;
+the output connection and physical identity remained unknown. These results
+validate headless and X11/RandR behavior only. A synthetic Wayland fixture is
+not evidence of a real Hyprland, Niri, KWin, or wlroots session.
 
 ## Manual Arch Linux validation
 

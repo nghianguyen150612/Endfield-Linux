@@ -361,8 +361,10 @@ Rust 1.85.0.
 
 ## P014 validation record — 2026-10-25
 
-P014 is implemented on `main`; hosted qualification remains pending. Local
-validation used Rust 1.85.0.
+P014 is implemented on `main`; hosted qualification passed in
+[Rust CI run 40176731426](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40176731426)
+for implementation commit
+`6efe0cd1b0feb43df22e80be93896c921cd9526e`. Local validation used Rust 1.85.0.
 
 - `cargo +1.85.0 fmt --all -- --check` and `git diff --check` — passed.
 - `cargo +1.85.0 test --locked -p endfield-unix-platform-linux --all-targets
@@ -377,11 +379,11 @@ validation used Rust 1.85.0.
   because the worker lacks GLib/GTK/libadwaita development packages. These
   commands type-check application and test targets but do not link or run the
   native application. The app CLI, Xvfb, GTK screenshot, and full native
-  workspace checks require hosted CI.
+  workspace checks were exercised by hosted CI below.
 - `cargo +1.85.0 test --locked --workspace --exclude endfield-unix` — passed,
   covering domain, diagnostics/redaction, storage/recovery, IPC, the Linux
   adapter, daemon lifecycle, and Rust FFI tests. App CLI tests, the IPC
-  subprocess gate, and GTK smoke remain for hosted CI.
+  subprocess gate, and GTK smoke are covered by the hosted CI record below.
 - `cargo metadata --locked --no-deps --format-version 1` plus the CI metadata
   assertions — passed: exactly two executables remain, the Linux adapter is
   library-only, the domain crate has no dependencies, GTK stays out of the
@@ -389,12 +391,60 @@ validation used Rust 1.85.0.
   optimizer.
 - `CC=gcc native/optimizer/tests/run-c-tests.sh` and
   `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed. Clang is not
-  installed locally; hosted CI retains the GCC/Clang matrix.
+  installed locally; hosted CI passed both GCC and Clang jobs.
 - The live display smoke produced this valid local partial/headless result:
 
   ```text
   live display smoke: session_hint=Headless, verified_protocol=None, wayland=NotAdvertised/NotAttempted, x11=NotAdvertised/NotAttempted, selected_source=None, outputs=0, drm_status=Missing, drm_connectors=0, completeness=Partial, snapshot_valid=true
   ```
+
+- Hosted qualification passed for all three jobs in
+  [CI run 40176731426](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40176731426):
+  the Rust/GTK/CLI/IPC job, C17 ABI tests with GCC, and C17 ABI tests with Clang.
+  The Rust job passed formatting, workspace check and Clippy, app binary builds,
+  headless platform/hardware/GPU/display commands, Xvfb/RandR, Linux adapter
+  tests, workspace and contract tests, daemon lifecycle and authenticated IPC,
+  graphical smoke and screenshot upload, workspace build, and Cargo metadata.
+  The IPC gate completed without the saturation-timeout recurrence.
+- The hosted headless display command correctly reported no connected display protocol while separately discovering a virtual DRM connector:
+
+  ```text
+  Display discovery: Linux
+  Session:
+    Type hint: headless
+    Verified display protocol: none connected
+    Compositor: unknown
+    Wayland: not advertised (output inventory: not attempted)
+    X11/RandR: not advertised (output inventory: not attempted)
+  Display output source: unknown (no protocol inventory verified)
+  Displays: none verified
+  DRM connectors: 1
+    Virtual-1: connected, enabled, virtual; GPU mapping: unknown
+  Probe result: partial
+  ```
+
+- Hosted Xvfb/RandR verified a live X11 inventory with one output and 1600×900
+  screen geometry. The output stayed classified as virtual/unknown physical
+  connection, as expected for Xvfb:
+
+  ```text
+  Type hint: X11 (hint)
+  Verified display protocol: X11
+  X11/RandR: connected (output inventory: enumerated)
+    Protocol version: 1.6
+    Output records: 1
+    Screen geometry: 1600×900 pixels
+  Display output source: X11 RandR
+  Display 1:
+    Name: screen
+    Connection: unknown
+    State: active
+    Mode resolution: 1600×900 pixels
+  ```
+
+- These hosted observations validate the headless and X11/RandR paths. They do
+  not establish real Wayland compositor integration or physical display
+  behavior.
 
 - Real Wayland compositor, Arch desktop, Dell Vostro, Hyprland, and Niri
   validation remains **UNVERIFIED**. Deterministic fixtures do not establish
