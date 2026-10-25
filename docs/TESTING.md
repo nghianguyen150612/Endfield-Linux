@@ -492,6 +492,49 @@ rerunning the failed Rust job in [CI run 40184991675](https://github.com/nghiang
   test and dedicated bounded IPC gate both passed on retry. This timing failure
   is recorded separately from P015 telemetry validation.
 - The hosted platform/hardware/GPU/display commands exercised existing Linux
-  discovery probes. P015's telemetry examples remain synthetic; no real
-  CPU/GPU/FPS/thermal collection is implemented or claimed. P016 can implement
-  Linux CPU and memory providers against these contracts.
+  discovery probes. P015's telemetry examples remain synthetic; P016 adds the
+  first real Linux CPU and memory provider. GPU/FPS/thermal collection remains
+  future work.
+
+## P016 validation record — 2026-10-25
+
+P016 implementation is on `main` for hosted qualification. The repository
+baseline was `667f2f1b79e2741e3effd4262a6ad7dc403dd3fe`. This record will be
+updated with the hosted Actions result before P016 is marked qualified.
+
+- `cargo +1.85.0 fmt --all -- --check`, `git diff --check`, and
+  `cargo +1.85.0 metadata --locked --no-deps --format-version 1` — passed
+  locally. GCC C17 ABI tests passed; Clang is not installed locally.
+- In an Ubuntu 24.04 validation container, Rust 1.85.0 workspace check,
+  Clippy with `-D warnings`, and the application/daemon build passed. The live
+  `diagnose telemetry cpu-memory --interval-ms 250` command returned valid
+  measured CPU and memory observations and an explicitly partial result because
+  current frequency was unavailable. One run reported 0.00% over 250.307 ms,
+  3/3 logical CPUs, 8.52 GiB RAM available, estimated 1.22 GiB RAM used,
+  0.00 MiB swap used, and 14.93 MiB cgroup usage; these are container-local
+  observations and are not hardware baselines.
+- Linux adapter all-target tests passed, including 62 adapter unit tests, the
+  existing platform/hardware/GPU/display live and contract suites, the new live
+  telemetry smoke, and 13 new telemetry provider contract tests. The dedicated
+  P015 telemetry all-target tests also passed. The application unit and CLI
+  integration tests passed after updating the expected help synopsis for the
+  new subcommand.
+- A full workspace test attempt in the validation container stopped in the
+  existing storage recovery test
+  `unreadable_config_and_database_report_permission_errors`: the container
+  ran as root, which can read files regardless of their restrictive mode. The
+  test was left unchanged. The full non-GUI workspace suite was then rerun as
+  the unprivileged workspace user with
+  `cargo +1.85.0 test --locked --workspace --exclude endfield-unix`; it passed,
+  including the storage permission test, daemon lifecycle suite, IPC library,
+  Rust FFI, diagnostics privacy, P015, and Linux adapter tests. The app unit and
+  CLI integration tests passed in the native-dependency container. Hosted
+  Actions remains the qualification gate for the complete GTK-linked workspace,
+  authenticated IPC subprocess gate, GTK/Xvfb screenshot, metadata assertions,
+  and Clang checks.
+- Hosted Linux smoke, full regression status, GTK screenshot, GCC/Clang C17
+  results, and the Actions run link are pending. P016 is not qualified until
+  the hosted workflow is green.
+- Real device status remains **Arch desktop validation: UNVERIFIED** and
+  **Dell Vostro 3510 validation: UNVERIFIED**. Ubuntu CI and container smoke do
+  not replace those checks.

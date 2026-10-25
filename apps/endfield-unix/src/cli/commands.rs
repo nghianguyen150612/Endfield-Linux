@@ -22,6 +22,9 @@ pub enum Command {
     DiagnoseHardware,
     DiagnoseGpu,
     DiagnoseDisplay,
+    DiagnoseTelemetryCpuMemory {
+        interval_ms: u64,
+    },
     ServicePing,
     ServiceStatus,
 }

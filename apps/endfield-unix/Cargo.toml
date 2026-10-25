@@ -15,6 +15,7 @@ endfield-unix-diagnostics = { path = "../../crates/diagnostics" }
 endfield-unix-domain = { path = "../../crates/domain" }
 endfield-unix-ipc = { path = "../../crates/ipc" }
 endfield-unix-platform-linux = { path = "../../crates/platform-linux" }
+endfield-unix-telemetry = { path = "../../crates/telemetry" }
 adw = { package = "libadwaita", version = "=0.7.2", features = ["v1_4"] }
 gtk = { package = "gtk4", version = "=0.9.6" }
 relm4 = { version = "=0.9.1", features = ["libadwaita"] }

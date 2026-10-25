@@ -8,8 +8,13 @@ use super::{output, parser};
 use crate::{APPLICATION_NAME, GuiStartupError, start_gui};
 use endfield_unix_domain::{ProbeError, ProbeErrorKind};
 use endfield_unix_platform_linux::{
-    LinuxDisplayProbe, LinuxGpuProbe, LinuxHardwareProbe, LinuxHardwareReport, LinuxPlatformProbe,
-    LinuxPlatformReport,
+    LinuxCpuMemoryTelemetryProvider, LinuxCpuSnapshotContext, LinuxDisplayProbe, LinuxGpuProbe,
+    LinuxHardwareProbe, LinuxHardwareReport, LinuxPlatformProbe, LinuxPlatformReport,
+    LinuxTelemetryConfigError, SystemLinuxDataSource, TelemetryInterval,
+};
+use endfield_unix_telemetry::{
+    CollectionRequest, MetricId, ProviderError, ProviderErrorKind, SamplingContextId,
+    SnapshotRefId, TelemetryError, TelemetryProvider,
 };
 
 pub const EXIT_SUCCESS: u8 = 0;
@@ -34,6 +39,9 @@ pub enum CliError {
     HardwareProbe(ProbeError),
     GpuProbe(ProbeError),
     DisplayProbe(ProbeError),
+    TelemetryProvider(ProviderError),
+    TelemetryContract(TelemetryError),
+    TelemetryConfig(LinuxTelemetryConfigError),
 }
 
 impl CliError {
@@ -87,6 +95,15 @@ impl CliError {
                     EXIT_PLATFORM_PROBE_FAILED
                 }
             }
+            Self::TelemetryProvider(error) => {
+                if error.kind() == ProviderErrorKind::Unsupported {
+                    EXIT_PLATFORM_UNSUPPORTED
+                } else {
+                    EXIT_PLATFORM_PROBE_FAILED
+                }
+            }
+            Self::TelemetryContract(_) => EXIT_PLATFORM_PROBE_FAILED,
+            Self::TelemetryConfig(_) => EXIT_INVALID_ARGUMENTS,
         }
     }
 }
@@ -103,6 +120,16 @@ impl fmt::Display for CliError {
             Self::HardwareProbe(error) => fmt::Display::fmt(error, formatter),
             Self::GpuProbe(error) => fmt::Display::fmt(error, formatter),
             Self::DisplayProbe(error) => fmt::Display::fmt(error, formatter),
+            Self::TelemetryProvider(_) => formatter.write_str("Linux telemetry provider failed."),
+            Self::TelemetryContract(_) => {
+                formatter.write_str("Linux telemetry could not satisfy the telemetry contract.")
+            }
+            Self::TelemetryConfig(LinuxTelemetryConfigError::InvalidInterval) => {
+                formatter.write_str("telemetry interval must be between 100 and 2000 ms.")
+            }
+            Self::TelemetryConfig(LinuxTelemetryConfigError::InvalidCpuSnapshotContext) => {
+                formatter.write_str("CPU snapshot context could not be validated.")
+            }
         }
     }
 }
@@ -119,6 +146,9 @@ impl Error for CliError {
             Self::HardwareProbe(error) => Some(error),
             Self::GpuProbe(error) => Some(error),
             Self::DisplayProbe(error) => Some(error),
+            Self::TelemetryProvider(_) => None,
+            Self::TelemetryContract(error) => Some(error),
+            Self::TelemetryConfig(_) => None,
         }
     }
 }
@@ -281,6 +311,9 @@ where
                 .map_err(CliError::DisplayProbe)?;
             output::write_display_report(&report, stdout).map_err(CliError::Output)
         }
+        Command::DiagnoseTelemetryCpuMemory { interval_ms } => {
+            run_cpu_memory_telemetry(interval_ms, stdout)
+        }
         Command::ServicePing => {
             let client =
                 endfield_unix_ipc::Client::from_environment(std::time::Duration::from_secs(2))
@@ -339,6 +372,43 @@ where
             Ok(())
         }
     }
+}
+
+fn run_cpu_memory_telemetry<O: Write>(interval_ms: u64, stdout: &mut O) -> Result<(), CliError> {
+    let interval =
+        TelemetryInterval::from_millis(interval_ms).map_err(CliError::TelemetryConfig)?;
+    let snapshot_reference = SnapshotRefId::new(1).expect("nonzero snapshot reference");
+    let cpu_snapshot = LinuxHardwareProbe::system()
+        .inspect()
+        .ok()
+        .and_then(|report| {
+            LinuxCpuSnapshotContext::from_hardware_report(&report, snapshot_reference).ok()
+        });
+    let expected_logical_cpus = cpu_snapshot
+        .as_ref()
+        .map(|context| context.online_cpu_ids().len());
+    let mut provider = LinuxCpuMemoryTelemetryProvider::new(SystemLinuxDataSource::new(), interval);
+    if let Some(context) = cpu_snapshot {
+        provider = provider.with_cpu_snapshot_context(context);
+    }
+    let request = CollectionRequest::new(
+        SamplingContextId::new(1).expect("nonzero sampling context"),
+        vec![
+            MetricId::CpuUtilizationWholeMachine,
+            MetricId::CpuUtilizationLogicalCpu,
+            MetricId::CpuFrequency,
+            MetricId::RamUsed,
+            MetricId::RamAvailable,
+            MetricId::SwapUsed,
+            MetricId::CgroupMemoryUsed,
+        ],
+        None,
+    )
+    .map_err(CliError::TelemetryContract)?;
+    let report = provider
+        .collect(&request)
+        .map_err(CliError::TelemetryProvider)?;
+    output::write_telemetry_report(&report, expected_logical_cpus, stdout).map_err(CliError::Output)
 }
 
 fn lifecycle_name(state: endfield_unix_ipc::DaemonLifecycle) -> &'static str {

@@ -16,6 +16,7 @@ pub enum MemInfoFieldError {
     InvalidUnit,
     Overflow,
     DuplicateField,
+    InconsistentValues,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

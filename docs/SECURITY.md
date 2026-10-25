@@ -136,3 +136,14 @@ the contract contains no usernames, paths, command lines, credentials,
 serials, GPU UUIDs, container IDs, or environment maps. Future providers must
 keep samples local by default and follow this policy before adding any storage
 or reporting path. See [TELEMETRY.md](TELEMETRY.md).
+
+## P016 Linux telemetry collection
+
+The P016 provider reads only bounded fixed procfs/sysfs source families and
+the P012-validated current cgroup source. It performs no shell execution,
+process enumeration, privilege escalation, network access, affinity change,
+governor change, or kernel write. CPU counters and memory values are held only
+for the one caller-requested collection; the CLI does not persist raw or
+normalized samples in P008 logs, support reports, SQLite, or a telemetry
+history. Raw cgroup paths and container IDs are not included in observations
+or output. See [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md).

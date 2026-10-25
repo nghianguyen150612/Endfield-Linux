@@ -25,6 +25,7 @@ pub enum CpuFrequencyField {
     AvailableGovernors,
     CpuInfoMinFrequencyKhz,
     CpuInfoMaxFrequencyKhz,
+    CpuInfoCurrentFrequencyKhz,
     ScalingMinFrequencyKhz,
     ScalingMaxFrequencyKhz,
     RelatedCpus,
@@ -86,6 +87,12 @@ pub trait LinuxHardwareDataSource: Send + Sync {
     }
 
     fn read_proc_meminfo(&self) -> Result<Vec<u8>, DataSourceError> {
+        Err(DataSourceError::new(
+            crate::errors::DataSourceErrorKind::Unsupported,
+        ))
+    }
+
+    fn read_proc_stat(&self) -> Result<Vec<u8>, DataSourceError> {
         Err(DataSourceError::new(
             crate::errors::DataSourceErrorKind::Unsupported,
         ))

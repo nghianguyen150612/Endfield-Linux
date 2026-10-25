@@ -7,6 +7,8 @@
 mod architecture;
 mod cgroup;
 mod cpu;
+mod cpu_stat;
+mod cpu_telemetry;
 mod cpu_topology;
 mod cpufreq;
 mod display;
@@ -23,6 +25,7 @@ mod hardware_probe;
 mod hardware_sources;
 mod kernel;
 mod memory;
+mod memory_telemetry;
 mod normalize;
 mod os_release;
 mod pci;
@@ -30,12 +33,20 @@ mod probe;
 mod scheduler;
 mod session;
 mod sources;
+mod telemetry_clock;
+mod telemetry_probe;
 mod vulkan;
 mod wayland;
 mod x11;
 
 pub use cgroup::{CgroupLimit, CgroupResourceFacts, CgroupStatus, CpuTimeQuota};
 pub use cpu::{CpuInfoParseError, parse_cpu_model};
+pub use cpu_stat::{
+    CpuCounters, CpuRecordError, CpuStatParseError, CpuStatSnapshot, MAX_CPU_STAT_RECORDS,
+    MAX_PROC_STAT_BYTES, MAX_PROC_STAT_LINE_BYTES, calculate_cpu_utilization_basis_points,
+    parse_proc_stat,
+};
+pub use cpu_telemetry::{CpuUtilizationError, calculate_cpu_delta_basis_points};
 pub use cpu_topology::{
     CpuListParseError, CpuTopologyFacts, MAX_CPU_IDS, MAX_CPU_INDEX, MAX_CPU_LIST_BYTES,
     parse_cpu_list,
@@ -92,6 +103,14 @@ pub use session::{LocalWaylandEndpoint, LocalX11Endpoint, SessionEnvironmentHint
 pub use sources::{
     ContainerMarker, LinuxDataSource, OsReleaseFile, RuntimeDirectoryMetadata,
     SystemLinuxDataSource,
+};
+pub use telemetry_clock::{
+    ClockSessionError, LinuxTelemetryClockFactory, MonotonicClockSession, TelemetryClockFactory,
+};
+pub use telemetry_probe::{
+    LinuxCpuMemoryTelemetryProvider, LinuxCpuSnapshotContext, LinuxTelemetryConfigError,
+    MAX_LOGICAL_CPU_OBSERVATIONS, MAX_TELEMETRY_INTERVAL_MS, MIN_TELEMETRY_INTERVAL_MS,
+    TelemetryInterval,
 };
 pub use vulkan::{
     SystemVulkanBackend, VulkanBackend, VulkanDeviceType, VulkanDriverIdentity, VulkanFacts,

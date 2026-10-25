@@ -8,13 +8,13 @@ is synthetic contract data; none came from Endfield or physical hardware.
 
 ## Architecture and dependencies
 
-Future Linux providers feed typed observations into the telemetry contracts,
-which reuse P007 domain identities and provenance. Application services may
-consume those contracts later. GTK, CLI, the daemon, storage, and the C17
-optimizer do not depend on this crate directly today.
+Linux providers feed typed observations into the telemetry contracts, which
+reuse P007 domain identities and provenance. P016 implements the first
+on-demand Linux CPU and memory provider. GTK, the daemon, storage, and the C17
+optimizer do not depend on this crate directly.
 
 ```text
-Future Linux providers (P016–P018)
+Linux CPU and memory provider (P016)
                  |
                  v
        endfield-unix-telemetry
@@ -224,7 +224,9 @@ snapshots, injected timestamps, and in-memory batches only. They do not probe
 hardware, sleep for temporal correctness, access persistent user data, or use
 the network.
 
-P016 can add Linux CPU and memory providers against these contracts. P017 can
-add GPU providers and P018 can add frame providers. Scheduling, retention,
-daemon transport, UI graphs, benchmark workflows, and optimizer consumption
-remain future work.
+P016 uses these contracts for Linux CPU and memory collection; source selection,
+counter accounting, snapshot-local CPU mapping, quality, CLI behavior, and
+validation limits are documented in [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md).
+P017 can add GPU providers and P018 can add frame providers. Scheduling beyond
+one bounded on-demand sample, retention, daemon transport, UI graphs, benchmark
+workflows, and optimizer consumption remain future work.

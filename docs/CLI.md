@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, probing hardware, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, and `diagnose display` are separate read-only Linux probe commands; they avoid GTK, the daemon, and application storage. Hardware and display output is printed only for an explicit command and is not automatically persisted or exported. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, and `diagnose telemetry cpu-memory` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Hardware, display, and telemetry output is printed only for an explicit command and is not automatically persisted or exported. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
 
 ## Available commands
 
@@ -18,10 +18,11 @@
 | `endfield-unix diagnose hardware` | Inspect Linux CPU topology, process affinity, memory, cgroup v2 limits, scheduling queries, and readable frequency/power interfaces | No |
 | `endfield-unix diagnose gpu` | Inspect PCI graphics devices, DRM nodes, kernel drivers, and Vulkan physical devices | No |
 | `endfield-unix diagnose display` | Inspect local Wayland/X11 sessions, output modes, and DRM connectors | No |
+| `endfield-unix diagnose telemetry cpu-memory [--interval-ms MS]` | Sample CPU utilization and collect RAM, swap, cgroup memory, and optional current frequency | No |
 | `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
 | `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
 
-Help lists only implemented commands. Linux CPU and memory discovery is available through `diagnose hardware`, GPU discovery through `diagnose gpu`, and display/session discovery through `diagnose display`; runtime discovery, optimization, and game services remain under development. See [GPU-LINUX.md](GPU-LINUX.md) and [DISPLAY-LINUX.md](DISPLAY-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, and display/session discovery through `diagnose display`. Runtime discovery, GPU telemetry, optimization, and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), and [DISPLAY-LINUX.md](DISPLAY-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -56,6 +57,8 @@ endfield-unix diagnose platform
 endfield-unix diagnose hardware
 endfield-unix diagnose gpu
 endfield-unix diagnose display
+endfield-unix diagnose telemetry cpu-memory
+endfield-unix diagnose telemetry cpu-memory --interval-ms 500
 endfield-unix help gui
 endfield-unix service ping
 endfield-unix service status
@@ -99,8 +102,8 @@ argument failures remain `74` and `2`.
 ## Planned command namespaces
 
 The following namespaces are reserved for later work. The `diagnose`
-namespace implements safe report export, Linux platform inspection, and
-read-only Linux CPU/memory hardware inspection. `service` currently implements
+namespace implements safe report export, Linux platform/hardware/GPU/display
+inspection, and one-shot CPU/memory telemetry. `service` currently implements
 only `ping` and `status`.
 
 ```text
@@ -126,3 +129,21 @@ identity failure; 74 for output failure; 78 for an unsupported platform; and
 servers remain partial provider observations. Exact fractional refresh stays
 in the Linux-specific report rather than being rounded into P007 integer Hz.
 See [DISPLAY-LINUX.md](DISPLAY-LINUX.md) for interpretation and limitations.
+
+## CPU and memory telemetry
+
+`endfield-unix diagnose telemetry cpu-memory` performs one bounded Linux
+collection without GTK, the daemon, configuration, SQLite, or network access.
+The default CPU counter interval is 250 ms; `--interval-ms` accepts 100–2000
+ms. The command obtains a P012 CPU snapshot for identity mapping when
+available, then asks the P016 provider for one pair of `/proc/stat` readings
+and the requested memory, cgroup, and optional current-frequency observations.
+It prints actual elapsed time, and preserves `partial` status when a source or
+identity is unavailable. CPU and memory values are not automatically logged
+or added to support reports. Because the provider waits synchronously for the
+bounded interval, a future GUI caller must invoke it from an owned worker.
+
+The command returns 0 for complete or partial valid data, 2 for invalid
+arguments, 70 for fatal provider failure, 74 for output failure, and 78 for an
+unsupported platform. See [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md) for source
+limits, metric semantics, and failure states.

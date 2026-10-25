@@ -77,6 +77,25 @@ enum DiagnoseArgs {
     Gpu,
     /// Inspect local Linux display outputs, session protocols, and DRM connectors.
     Display,
+    /// Collect one bounded Linux CPU and memory telemetry sample.
+    Telemetry {
+        #[command(subcommand)]
+        command: TelemetryArgs,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TelemetryArgs {
+    /// Sample CPU counters and collect current memory gauges.
+    CpuMemory {
+        /// Time between the two bounded CPU counter reads (100–2000 ms).
+        #[arg(
+            long,
+            default_value_t = 250,
+            value_parser = clap::value_parser!(u64).range(100..=2000)
+        )]
+        interval_ms: u64,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -152,6 +171,12 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Display,
         }) => Command::DiagnoseDisplay,
+        Some(SubcommandArgs::Diagnose {
+            command:
+                DiagnoseArgs::Telemetry {
+                    command: TelemetryArgs::CpuMemory { interval_ms },
+                },
+        }) => Command::DiagnoseTelemetryCpuMemory { interval_ms },
         Some(SubcommandArgs::Service {
             command: ServiceArgs::Ping,
         }) => Command::ServicePing,
@@ -269,6 +294,40 @@ mod tests {
     #[test]
     fn diagnose_display_is_a_typed_local_command() {
         assert_command(&["diagnose", "display"], Command::DiagnoseDisplay);
+    }
+
+    #[test]
+    fn cpu_memory_telemetry_uses_the_default_and_custom_bounded_intervals() {
+        assert_command(
+            &["diagnose", "telemetry", "cpu-memory"],
+            Command::DiagnoseTelemetryCpuMemory { interval_ms: 250 },
+        );
+        assert_command(
+            &[
+                "diagnose",
+                "telemetry",
+                "cpu-memory",
+                "--interval-ms",
+                "500",
+            ],
+            Command::DiagnoseTelemetryCpuMemory { interval_ms: 500 },
+        );
+    }
+
+    #[test]
+    fn cpu_memory_telemetry_rejects_intervals_outside_policy() {
+        for value in ["0", "99", "2001"] {
+            assert!(
+                parse(args(&[
+                    "diagnose",
+                    "telemetry",
+                    "cpu-memory",
+                    "--interval-ms",
+                    value,
+                ]))
+                .is_err()
+            );
+        }
     }
 
     #[test]

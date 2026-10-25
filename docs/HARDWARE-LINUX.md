@@ -186,3 +186,36 @@ device validation: **UNVERIFIED**. For manual comparison commands, see
 ## P013 GPU inventory
 
 GPU discovery is provided by `endfield-unix diagnose gpu` in the same Linux adapter. It preserves P012 CPU/memory facts and keeps PCI presence, driver binding, DRM access, Vulkan enumeration, and rendering separate. Dedicated VRAM remains unknown unless a justified source exists. See [GPU-LINUX.md](GPU-LINUX.md).
+
+## P016 CPU and memory telemetry
+
+P012 remains a one-shot inventory report. It does not calculate CPU load or
+derive live memory use. P016 adds `endfield-unix diagnose telemetry cpu-memory`
+using the same Linux adapter and bounded P012 source interfaces; details are
+in [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md).
+
+CPU load uses two `/proc/stat` readings and an actual monotonic observation
+window. The parser retains aggregate counters and records keyed by Linux CPU
+ID, excludes guest counters from totals because they are included in user/nice,
+and counts iowait as idle. Per-core P015 targets require a stable online CPU
+set and validated P012 snapshot mapping; sparse IDs are mapped explicitly and
+hotplug or resets affect per-core state without discarding a valid aggregate.
+P012's `CpuInfo.observed_frequency` remains unknown because the inventory
+doesn't sample frequency; P016's optional frequency metric uses only current
+`cpuinfo_cur_freq` values when policy coverage and target identity are
+validated.
+
+P016 reads `MemAvailable` as host RAM available, derives estimated RAM used
+from `MemTotal - MemAvailable`, and derives swap used from
+`SwapTotal - SwapFree`. RAM used is explicitly estimated and is not process
+memory or cgroup usage. Cgroup v2 `memory.current` is a separate observation
+under caller-owned context. Missing and malformed data remain distinct from
+zero. A memory-source failure preserves CPU observations, and a CPU-source
+failure preserves memory observations.
+
+The command is headless, read-only, and performs one bounded sampling
+operation; the default interval is 250 ms with a 100–2000 ms accepted range.
+It does not initialize Vulkan, Wayland, X11, GTK, or the daemon. It writes no
+configuration, database, log, or telemetry history. Physical Arch desktop and
+Dell Vostro telemetry checks are separate from P012 inventory and remain
+**UNVERIFIED** until run on those devices.

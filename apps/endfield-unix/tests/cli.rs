@@ -58,7 +58,7 @@ fn command_specific_help_describes_gui_and_about() {
     assert_eq!(diagnose.status.code(), Some(0));
     assert!(
         String::from_utf8_lossy(&diagnose.stdout)
-            .contains("diagnose <report|platform|hardware|gpu|display>")
+            .contains("diagnose <report|platform|hardware|gpu|display|telemetry>")
     );
 }
 

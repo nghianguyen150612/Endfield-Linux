@@ -284,3 +284,10 @@ provider-name validation, `ProvenanceId`, `InstanceId`, or `SystemSnapshot`.
 Telemetry metric IDs are a separate registry from `CapabilityId`; inventory
 capability IDs retain their meanings and numeric values. P015 adds no fields to
 P007 snapshots and does not change C17 marshalling or any existing schema.
+
+P016 adds a Linux adapter provider over these P015 contracts; it does not add
+telemetry fields to P007 snapshots, capability IDs, or the domain dependency
+graph. Whole-machine and logical-CPU utilization, RAM/swap gauges, cgroup
+memory, and optional frequency remain observations with their own target,
+timestamp, provenance, and quality. The Linux-specific source and snapshot
+mapping rules are documented in [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md).

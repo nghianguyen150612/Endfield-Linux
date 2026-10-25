@@ -155,6 +155,7 @@ dependencies = [
  "endfield-unix-domain",
  "endfield-unix-ipc",
  "endfield-unix-platform-linux",
+ "endfield-unix-telemetry",
  "gtk4",
  "libadwaita",
  "nix",
@@ -201,6 +202,7 @@ version = "0.1.0"
 dependencies = [
  "ash",
  "endfield-unix-domain",
+ "endfield-unix-telemetry",
  "libc",
  "nix",
  "tempfile",

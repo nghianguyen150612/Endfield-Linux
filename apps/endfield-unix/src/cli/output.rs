@@ -8,6 +8,10 @@ use endfield_unix_platform_linux::{
     LinuxPlatformReport, LinuxReportCompleteness, OutputInventoryStatus, ProviderStatus,
     QueryAvailability, RuntimeDirectoryStatus, SessionTypeHint, VerifiedDisplayProtocol,
 };
+use endfield_unix_telemetry::{
+    CollectionCompleteness, MetricId, MonotonicObservation, ObservationState, ObservationTarget,
+    ProviderCollection, TelemetryMeasurement,
+};
 
 use super::commands::HelpTopic;
 use crate::{
@@ -367,6 +371,231 @@ pub fn write_hardware_report<W: Write>(
             LinuxHardwareCompleteness::Partial => "partial",
         }
     )
+}
+
+/// Writes one validated P015 collection. The optional logical CPU count comes
+/// from the P012 snapshot used to validate logical CPU identities.
+pub fn write_telemetry_report<W: Write>(
+    report: &ProviderCollection,
+    expected_logical_cpus: Option<usize>,
+    output: &mut W,
+) -> io::Result<()> {
+    writeln!(output, "CPU & memory telemetry: Linux")?;
+    let observations = report.batch().observations();
+    let aggregate = find_metric(observations, MetricId::CpuUtilizationWholeMachine);
+    let interval = aggregate.and_then(cpu_window_nanos);
+    let logical = observations
+        .iter()
+        .filter(|observation| observation.metric() == MetricId::CpuUtilizationLogicalCpu)
+        .collect::<Vec<_>>();
+    let logical_measured = logical
+        .iter()
+        .filter(|observation| observation.state().is_measured())
+        .count();
+    let logical_unassociated = logical
+        .iter()
+        .any(|observation| matches!(observation.target(), ObservationTarget::Unassociated(_)));
+
+    writeln!(output, "CPU:")?;
+    writeln!(
+        output,
+        "  Aggregate utilization: {}",
+        aggregate
+            .and_then(|observation| observation.value())
+            .and_then(format_utilization)
+            .unwrap_or_else(|| "unknown".to_owned())
+    )?;
+    writeln!(
+        output,
+        "  Sampling interval: {}",
+        interval
+            .map(format_interval)
+            .unwrap_or_else(|| "unavailable".to_owned())
+    )?;
+    match expected_logical_cpus {
+        Some(expected) => writeln!(
+            output,
+            "  Logical CPUs sampled: {logical_measured}/{expected}"
+        )?,
+        None => writeln!(output, "  Logical CPUs sampled: {logical_measured}")?,
+    }
+    let per_core_state = if expected_logical_cpus.is_some_and(|expected| {
+        expected > 0 && logical_measured == expected && !logical_unassociated
+    }) {
+        "available"
+    } else if logical_measured > 0 || !logical.is_empty() {
+        "partial"
+    } else {
+        "unavailable"
+    };
+    writeln!(
+        output,
+        "  Per-core utilization: {per_core_state}{}",
+        if logical_unassociated {
+            " (CPU identity unresolved)"
+        } else {
+            ""
+        }
+    )?;
+    let frequency = find_metric(observations, MetricId::CpuFrequency)
+        .and_then(|observation| observation.value())
+        .and_then(format_hertz)
+        .unwrap_or_else(|| "unknown".to_owned());
+    writeln!(output, "  Current frequency: {frequency}")?;
+
+    let ram_available = find_metric(observations, MetricId::RamAvailable)
+        .and_then(|observation| observation.value())
+        .and_then(format_telemetry_bytes)
+        .unwrap_or_else(|| "unknown".to_owned());
+    let ram_used = find_metric(observations, MetricId::RamUsed)
+        .and_then(|observation| observation.value())
+        .and_then(format_telemetry_bytes)
+        .unwrap_or_else(|| "unknown".to_owned());
+    let swap_used = find_metric(observations, MetricId::SwapUsed)
+        .and_then(|observation| observation.value())
+        .and_then(format_telemetry_bytes)
+        .unwrap_or_else(|| "unknown".to_owned());
+    let cgroup_used = find_metric(observations, MetricId::CgroupMemoryUsed)
+        .and_then(|observation| observation.value())
+        .and_then(format_telemetry_bytes)
+        .unwrap_or_else(|| "unknown".to_owned());
+
+    writeln!(output, "Memory:")?;
+    writeln!(output, "  RAM available: {ram_available}")?;
+    writeln!(output, "  Estimated RAM used: {ram_used}")?;
+    writeln!(output, "  Swap used: {swap_used}")?;
+    writeln!(output, "  Cgroup memory usage: {cgroup_used}")?;
+
+    let expected_logical_cpus_available = expected_logical_cpus.is_some_and(|expected| {
+        expected > 0 && logical_measured == expected && !logical_unassociated
+    });
+    let cpu_quality = collection_quality(
+        aggregate
+            .into_iter()
+            .map(|observation| observation.state())
+            .chain(logical.iter().map(|observation| observation.state())),
+        aggregate.is_some() && expected_logical_cpus_available,
+    );
+    let memory_quality = collection_quality(
+        [
+            MetricId::RamAvailable,
+            MetricId::RamUsed,
+            MetricId::SwapUsed,
+        ]
+        .into_iter()
+        .filter_map(|metric| find_metric(observations, metric))
+        .map(|observation| observation.state()),
+        [
+            MetricId::RamAvailable,
+            MetricId::RamUsed,
+            MetricId::SwapUsed,
+        ]
+        .iter()
+        .all(|metric| find_metric(observations, *metric).is_some()),
+    );
+    writeln!(output, "Quality:")?;
+    writeln!(output, "  CPU source: {cpu_quality}")?;
+    writeln!(output, "  Memory source: {memory_quality}")?;
+    writeln!(output, "  Clock: monotonic")?;
+    writeln!(
+        output,
+        "  Probe result: {}",
+        match report.completeness() {
+            CollectionCompleteness::Complete => "complete",
+            CollectionCompleteness::Partial => "partial",
+        }
+    )
+}
+
+fn find_metric(
+    observations: &[endfield_unix_telemetry::TelemetryObservation],
+    metric: MetricId,
+) -> Option<&endfield_unix_telemetry::TelemetryObservation> {
+    observations
+        .iter()
+        .find(|observation| observation.metric() == metric)
+}
+
+fn cpu_window_nanos(observation: &endfield_unix_telemetry::TelemetryObservation) -> Option<u64> {
+    match observation
+        .temporal()
+        .observation()
+        .monotonic_observation()?
+    {
+        MonotonicObservation::Window(window) => {
+            window.duration().ok().map(|duration| duration.get())
+        }
+        MonotonicObservation::Instant(_) => None,
+    }
+}
+
+fn format_utilization(measurement: TelemetryMeasurement) -> Option<String> {
+    if measurement.unit() != endfield_unix_telemetry::TelemetryUnit::BasisPoints {
+        return None;
+    }
+    match measurement.value() {
+        endfield_unix_domain::MeasurementValue::Unsigned(value) => {
+            Some(format!("{}.{:02}%", value / 100, value % 100))
+        }
+        _ => None,
+    }
+}
+
+fn format_hertz(measurement: TelemetryMeasurement) -> Option<String> {
+    if measurement.unit() != endfield_unix_telemetry::TelemetryUnit::Hertz {
+        return None;
+    }
+    match measurement.value() {
+        endfield_unix_domain::MeasurementValue::Unsigned(value) => {
+            Some(format_binary(value, 1_000_000_000, "GHz"))
+        }
+        _ => None,
+    }
+}
+
+fn format_telemetry_bytes(measurement: TelemetryMeasurement) -> Option<String> {
+    if measurement.unit() != endfield_unix_telemetry::TelemetryUnit::Bytes {
+        return None;
+    }
+    match measurement.value() {
+        endfield_unix_domain::MeasurementValue::Unsigned(value) => {
+            const MIB: u64 = 1024 * 1024;
+            const GIB: u64 = 1024 * MIB;
+            if value >= GIB {
+                Some(format_binary(value, GIB, "GiB"))
+            } else {
+                Some(format_binary(value, MIB, "MiB"))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn format_binary(value: u64, divisor: u64, unit: &str) -> String {
+    let hundredths = (u128::from(value) * 100 + u128::from(divisor / 2)) / u128::from(divisor);
+    format!("{}.{:02} {unit}", hundredths / 100, hundredths % 100)
+}
+
+fn format_interval(nanos: u64) -> String {
+    format!(
+        "{}.{:03} ms",
+        nanos / 1_000_000,
+        (nanos % 1_000_000) / 1_000
+    )
+}
+
+fn collection_quality(
+    states: impl Iterator<Item = ObservationState>,
+    all_present: bool,
+) -> &'static str {
+    let states = states.collect::<Vec<_>>();
+    if all_present && !states.is_empty() && states.iter().all(|state| state.is_measured()) {
+        "measured"
+    } else if states.iter().any(|state| state.value().is_some()) {
+        "degraded"
+    } else {
+        "unavailable"
+    }
 }
 
 pub fn write_gpu_report<W: Write>(
@@ -1214,11 +1443,15 @@ fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display>\n"
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|telemetry>\n"
     )?;
     writeln!(
         output,
-        "Platform, hardware, GPU, and display perform bounded, read-only Linux discovery without GTK or the daemon."
+        "Platform, hardware, GPU, display, and telemetry perform bounded, read-only Linux discovery without GTK or the daemon."
+    )?;
+    writeln!(
+        output,
+        "Telemetry usage: {APPLICATION_NAME} diagnose telemetry cpu-memory [--interval-ms 250] (100–2000 ms)."
     )?;
     writeln!(
         output,
@@ -1298,6 +1531,41 @@ mod tests {
         assert!(String::from_utf8_lossy(&output).contains("diagnose hardware"));
         assert!(String::from_utf8_lossy(&output).contains("diagnose gpu"));
         assert!(String::from_utf8_lossy(&output).contains("diagnose display"));
+    }
+
+    #[test]
+    fn telemetry_formatting_uses_basis_points_and_binary_memory_units() {
+        assert_eq!(
+            format_utilization(TelemetryMeasurement::new(
+                endfield_unix_domain::MeasurementValue::Unsigned(2_537),
+                endfield_unix_telemetry::TelemetryUnit::BasisPoints,
+            )),
+            Some("25.37%".to_owned())
+        );
+        assert_eq!(
+            format_telemetry_bytes(TelemetryMeasurement::new(
+                endfield_unix_domain::MeasurementValue::Unsigned(1536 * 1024),
+                endfield_unix_telemetry::TelemetryUnit::Bytes,
+            )),
+            Some("1.50 MiB".to_owned())
+        );
+        assert_eq!(
+            format_telemetry_bytes(TelemetryMeasurement::new(
+                endfield_unix_domain::MeasurementValue::Unsigned(1024 * 1024 * 1024),
+                endfield_unix_telemetry::TelemetryUnit::Bytes,
+            )),
+            Some("1.00 GiB".to_owned())
+        );
+    }
+
+    #[test]
+    fn diagnose_help_documents_the_on_demand_telemetry_command() {
+        let mut output = Vec::new();
+        write_diagnose_help(&mut output).expect("diagnose help");
+        let output = String::from_utf8(output).expect("UTF-8 help");
+        assert!(output.contains("diagnose telemetry cpu-memory"));
+        assert!(output.contains("100–2000 ms"));
+        assert!(output.contains("without GTK or the daemon"));
     }
 
     #[test]

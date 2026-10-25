@@ -46,6 +46,9 @@ jobs:
       - name: Run the headless Linux hardware CLI against this runner
         run: ./target/debug/endfield-unix diagnose hardware
 
+      - name: Run bounded headless Linux CPU and memory telemetry
+        run: ./target/debug/endfield-unix diagnose telemetry cpu-memory --interval-ms 250
+
       - name: Run the headless Linux GPU CLI against this runner
         run: ./target/debug/endfield-unix diagnose gpu
 
@@ -131,7 +134,9 @@ jobs:
           assert any("lib" in target["kind"] for target in platform["targets"]), platform["targets"]
           assert not any("bin" in target["kind"] for target in platform["targets"]), platform["targets"]
           assert not any(dependency["name"] in gui_dependencies for dependency in platform["dependencies"]), platform["dependencies"]
+          assert "endfield-unix-telemetry" in {dependency["name"] for dependency in platform["dependencies"]}, platform["dependencies"]
           assert {"wayland-client", "wayland-protocols", "x11rb"}.issubset({dependency["name"] for dependency in platform["dependencies"]})
+          assert not any(dependency["name"] in {"ash", "vulkan", "vulkano"} for dependency in telemetry["dependencies"]), telemetry["dependencies"]
           ipc = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-ipc")
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]

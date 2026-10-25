@@ -210,7 +210,7 @@ fn parse_memory_limit(bytes: &[u8]) -> Result<CgroupLimit<u64>, DataSourceError>
     Ok(CgroupLimit::Limited(parse_positive(value)?))
 }
 
-fn parse_memory_current(bytes: &[u8]) -> Result<u64, DataSourceError> {
+pub(crate) fn parse_memory_current(bytes: &[u8]) -> Result<u64, DataSourceError> {
     let value = bounded_text(bytes)?;
     parse_unsigned(value)
 }

@@ -233,6 +233,13 @@ impl LinuxHardwareDataSource for SystemLinuxDataSource {
         read_regular_bounded(&self.path("/proc/meminfo"), 64 * 1024)
     }
 
+    fn read_proc_stat(&self) -> Result<Vec<u8>, DataSourceError> {
+        read_regular_bounded(
+            &self.path("/proc/stat"),
+            crate::cpu_stat::MAX_PROC_STAT_BYTES,
+        )
+    }
+
     fn read_cpu_list(&self, source: CpuListSource) -> Result<Vec<u8>, DataSourceError> {
         let name = match source {
             CpuListSource::Online => "online",
@@ -330,6 +337,7 @@ impl LinuxHardwareDataSource for SystemLinuxDataSource {
             CpuFrequencyField::AvailableGovernors => "scaling_available_governors",
             CpuFrequencyField::CpuInfoMinFrequencyKhz => "cpuinfo_min_freq",
             CpuFrequencyField::CpuInfoMaxFrequencyKhz => "cpuinfo_max_freq",
+            CpuFrequencyField::CpuInfoCurrentFrequencyKhz => "cpuinfo_cur_freq",
             CpuFrequencyField::ScalingMinFrequencyKhz => "scaling_min_freq",
             CpuFrequencyField::ScalingMaxFrequencyKhz => "scaling_max_freq",
             CpuFrequencyField::RelatedCpus => "related_cpus",
