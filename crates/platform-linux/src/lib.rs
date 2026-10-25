@@ -11,6 +11,8 @@ mod cpu_topology;
 mod cpufreq;
 mod environment;
 mod errors;
+mod gpu_probe;
+mod gpu_sources;
 mod hardware_common;
 mod hardware_probe;
 mod hardware_sources;
@@ -18,9 +20,11 @@ mod kernel;
 mod memory;
 mod normalize;
 mod os_release;
+mod pci;
 mod probe;
 mod scheduler;
 mod sources;
+mod vulkan;
 
 pub use cgroup::{CgroupLimit, CgroupResourceFacts, CgroupStatus, CpuTimeQuota};
 pub use cpu::{CpuInfoParseError, parse_cpu_model};
@@ -34,6 +38,15 @@ pub use environment::{
     RuntimeDirectoryAssessment, RuntimeDirectoryStatus, RuntimeEnvironmentFacts,
 };
 pub use errors::{DataSourceError, DataSourceErrorKind, OsReleaseParseError};
+pub use gpu_probe::{
+    DISPLAY_INSTANCE_ID_BASE, GPU_INSTANCE_ID_BASE, GpuSourceStatus,
+    LINUX_GPU_REPORT_SCHEMA_VERSION, LinuxGpuCompleteness, LinuxGpuProbe, LinuxGpuReport,
+    LinuxVulkanDevice, PciGraphicsDevice, VulkanMapping,
+};
+pub use gpu_sources::{
+    DeviceNodeAccess, DrmNodeKind, DrmNodeObservation, LinuxGpuDataSource, MAX_DRM_NODES,
+    PciAttribute,
+};
 pub use hardware_probe::{
     LINUX_HARDWARE_REPORT_SCHEMA_VERSION, LinuxHardwareCompleteness, LinuxHardwareProbe,
     LinuxHardwareReport, LinuxMemoryFacts,
@@ -49,6 +62,7 @@ pub use memory::{
 };
 pub use normalize::LinuxDistributionMetadata;
 pub use os_release::{MAX_OS_RELEASE_BYTES, OsReleaseData, parse_os_release};
+pub use pci::{MAX_PCI_DEVICES, PciBdf, PciBdfError};
 pub use probe::{
     LINUX_PLATFORM_REPORT_SCHEMA_VERSION, LinuxPlatformProbe, LinuxPlatformReport,
     LinuxReportCompleteness,
@@ -57,4 +71,8 @@ pub use scheduler::{QueryAvailability, SchedulingFacts};
 pub use sources::{
     ContainerMarker, LinuxDataSource, OsReleaseFile, RuntimeDirectoryMetadata,
     SystemLinuxDataSource,
+};
+pub use vulkan::{
+    SystemVulkanBackend, VulkanBackend, VulkanDeviceType, VulkanDriverIdentity, VulkanFacts,
+    VulkanLoaderStatus, VulkanPhysicalDevice,
 };

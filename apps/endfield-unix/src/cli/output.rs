@@ -366,6 +366,254 @@ pub fn write_hardware_report<W: Write>(
     )
 }
 
+pub fn write_gpu_report<W: Write>(
+    report: &endfield_unix_platform_linux::LinuxGpuReport,
+    output: &mut W,
+) -> io::Result<()> {
+    use endfield_unix_domain::{Availability, GpuClass, GpuVendor};
+    use endfield_unix_platform_linux::{
+        DeviceNodeAccess, DrmNodeKind, GpuSourceStatus, LinuxGpuCompleteness, VulkanDeviceType,
+        VulkanLoaderStatus, VulkanMapping,
+    };
+
+    writeln!(output, "GPU discovery: Linux")?;
+    match report.pci_status {
+        GpuSourceStatus::Available => {
+            writeln!(output, "PCI graphics devices: {}", report.pci_devices.len())?
+        }
+        GpuSourceStatus::Missing => {
+            writeln!(output, "PCI graphics devices: unknown (source missing)")?
+        }
+        GpuSourceStatus::Degraded => writeln!(
+            output,
+            "PCI graphics devices: {} validated (partial)",
+            report.pci_devices.len()
+        )?,
+    }
+    for (index, (pci, gpu)) in report
+        .pci_devices
+        .iter()
+        .zip(&report.snapshot.gpus)
+        .enumerate()
+    {
+        writeln!(output, "GPU {}:", index + 1)?;
+        let vendor = match gpu.vendor.as_ref() {
+            Some(GpuVendor::Intel) => "Intel".to_owned(),
+            Some(GpuVendor::Nvidia) => "NVIDIA".to_owned(),
+            Some(GpuVendor::Amd) => "AMD".to_owned(),
+            Some(GpuVendor::Apple) => "Apple".to_owned(),
+            Some(GpuVendor::Other(value)) => value.clone(),
+            None => "unknown".to_owned(),
+        };
+        writeln!(output, "  Vendor: {vendor}")?;
+        writeln!(
+            output,
+            "  Model: {}",
+            gpu.model.as_deref().unwrap_or("unknown")
+        )?;
+        writeln!(
+            output,
+            "  PCI identity: {} (vendor 0x{:04x}, device 0x{:04x})",
+            pci.bdf, pci.vendor_id, pci.device_id
+        )?;
+        writeln!(
+            output,
+            "  Kernel driver: {}",
+            pci.driver_name
+                .as_deref()
+                .unwrap_or(match pci.driver_binding {
+                    Availability::Unavailable => "none bound (sysfs link absent)",
+                    Availability::Unknown | Availability::Degraded => "unknown",
+                    Availability::Available => "unknown",
+                })
+        )?;
+        let render = report
+            .drm_nodes
+            .iter()
+            .filter(|node| {
+                node.pci_bdf.as_deref() == Some(&pci.bdf) && node.kind == DrmNodeKind::Render
+            })
+            .collect::<Vec<_>>();
+        let render_state = if render.is_empty() {
+            match report.drm_status {
+                GpuSourceStatus::Available => "missing",
+                GpuSourceStatus::Missing => "unknown (DRM source missing)",
+                GpuSourceStatus::Degraded => "unknown (DRM topology partial)",
+            }
+        } else if render
+            .iter()
+            .any(|node| node.access == DeviceNodeAccess::Accessible)
+        {
+            "accessible (read permission check; node not opened)"
+        } else if render
+            .iter()
+            .any(|node| node.access == DeviceNodeAccess::Denied)
+        {
+            "inaccessible"
+        } else if render
+            .iter()
+            .all(|node| node.access == DeviceNodeAccess::Missing)
+        {
+            "missing"
+        } else {
+            "unknown"
+        };
+        writeln!(output, "  DRM render node: {render_state}")?;
+        let class = match gpu.class {
+            GpuClass::Integrated => "integrated",
+            GpuClass::Discrete => "discrete",
+            GpuClass::Unknown => "unknown",
+        };
+        writeln!(output, "  GPU class: {class}")?;
+        writeln!(
+            output,
+            "  Dedicated VRAM: {}",
+            gpu.vram
+                .value
+                .map(|bytes| format_bytes(Some(bytes.0)))
+                .unwrap_or_else(|| "unknown".to_owned())
+        )?;
+        let acceleration = if gpu.hardware_acceleration == Availability::Available {
+            "available (Vulkan hardware device enumerated)"
+        } else {
+            "unknown"
+        };
+        writeln!(output, "  Hardware acceleration: {acceleration}")?;
+        let vulkan = match gpu.vulkan_device {
+            Availability::Available => "available",
+            Availability::Unavailable => "unavailable (enumeration found no Vulkan device)",
+            Availability::Unknown | Availability::Degraded => "unknown",
+        };
+        writeln!(output, "  Vulkan: {vulkan}")?;
+    }
+    match report.drm_status {
+        GpuSourceStatus::Available => writeln!(output, "DRM nodes: {}", report.drm_nodes.len())?,
+        GpuSourceStatus::Missing => writeln!(output, "DRM nodes: unknown (source missing)")?,
+        GpuSourceStatus::Degraded => writeln!(
+            output,
+            "DRM nodes: {} validated (partial)",
+            report.drm_nodes.len()
+        )?,
+    }
+    writeln!(output, "Vulkan:")?;
+    let loader = match report.vulkan_status {
+        VulkanLoaderStatus::Missing => "missing or could not be loaded",
+        VulkanLoaderStatus::InitializationFailed => "present, initialization failed",
+        VulkanLoaderStatus::AvailableNoDevices => "available",
+        VulkanLoaderStatus::Enumerated => "available",
+        VulkanLoaderStatus::Degraded => "degraded",
+    };
+    writeln!(output, "  Loader: {loader}")?;
+    let measured_vulkan_count = matches!(
+        report.vulkan_status,
+        VulkanLoaderStatus::AvailableNoDevices | VulkanLoaderStatus::Enumerated
+    );
+    let software_count = report
+        .vulkan_devices
+        .iter()
+        .filter(|device| device.physical.device_type == VulkanDeviceType::Cpu)
+        .count();
+    let unmatched_count = report
+        .vulkan_devices
+        .iter()
+        .filter(|device| device.mapping != VulkanMapping::PciIdentity)
+        .count();
+    let count_label = |count: usize| match report.vulkan_status {
+        VulkanLoaderStatus::Missing | VulkanLoaderStatus::InitializationFailed => {
+            "unknown".to_owned()
+        }
+        VulkanLoaderStatus::Degraded => format!("{count} validated; total unknown"),
+        VulkanLoaderStatus::AvailableNoDevices | VulkanLoaderStatus::Enumerated => {
+            count.to_string()
+        }
+    };
+    writeln!(
+        output,
+        "  Physical devices: {}",
+        count_label(report.vulkan_devices.len())
+    )?;
+    writeln!(
+        output,
+        "  Software devices: {}",
+        if measured_vulkan_count {
+            software_count.to_string()
+        } else if report.vulkan_status == VulkanLoaderStatus::Degraded {
+            format!("{software_count} validated; total unknown")
+        } else {
+            "unknown".to_owned()
+        }
+    )?;
+    writeln!(
+        output,
+        "  Unmatched devices: {}",
+        if measured_vulkan_count {
+            unmatched_count.to_string()
+        } else if report.vulkan_status == VulkanLoaderStatus::Degraded {
+            format!("{unmatched_count} validated; total unknown")
+        } else {
+            "unknown".to_owned()
+        }
+    )?;
+    for device in &report.vulkan_devices {
+        let kind = match device.physical.device_type {
+            VulkanDeviceType::Integrated => "integrated",
+            VulkanDeviceType::Discrete => "discrete",
+            VulkanDeviceType::Virtual => "virtual",
+            VulkanDeviceType::Cpu => "CPU/software",
+            VulkanDeviceType::Other => "other",
+        };
+        let api = device
+            .physical
+            .api_version
+            .map(|(major, minor, patch)| format!("{major}.{minor}.{patch}"))
+            .unwrap_or_else(|| "unknown".to_owned());
+        let mapping = match device.mapping {
+            VulkanMapping::PciIdentity => "matched PCI identity",
+            VulkanMapping::AmbiguousPciIdentity => "ambiguous PCI identity",
+            VulkanMapping::ContradictoryPciIdentity => "contradictory PCI metadata",
+            VulkanMapping::Unmatched => "unmatched",
+        };
+        writeln!(
+            output,
+            "  Device: {} ({kind}; Vulkan API {api}; {mapping})",
+            device.physical.name
+        )?;
+        if let Some(driver) = &device.physical.driver_identity {
+            writeln!(
+                output,
+                "    Vulkan driver identity: {} (raw driver ID {})",
+                driver.name, driver.driver_id
+            )?;
+        }
+        let heaps = if device.physical.device_local_heap_bytes.is_empty() {
+            "unknown".to_owned()
+        } else {
+            device
+                .physical
+                .device_local_heap_bytes
+                .iter()
+                .map(u64::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        writeln!(
+            output,
+            "    Vulkan device-local heap bytes: {heaps} (not dedicated VRAM)"
+        )?;
+    }
+    if let Some(diagnostic) = report.vulkan_diagnostic {
+        writeln!(output, "  Detail: {diagnostic}")?;
+    }
+    writeln!(
+        output,
+        "Probe result: {}",
+        match report.completeness {
+            LinuxGpuCompleteness::Complete => "complete",
+            LinuxGpuCompleteness::Partial => "partial",
+        }
+    )
+}
+
 fn query_availability_name(value: QueryAvailability) -> &'static str {
     match value {
         QueryAvailability::Available => "available and queryable",
@@ -531,6 +779,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
         output,
         "  diagnose hardware  Inspect Linux CPU, memory, and resource controls"
     )?;
+    writeln!(
+        output,
+        "  diagnose gpu  Inspect Linux PCI, DRM, graphics-driver, and Vulkan facts"
+    )?;
     writeln!(output, "  service ping  Verify authenticated daemon IPC")?;
     writeln!(
         output,
@@ -590,11 +842,11 @@ fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware>\n"
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu>\n"
     )?;
     writeln!(
         output,
-        "Platform and hardware perform bounded, read-only Linux discovery without GTK or the daemon."
+        "Platform, hardware, and GPU perform bounded, read-only Linux discovery without GTK or the daemon."
     )?;
     writeln!(
         output,
@@ -672,6 +924,7 @@ mod tests {
         assert!(write_help(None, &mut output).is_ok());
         assert!(String::from_utf8_lossy(&output).contains("diagnose platform"));
         assert!(String::from_utf8_lossy(&output).contains("diagnose hardware"));
+        assert!(String::from_utf8_lossy(&output).contains("diagnose gpu"));
     }
 
     #[test]
@@ -852,6 +1105,153 @@ mod tests {
         assert!(output.contains("Swap: unknown"));
         assert!(output.contains("Cgroup CPU-time quota: unknown"));
         assert!(output.contains("Probe result: partial"));
+    }
+
+    #[test]
+    fn gpu_output_formats_a_partial_multi_provider_fixture_without_fabricating_facts() {
+        use endfield_unix_domain::{
+            Architecture, Availability, Bytes, CapabilityValue, GpuClass, GpuInfo, GpuVendor,
+            InstanceId, KernelIdentity, OsIdentity, PlatformFamily, PlatformIdentity,
+            SystemSnapshot,
+        };
+        use endfield_unix_platform_linux::{
+            CgroupResourceFacts, GpuSourceStatus, LinuxGpuCompleteness, LinuxGpuReport,
+            LinuxHardwareCompleteness, LinuxHardwareReport, LinuxMemoryFacts, LinuxVulkanDevice,
+            PciGraphicsDevice, QueryAvailability, RuntimeDirectoryAssessment,
+            RuntimeDirectoryStatus, RuntimeEnvironmentFacts, SchedulingFacts, VulkanDeviceType,
+            VulkanDriverIdentity, VulkanLoaderStatus, VulkanMapping, VulkanPhysicalDevice,
+        };
+        use endfield_unix_platform_linux::{
+            EnvironmentClassification, EnvironmentConfidence, EnvironmentStatus,
+        };
+
+        let platform = PlatformIdentity::new(
+            PlatformFamily::Linux,
+            OsIdentity::new("Linux", None).expect("OS identity"),
+            Architecture::X86_64,
+            Some(KernelIdentity::new("Linux", None).expect("kernel")),
+            None,
+        )
+        .expect("platform");
+        let hardware = LinuxHardwareReport {
+            schema_version: 1,
+            snapshot: SystemSnapshot::new(platform),
+            distribution: None,
+            runtime_environment: RuntimeEnvironmentFacts {
+                classification: EnvironmentClassification::Unknown,
+                status: EnvironmentStatus::Uncertain,
+                confidence: EnvironmentConfidence::Low,
+                source_ids: Vec::new(),
+                diagnostic: None,
+                uncertainty: None,
+            },
+            user_runtime_directory: RuntimeDirectoryAssessment {
+                status: RuntimeDirectoryStatus::Missing,
+                source_id: "linux-xdg-runtime-dir",
+                diagnostic: None,
+            },
+            cpu_model: None,
+            cpu_topology: None,
+            scheduling: SchedulingFacts {
+                affinity_query: QueryAvailability::Unknown,
+                scheduler_policy_query: QueryAvailability::Unknown,
+                allowed_cpu_ids: None,
+                scheduler_policy: None,
+                current_static_priority: None,
+                mutation_permission: QueryAvailability::Unknown,
+            },
+            memory: LinuxMemoryFacts::default(),
+            cgroup: CgroupResourceFacts::default(),
+            cpu_frequency: endfield_unix_platform_linux::CpuFrequencyFacts {
+                availability: Availability::Unknown,
+                policies: Vec::new(),
+            },
+            platform_power: endfield_unix_platform_linux::PlatformPowerFacts {
+                availability: Availability::Unknown,
+                current_profile: None,
+                available_profiles: Vec::new(),
+            },
+            completeness: LinuxHardwareCompleteness::Partial,
+        };
+        let mut snapshot = hardware.snapshot.clone();
+        snapshot.gpus.push(GpuInfo {
+            instance: InstanceId::new(2).expect("instance"),
+            availability: Availability::Available,
+            vendor: Some(GpuVendor::Intel),
+            model: None,
+            class: GpuClass::Unknown,
+            graphics_driver: None,
+            driver_availability: Availability::Unknown,
+            vram: CapabilityValue::<Bytes>::new(Availability::Unknown, None),
+            hardware_acceleration: Availability::Unknown,
+            vulkan_device: Availability::Unknown,
+        });
+        let report = LinuxGpuReport {
+            schema_version: 1,
+            snapshot,
+            hardware,
+            pci_devices: vec![PciGraphicsDevice {
+                bdf: "0000:00:02.0".to_owned(),
+                class_code: 0x030000,
+                vendor_id: 0x8086,
+                device_id: 0x9a49,
+                subsystem_vendor_id: None,
+                subsystem_device_id: None,
+                driver_name: None,
+                driver_binding: Availability::Unknown,
+                driver_diagnostic: None,
+            }],
+            pci_status: GpuSourceStatus::Available,
+            drm_nodes: Vec::new(),
+            drm_status: GpuSourceStatus::Missing,
+            vulkan_status: VulkanLoaderStatus::Missing,
+            vulkan_devices: Vec::new(),
+            vulkan_diagnostic: None,
+            completeness: LinuxGpuCompleteness::Partial,
+        };
+        let mut output = Vec::new();
+        write_gpu_report(&report, &mut output).expect("GPU output");
+        let output = String::from_utf8(output).expect("UTF-8");
+        assert!(output.contains("GPU 1:"));
+        assert!(output.contains("Vendor: Intel"));
+        assert!(output.contains("Model: unknown"));
+        assert!(output.contains("PCI identity: 0000:00:02.0"));
+        assert!(output.contains("Kernel driver: unknown"));
+        assert!(output.contains("DRM render node: unknown (DRM source missing)"));
+        assert!(output.contains("GPU class: unknown"));
+        assert!(output.contains("Dedicated VRAM: unknown"));
+        assert!(output.contains("Vulkan: unknown"));
+        assert!(output.contains("Loader: missing or could not be loaded"));
+        assert!(output.contains("Physical devices: unknown"));
+        assert!(output.contains("Probe result: partial"));
+        assert!(!output.contains("/sys/"));
+        assert!(!output.contains("/dev/"));
+
+        let mut enumerated = report;
+        enumerated.vulkan_status = VulkanLoaderStatus::Enumerated;
+        enumerated.vulkan_devices.push(LinuxVulkanDevice {
+            physical: VulkanPhysicalDevice {
+                name: "Mesa software renderer".to_owned(),
+                vendor_id: 0x10005,
+                device_id: 1,
+                pci_identity: None,
+                driver_identity: Some(VulkanDriverIdentity {
+                    driver_id: 13,
+                    name: "Mesa lavapipe".to_owned(),
+                }),
+                device_type: VulkanDeviceType::Cpu,
+                api_version: Some((1, 3, 0)),
+                device_local_heap_bytes: vec![1_073_741_824],
+            },
+            mapping: VulkanMapping::Unmatched,
+            gpu_instance: None,
+        });
+        let mut output = Vec::new();
+        write_gpu_report(&enumerated, &mut output).expect("enumerated GPU output");
+        let output = String::from_utf8(output).expect("UTF-8");
+        assert!(output.contains("Vulkan driver identity: Mesa lavapipe (raw driver ID 13)"));
+        assert!(output.contains("CPU/software; Vulkan API 1.3.0; unmatched"));
+        assert!(output.contains("Vulkan device-local heap bytes: 1073741824 (not dedicated VRAM)"));
     }
 
     #[test]

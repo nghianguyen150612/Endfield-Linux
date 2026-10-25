@@ -183,3 +183,6 @@ gates passed in [CI run 40161140586](https://github.com/nghianguyen150612/Endfie
 Ubuntu CI does not establish Arch Linux or physical-device support. Real Arch
 device validation: **UNVERIFIED**. For manual comparison commands, see
 [PLATFORM-LINUX.md](PLATFORM-LINUX.md).
+## P013 GPU inventory
+
+GPU discovery is provided by `endfield-unix diagnose gpu` in the same Linux adapter. It preserves P012 CPU/memory facts and keeps PCI presence, driver binding, DRM access, Vulkan enumeration, and rendering separate. Dedicated VRAM remains unknown unless a justified source exists. See [GPU-LINUX.md](GPU-LINUX.md).

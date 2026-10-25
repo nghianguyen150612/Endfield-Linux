@@ -294,3 +294,39 @@ Xvfb, and it is not an Arch Linux device.
 - No manual Arch Linux, CachyOS, or physical-device validation has been
   performed: real Arch device validation is **UNVERIFIED**. Synthetic desktop
   and laptop fixtures are test inputs, not measurements from user hardware.
+
+## P013 validation record — 2026-10-25
+
+P013 implementation is present on `main`; hosted GitHub Actions qualification is
+pending the first push of this change. Local validation used Rust 1.85.0.
+
+- `cargo +1.85.0 fmt --all` and `git diff --check` — passed.
+- `cargo +1.85.0 test --locked -p endfield-unix-platform-linux --all-targets`
+  — passed: 92 adapter tests, including deterministic PCI/DRM limit and mapping tests, hybrid
+  multi-GPU correlation, software Vulkan, missing-loader, initialization
+  failure, zero-device, malformed metadata, and live Linux smoke tests.
+- `cargo +1.85.0 check --locked --workspace --all-targets` and workspace
+  Clippy with `-D warnings` — passed using temporary pkg-config metadata stubs
+  because this workspace has no GTK4/libadwaita development libraries. These
+  checks type-check application and test targets, but do not link or run the
+  native GUI.
+- `cargo +1.85.0 test --locked --workspace --exclude endfield-unix` — passed,
+  covering domain, diagnostics/redaction, storage/recovery, IPC crate,
+  platform-adapter, daemon lifecycle, and Rust FFI tests. The app CLI tests,
+  P010 app/daemon IPC saturation end-to-end test, full workspace test, GTK
+  smoke/screenshot, and native workspace build require the hosted GTK runner
+  and remain pending there. No IPC test was changed or weakened.
+- Cargo metadata assertions — passed: exactly two application binaries, a
+  library-only Linux adapter, no Linux/Vulkan dependency in the domain, and no
+  GTK dependency in the adapter or daemon.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and the GCC sanitizer script
+  — passed. Clang is not installed in this local environment; hosted matrix
+  validation remains pending.
+- Actual local Linux GPU smoke: PCI source available with zero graphics-class
+  devices, DRM sysfs source missing, Vulkan loader loaded but instance
+  initialization failed, zero enumerated devices, and P012 CPU and memory
+  facts present. The valid combined report was partial. This is the current
+  container observation, not a target desktop or laptop measurement.
+- Real Arch desktop/NVIDIA RTX 5070 and Dell Vostro 3510/Intel Iris Xe plus
+  NVIDIA MX350 checks — **UNVERIFIED**. See [GPU-LINUX.md](GPU-LINUX.md) for
+  manual comparisons and interpretation.

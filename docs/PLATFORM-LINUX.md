@@ -186,7 +186,10 @@ validation: **UNVERIFIED**.
 
 ## Non-goals
 
-P012 does not detect GPU, driver, Vulkan, display, Wayland/X11,
+P012 does not detect display, Wayland/X11,
 refresh-rate, Wine, or Proton state. It does not create IPC requests, start the
 daemon, change system configuration, install services, tune a kernel, or
 launch a game. macOS and FreeBSD probing is not implemented.
+## P013 GPU integration
+
+P013 extends the existing Linux adapter with bounded PCI and DRM enumeration and dynamic Vulkan discovery. The GPU report composes the P011/P012 snapshot without changing platform schema, storage, IPC, or C ABI contracts. It does not expose GPU probing over IPC or add daemon work. See [GPU-LINUX.md](GPU-LINUX.md) for PCI classes, topology, correlation, memory semantics, and Arch validation.

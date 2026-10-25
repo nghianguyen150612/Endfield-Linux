@@ -46,6 +46,9 @@ jobs:
       - name: Run the headless Linux hardware CLI against this runner
         run: ./target/debug/endfield-unix diagnose hardware
 
+      - name: Run the headless Linux GPU CLI against this runner
+        run: ./target/debug/endfield-unix diagnose gpu
+
       - name: Run Linux platform-adapter parser and live-probe tests
         run: cargo test --locked -p endfield-unix-platform-linux --all-targets
 

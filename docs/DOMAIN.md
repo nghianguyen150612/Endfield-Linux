@@ -267,3 +267,6 @@ specialized API when its behavior is scheduled. P042 will define complete
 snapshot-to-C marshalling; P015 will refine telemetry units, timestamps, and
 missing-data behavior. The domain crate provides the shared foundation without
 preempting those contracts.
+## P013 Linux GPU facts
+
+The portable P007 schema remains v1 and gains no Linux or Vulkan dependencies. P013 maps validated PCI GPUs to existing `GpuInfo` fields and capability IDs 10–14, allocates snapshot-local IDs after the P012 CPU, and validates typed values against scalar capability records. PCI/DRM/Vulkan-specific details and unmatched devices stay in `LinuxGpuReport`; unknown VRAM, classification, driver, or Vulkan mappings are preserved.

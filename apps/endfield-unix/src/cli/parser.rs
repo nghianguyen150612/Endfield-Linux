@@ -73,6 +73,8 @@ enum DiagnoseArgs {
     Platform,
     /// Inspect local Linux CPU, memory, cgroup, scheduling, and power interfaces.
     Hardware,
+    /// Inspect local Linux PCI, DRM, kernel graphics drivers, and Vulkan devices.
+    Gpu,
 }
 
 #[derive(Debug, Subcommand)]
@@ -142,6 +144,9 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Hardware,
         }) => Command::DiagnoseHardware,
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::Gpu,
+        }) => Command::DiagnoseGpu,
         Some(SubcommandArgs::Service {
             command: ServiceArgs::Ping,
         }) => Command::ServicePing,
@@ -249,6 +254,11 @@ mod tests {
     #[test]
     fn diagnose_hardware_is_a_typed_local_command() {
         assert_command(&["diagnose", "hardware"], Command::DiagnoseHardware);
+    }
+
+    #[test]
+    fn diagnose_gpu_is_a_typed_local_command() {
+        assert_command(&["diagnose", "gpu"], Command::DiagnoseGpu);
     }
 
     #[test]

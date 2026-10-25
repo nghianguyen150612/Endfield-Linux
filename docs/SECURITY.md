@@ -102,3 +102,6 @@ Verify runtime source and integrity before activation. Keep known-good versions 
 The C17 engine is a pure planner: it receives normalized inputs and returns proposed plans. It cannot execute commands or make privileged changes. Rust must revalidate current capabilities and safety policy, show plan effects and trade-offs, and obtain approval before execution. L4 experimental actions require explicit per-plan acknowledgement. No optimization intensity permits anti-cheat bypass, binary modification, or hidden persistence.
 
 Do not claim a recommendation will increase FPS unless relevant benchmark evidence supports that estimate. Make uncertainty and missing hardware data visible. Software settings cannot be presented as a remedy for a possible hardware power-delivery fault.
+## P013 graphics discovery
+
+`diagnose gpu` reads only fixed bounded PCI/DRM sysfs families and dynamically loads Vulkan via ash. It does not open DRM nodes or execute commands. Vulkan vendor driver code runs in-process and may block; no hard cancellation guarantee is claimed. Sysfs topology links are constrained to `/sys/devices`. See [GPU-LINUX.md](GPU-LINUX.md) for bounds and correlation semantics.

@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource discovery. Candidate generation, GPU discovery, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource discovery; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery in the same adapter. Candidate generation, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts

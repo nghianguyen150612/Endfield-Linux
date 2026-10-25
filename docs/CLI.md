@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, probing hardware, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform` and `diagnose hardware` are separate read-only Linux probe commands; they avoid GTK, the daemon, and application storage. Hardware output is printed only for this explicit command and is not automatically persisted or exported. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, probing hardware, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, and `diagnose gpu` are separate read-only Linux probe commands; they avoid GTK, the daemon, and application storage. Hardware output is printed only for this explicit command and is not automatically persisted or exported. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
 
 ## Available commands
 
@@ -16,10 +16,11 @@
 | `endfield-unix diagnose report --output PATH` | Write a versioned, privacy-safe JSON report to the explicit path | No |
 | `endfield-unix diagnose platform` | Inspect validated Linux distribution, running kernel, architecture, environment hints, and runtime-directory availability | No |
 | `endfield-unix diagnose hardware` | Inspect Linux CPU topology, process affinity, memory, cgroup v2 limits, scheduling queries, and readable frequency/power interfaces | No |
+| `endfield-unix diagnose gpu` | Inspect PCI graphics devices, DRM nodes, kernel drivers, and Vulkan physical devices | No |
 | `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
 | `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
 
-Help lists only implemented commands. Linux CPU and memory hardware probing is available through `diagnose hardware`; GPU discovery, runtime discovery, optimization, and game services are under development. The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Linux CPU and memory hardware probing is available through `diagnose hardware`; runtime discovery, optimization, and game services are under development. GPU discovery is available through `diagnose gpu`; see [GPU-LINUX.md](GPU-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -62,7 +63,7 @@ endfield-unix gui
 
 Clap parses OS-string arguments through its non-terminating `try_get_matches_from` API. The typed command model, parser, output formatters, and dispatcher live in separate modules under `apps/endfield-unix/src/cli/`. `main.rs` continues to pass OS arguments to the library entry point. Parser failures become status 2 and are written to stderr; static command output goes to stdout.
 
-Both default startup and the `gui` command invoke the existing `start_gui()` boundary. No CLI command constructs GTK widgets or accesses UI types. The report command calls the diagnostics library directly; it does not initialize GTK or the logger, create application state directories, run hardware probes, or contact the network. Reports contain static application/component metadata and validated allowlisted event history when available. The command writes only to the requested output file, refuses symlink destinations, uses mode `0600`, and refuses an existing file unless `--overwrite` is set. `diagnose platform` and `diagnose hardware` call `endfield-unix-platform-linux` directly, require no daemon, and perform no writes or command execution. Hardware probing reads bounded fixed procfs/sysfs sources. The full or partial output labels unknown and unavailable facts explicitly; cgroup quotas remain separate from affinity and physical topology, and host RAM remains separate from cgroup memory controls. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md).
+Both default startup and the `gui` command invoke the existing `start_gui()` boundary. No CLI command constructs GTK widgets or accesses UI types. The report command calls the diagnostics library directly; it does not initialize GTK or the logger, create application state directories, run hardware probes, or contact the network. Reports contain static application/component metadata and validated allowlisted event history when available. The command writes only to the requested output file, refuses symlink destinations, uses mode `0600`, and refuses an existing file unless `--overwrite` is set. `diagnose platform`, `diagnose hardware`, and `diagnose gpu` call `endfield-unix-platform-linux` directly, require no daemon, and perform no writes or command execution. Hardware probing reads bounded fixed procfs/sysfs sources. The full or partial output labels unknown and unavailable facts explicitly; cgroup quotas remain separate from affinity and physical topology, and host RAM remains separate from cgroup memory controls. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md).
 
 Output writers can be injected through `run_with_io` for deterministic dispatch tests. Output and diagnostic write failures are handled without panicking, including closed pipes. The service commands use the shared `endfield-unix-ipc` client, enforce a 2-second total deadline, validate the response envelope and status fields, and never initialize GTK or auto-start `endfield-unixd`.
 
@@ -108,3 +109,6 @@ endfield-unix profile ...
 ```
 
 Each future command must call the corresponding shared application service. Adding a command name before its service exists must not imply that the operation works.
+## GPU diagnosis
+
+`endfield-unix diagnose gpu` performs headless local PCI, DRM, kernel-driver, and Vulkan discovery without GTK, daemon, or storage access. It returns status 0 for complete or partial reports, 70 for a required probe failure, 74 for output failure, 78 for unsupported platform, and 2 for invalid arguments. See [GPU-LINUX.md](GPU-LINUX.md) for interpretation and limitations.

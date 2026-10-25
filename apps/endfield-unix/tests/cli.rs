@@ -56,7 +56,8 @@ fn command_specific_help_describes_gui_and_about() {
     assert!(String::from_utf8_lossy(&service.stdout).contains("authenticated local Ping/Pong"));
     assert_eq!(diagnose.status.code(), Some(0));
     assert!(
-        String::from_utf8_lossy(&diagnose.stdout).contains("diagnose <report|platform|hardware>")
+        String::from_utf8_lossy(&diagnose.stdout)
+            .contains("diagnose <report|platform|hardware|gpu>")
     );
 }
 
@@ -105,6 +106,21 @@ fn diagnose_hardware_runs_headlessly_without_a_daemon_or_runtime_directory() {
     assert!(!stdout.contains("Daemon:"));
     assert!(!stdout.contains("/sys/"));
     assert!(!stdout.contains("/proc/"));
+}
+
+#[test]
+fn diagnose_gpu_runs_headlessly_without_a_daemon() {
+    let output = invoke(&["diagnose", "gpu"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("GPU discovery: Linux"));
+    assert!(stdout.contains("Vulkan:"));
+    assert!(stdout.contains("Probe result: "));
 }
 
 #[test]
