@@ -219,3 +219,5 @@ It does not initialize Vulkan, Wayland, X11, GTK, or the daemon. It writes no
 configuration, database, log, or telemetry history. Physical Arch desktop and
 Dell Vostro telemetry checks are separate from P012 inventory and remain
 **UNVERIFIED** until run on those devices.
+The hosted Linux CLI and smoke passed in [CI run 40205107552](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40205107552);
+this does not replace physical-device validation.

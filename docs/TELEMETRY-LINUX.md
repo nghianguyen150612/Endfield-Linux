@@ -164,6 +164,9 @@ overflow, cgroup error mapping, policy disagreement, P015 batch validation,
 and CLI interval/format behavior. The live Linux smoke reads actual
 `/proc/stat` and `/proc/meminfo`, waits one bounded interval, and accepts
 source-supported partial results without asserting fixed host values.
+Hosted qualification passed in [CI run 40205107552](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40205107552),
+including the bounded live CLI and smoke test.
+Its variable runner values are recorded in [TESTING.md](TESTING.md); they do not validate physical Arch hardware.
 
 Manual Arch Linux checks:
 

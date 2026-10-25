@@ -498,43 +498,63 @@ rerunning the failed Rust job in [CI run 40184991675](https://github.com/nghiang
 
 ## P016 validation record — 2026-10-25
 
-P016 implementation is on `main` for hosted qualification. The repository
-baseline was `667f2f1b79e2741e3effd4262a6ad7dc403dd3fe`. This record will be
-updated with the hosted Actions result before P016 is marked qualified.
+P016 was implemented on `main` from baseline
+`667f2f1b79e2741e3effd4262a6ad7dc403dd3fe` and committed as
+`7e1b186257243e88218a321b7d79014f3a9d7c7d`. Hosted qualification passed in
+[CI run 40205107552](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40205107552)
+after rerunning the failed Rust job without code or test changes.
 
 - `cargo +1.85.0 fmt --all -- --check`, `git diff --check`, and
   `cargo +1.85.0 metadata --locked --no-deps --format-version 1` — passed
-  locally. GCC C17 ABI tests passed; Clang is not installed locally.
+  locally. GCC C17 ABI tests passed locally; Clang is not installed locally.
 - In an Ubuntu 24.04 validation container, Rust 1.85.0 workspace check,
   Clippy with `-D warnings`, and the application/daemon build passed. The live
-  `diagnose telemetry cpu-memory --interval-ms 250` command returned valid
-  measured CPU and memory observations and an explicitly partial result because
-  current frequency was unavailable. One run reported 0.00% over 250.307 ms,
-  3/3 logical CPUs, 8.52 GiB RAM available, estimated 1.22 GiB RAM used,
-  0.00 MiB swap used, and 14.93 MiB cgroup usage; these are container-local
-  observations and are not hardware baselines.
+  `diagnose telemetry cpu-memory --interval-ms 250` command returned measured
+  CPU and memory observations and a partial result because current frequency
+  was unavailable. The hosted CLI reported:
+
+  ```text
+  Aggregate utilization: 1.00%
+  Sampling interval: 250.322 ms
+  Logical CPUs sampled: 4/4
+  Per-core utilization: available
+  Current frequency: unknown
+  RAM available: 14.57 GiB
+  Estimated RAM used: 1.04 GiB
+  Swap used: 0.00 MiB
+  Cgroup memory usage: 3.29 GiB
+  CPU source: measured
+  Memory source: measured
+  Clock: monotonic
+  Probe result: partial
+  ```
+
+  Runner values vary and are not hardware baselines.
 - Linux adapter all-target tests passed, including 62 adapter unit tests, the
   existing platform/hardware/GPU/display live and contract suites, the new live
   telemetry smoke, and 13 new telemetry provider contract tests. The dedicated
   P015 telemetry all-target tests also passed. The application unit and CLI
   integration tests passed after updating the expected help synopsis for the
   new subcommand.
-- A full workspace test attempt in the validation container stopped in the
-  existing storage recovery test
-  `unreadable_config_and_database_report_permission_errors`: the container
-  ran as root, which can read files regardless of their restrictive mode. The
-  test was left unchanged. The full non-GUI workspace suite was then rerun as
-  the unprivileged workspace user with
-  `cargo +1.85.0 test --locked --workspace --exclude endfield-unix`; it passed,
-  including the storage permission test, daemon lifecycle suite, IPC library,
-  Rust FFI, diagnostics privacy, P015, and Linux adapter tests. The app unit and
-  CLI integration tests passed in the native-dependency container. Hosted
-  Actions remains the qualification gate for the complete GTK-linked workspace,
-  authenticated IPC subprocess gate, GTK/Xvfb screenshot, metadata assertions,
-  and Clang checks.
-- Hosted Linux smoke, full regression status, GTK screenshot, GCC/Clang C17
-  results, and the Actions run link are pending. P016 is not qualified until
-  the hosted workflow is green.
+- The full non-GUI workspace suite passed as the unprivileged workspace user
+  using `cargo +1.85.0 test --locked --workspace --exclude endfield-unix`. It
+  included the storage permission test, daemon lifecycle suite, IPC library,
+  Rust FFI, diagnostics privacy, P015, and Linux adapter tests. The app unit
+  and CLI integration tests passed in the native-dependency container.
+- The first hosted Rust attempt, job `121204258845`, failed in the existing IPC
+  saturation assertion at `apps/endfield-unix/tests/ipc_e2e.rs:144`: the
+  over-capacity connection returned `WouldBlock` instead of EOF after one
+  second. The job was rerun unchanged as `121205326149`; the full workspace
+  tests and dedicated authenticated IPC subprocess gate passed. P016 changes no
+  IPC internals or tests, and the initial timing failure is retained here as a
+  separate known flake.
+- Hosted run `40205107552` passed formatting, workspace check and Clippy, both
+  executable builds, all five headless Linux diagnostics including telemetry,
+  Xvfb/RandR, all Linux adapter and P015 telemetry tests, workspace/CLI/FFI/
+  storage/domain/diagnostics regressions, daemon lifecycle, authenticated IPC,
+  GTK smoke, screenshot upload, workspace build, and Cargo metadata assertions.
+  GCC and Clang C17 ABI jobs passed. The GTK screenshot artifact is available as
+  [`endfield-unix-gtk-smoke`](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40205107552/artifacts/12603782558).
 - Real device status remains **Arch desktop validation: UNVERIFIED** and
   **Dell Vostro 3510 validation: UNVERIFIED**. Ubuntu CI and container smoke do
   not replace those checks.
