@@ -213,3 +213,42 @@ GLib development packages, and it is not an Arch Linux device.
   ```
 
 - The hosted output is a real Ubuntu CI runner observation. It does not substitute for manual Arch Linux, CachyOS, or physical-device validation.
+
+## P012 validation record — 2026-10-25
+
+P012 implementation is in place; hosted qualification is pending. This
+workspace does not include native GTK4/libadwaita development packages or
+Xvfb, and it is not an Arch Linux device.
+
+- Rust toolchain — pinned Rust 1.85.0; P012 directly pins `libc` 0.2.191 and
+  `nix` 0.29.0, consistent with the existing locked workspace dependencies.
+- `cargo +1.85.0 fmt --all -- --check` and `git diff --check` — passed.
+- `cargo +1.85.0 test --locked -p endfield-unix-platform-linux --all-targets`
+  — passed: 68 tests total, including 24 P012 deterministic hardware
+  contracts, the P012 live Linux CPU/memory/snapshot smoke, and all P011
+  parser, platform, environment, and live-kernel contracts.
+- `cargo +1.85.0 clippy --locked -p endfield-unix-platform-linux
+  --all-targets -- -D warnings` — passed.
+- `cargo +1.85.0 check --locked --workspace --all-targets` and workspace
+  Clippy with `-D warnings` — passed using temporary pkg-config metadata for
+  Rust type checking. App, CLI, and test targets type-checked; the metadata
+  does not verify native GTK linking or runtime.
+- Domain, diagnostics, storage, IPC, daemon, and Rust FFI package tests —
+  passed. This includes the P012 provider allowlist/redaction test, P010 IPC,
+  P009 lifecycle, storage migrations/recovery, P007 model contracts, and the
+  Rust C17 FFI contracts.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh` and
+  `CC=gcc native/optimizer/tests/run-sanitizers.sh` — passed. Clang is not
+  installed locally.
+- Locked Cargo metadata — passed; exactly two application binaries remain:
+  `endfield-unix` and `endfield-unixd`. The Linux adapter is library-only and
+  its dependencies contain no GTK, libadwaita, or Relm4.
+- The CLI executable and its application tests could not be linked or run
+  locally because GTK4/libadwaita development libraries are absent. The
+  hosted workflow now builds the binaries, runs the actual headless
+  `diagnose hardware` command, executes full workspace tests/build, graphical
+  smoke and screenshot, P009/P010 subprocess gates, metadata assertions, and
+  the GCC/Clang C17 matrix. Hosted results will be recorded after the push.
+- No manual Arch Linux, CachyOS, or physical-device validation has been
+  performed: real Arch device validation is **UNVERIFIED**. Synthetic desktop
+  and laptop fixtures are test inputs, not measurements from user hardware.

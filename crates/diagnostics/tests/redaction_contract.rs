@@ -218,6 +218,34 @@ fn p011_provider_names_are_allowlisted_while_details_remain_discarded() {
 }
 
 #[test]
+fn p012_provider_names_are_allowlisted_while_details_remain_discarded() {
+    for provider_name in [
+        "linux-cpu-sysfs",
+        "linux-cpuinfo",
+        "linux-meminfo",
+        "linux-cgroup",
+        "linux-cpufreq",
+        "linux-scheduler",
+        "linux-power",
+    ] {
+        let diagnostic = Diagnostic::new(
+            DiagnosticCategory::PermissionDenied,
+            Some(provider_name.to_owned()),
+            Some("private path and source text".to_owned()),
+        )
+        .expect("bounded synthetic diagnostic");
+        let event = event_from_domain_diagnostic(&diagnostic, None, 123)
+            .expect("allowlisted provider event");
+        assert_eq!(
+            event.provider().map(|provider| provider.as_str()),
+            Some(provider_name)
+        );
+        let serialized = serde_json::to_string(&event).expect("serialized event");
+        assert!(!serialized.contains("private path"));
+    }
+}
+
+#[test]
 fn sensitivity_classes_mark_only_static_and_structured_values_as_reportable() {
     assert_eq!(
         ReportField::ApplicationName.sensitivity(),

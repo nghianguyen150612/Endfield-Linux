@@ -66,7 +66,32 @@ mode, and socket-path length policy. It never creates or repairs the directory.
 
 The live report is printed locally and is not automatically added to P008 logs
 or support reports. P008 continues to discard free-form diagnostic messages;
-only the new fixed provider identifiers are allowlisted.
+only fixed provider identifiers are allowlisted.
+
+## P012 read-only hardware discovery
+
+`diagnose hardware` reads only bounded, named kernel source families for CPU
+topology, model, memory, process affinity/scheduler state, cgroup v2 controls,
+cpufreq policy, and platform profile. The source interface has no arbitrary
+path-taking method or write operation. CPU and policy enumeration, CPU lists,
+and each source file have explicit bounds. The process affinity query uses
+`sched_getaffinity`; scheduler reads use `sched_getscheduler` and
+`sched_getparam`. The adapter does not call `sched_setaffinity`,
+`sched_setscheduler`, `setpriority`, or any sysfs/procfs write.
+
+The cpufreq policy and platform profile sources are fixed kernel paths. A
+cpufreq policy link is canonicalized and accepted only while its target remains
+under `/sys/devices/system/cpu`. The cgroup v2 directory is resolved from the
+current process's cgroup and mount metadata with traversal checks; raw paths,
+container IDs, model serials, and source contents are not included in the
+report or diagnostics. Cgroup v1 resource limits are not interpreted as v2.
+The probe does not assess writable permissions because it performs no control
+write and does not need root.
+
+Hardware facts are displayed locally only after an explicit CLI request. They
+are not collected in the GUI, serialized to support reports, or added to
+persistent event logs. The fixed P012 provider identifiers are allowlisted in
+P008; provider IDs do not carry source contents.
 
 ## Runtime and prefix safety
 

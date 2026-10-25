@@ -10,6 +10,7 @@ pub enum DataSourceErrorKind {
     MalformedData,
     TooLarge,
     UnexpectedType,
+    UnsafeSource,
     Unsupported,
     Other,
 }
@@ -35,6 +36,7 @@ impl fmt::Display for DataSourceError {
             DataSourceErrorKind::MalformedData => "source data was malformed",
             DataSourceErrorKind::TooLarge => "source exceeded its size limit",
             DataSourceErrorKind::UnexpectedType => "source had an unexpected file type",
+            DataSourceErrorKind::UnsafeSource => "source resolved outside its trusted boundary",
             DataSourceErrorKind::Unsupported => "operation is unsupported on this platform",
             DataSourceErrorKind::Other => "source could not be read",
         })

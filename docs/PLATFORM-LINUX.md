@@ -1,9 +1,10 @@
 # Linux platform and runtime discovery
 
-P011 adds the first read-only Linux platform adapter in
-`crates/platform-linux`, published as the library crate
-`endfield-unix-platform-linux`. It is a Linux identity probe, not hardware
-discovery. P011's hosted Linux qualification passed in [CI run
+P011 adds read-only Linux platform identity discovery and P012 extends the same
+adapter with CPU, memory, cgroup, scheduling, cpufreq, and power-interface
+discovery in `crates/platform-linux`, published as the library crate
+`endfield-unix-platform-linux`. P012's hosted CI qualification is pending.
+P011's hosted Linux qualification passed in [CI run
 40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204).
 Linux CI does not establish support on Arch Linux, CachyOS, or the user's
 physical devices.
@@ -121,15 +122,38 @@ P007 provenance uses fixed provider IDs `linux-uname` and
 fixed provider IDs and bounded messages. The report omits usernames, paths,
 hostnames, machine IDs, container IDs, raw environment values, command lines,
 and raw source text. P008 still discards arbitrary diagnostic messages before
-persistent logging. Live P011 facts are not automatically added to support
-reports.
+persistent logging. Live P011/P012 facts are not automatically added to
+support reports.
+
+## P012 hardware discovery
+
+The adapter also provides one-shot CPU, memory, scheduling, cgroup v2,
+cpufreq, and platform power-profile discovery through `LinuxHardwareProbe`.
+The probe composes with P011 identity into a validated P007 snapshot and a
+versioned `LinuxHardwareReport`; independent failures become safe diagnostics
+and partial facts. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md) for the exact
+source precedence, parsing rules, cgroup ancestor/v1 limits, and interface
+semantics. The report is local to an explicitly requested CLI invocation and
+is not saved to logs or support reports.
+
+Run the headless command with:
+
+```bash
+endfield-unix diagnose hardware
+```
+
+It does not initialize GTK or application storage, start `endfield-unixd`,
+write sysfs/procfs, or run external commands. The Linux adapter remains
+library-only and does not depend on GTK. Rust 1.85.0 is the supported compiler;
+the adapter uses the locked `libc` 0.2.191 and `nix` 0.29.0 crates.
 
 ## CLI
 
-Run the local probe with:
+Run the local platform or hardware probe with:
 
 ```bash
 endfield-unix diagnose platform
+endfield-unix diagnose hardware
 ```
 
 The command is headless, does not initialize GTK, does not read configuration
@@ -146,18 +170,22 @@ build dependencies installed, run:
 
 ```bash
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose platform
+cargo +1.85.0 run --locked -p endfield-unix -- diagnose hardware
 cat /etc/os-release
 uname -srm
+cat /proc/meminfo
+cat /sys/devices/system/cpu/online
 ```
 
 Compare the reported distro, kernel release, and kernel machine with the local
 system output. Omit private identifiers if sharing logs. The hosted Ubuntu
-runner provides live Linux-kernel smoke coverage but does not substitute for a
-manual Arch, CachyOS, or physical-device validation session.
+runner provides live Linux smoke coverage but does not substitute for a manual
+Arch, CachyOS, or physical-device validation session. Real Arch device
+validation: **UNVERIFIED**.
 
 ## Non-goals
 
-P011 does not detect CPU, RAM, GPU, driver, Vulkan, display, Wayland/X11,
+P012 does not detect GPU, driver, Vulkan, display, Wayland/X11,
 refresh-rate, Wine, or Proton state. It does not create IPC requests, start the
 daemon, change system configuration, install services, tune a kernel, or
 launch a game. macOS and FreeBSD probing is not implemented.

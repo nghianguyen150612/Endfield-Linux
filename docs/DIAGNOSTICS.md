@@ -76,8 +76,10 @@ identifiers from a fixed allowlist. It never exports `Diagnostic.message` or
 Successful operations use `succeeded`; known gaps use `not_implemented`.
 These values do not imply a capability was tested. Safe provider IDs currently
 include `linux-procfs`, `linux-sysfs`, `linux-uname`, `linux-os-release`,
-`linux-environment`, `linux-xdg-runtime-dir`, `drm`, `vulkan-loader`, `wayland`,
-`x11`, `systemd-user`, `wine`, and `proton`. Unknown provider names are omitted.
+`linux-environment`, `linux-xdg-runtime-dir`, `linux-cpu-sysfs`,
+`linux-cpuinfo`, `linux-meminfo`, `linux-cgroup`, `linux-cpufreq`,
+`linux-scheduler`, `linux-power`, `drm`, `vulkan-loader`, `wayland`, `x11`,
+`systemd-user`, `wine`, and `proton`. Unknown provider names are omitted.
 
 ## Local log paths and retention
 

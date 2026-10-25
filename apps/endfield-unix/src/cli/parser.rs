@@ -71,6 +71,8 @@ enum DiagnoseArgs {
     },
     /// Inspect local Linux platform identity without starting the daemon.
     Platform,
+    /// Inspect local Linux CPU, memory, cgroup, scheduling, and power interfaces.
+    Hardware,
 }
 
 #[derive(Debug, Subcommand)]
@@ -137,6 +139,9 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Platform,
         }) => Command::DiagnosePlatform,
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::Hardware,
+        }) => Command::DiagnoseHardware,
         Some(SubcommandArgs::Service {
             command: ServiceArgs::Ping,
         }) => Command::ServicePing,
@@ -239,6 +244,11 @@ mod tests {
             &["help", "diagnose"],
             Command::Help(Some(HelpTopic::Diagnose)),
         );
+    }
+
+    #[test]
+    fn diagnose_hardware_is_a_typed_local_command() {
+        assert_command(&["diagnose", "hardware"], Command::DiagnoseHardware);
     }
 
     #[test]

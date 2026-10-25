@@ -264,6 +264,9 @@ fn source_distribution_error(error: DataSourceError) -> DistributionLoadError {
         DataSourceErrorKind::MalformedData => "os-release metadata was malformed",
         DataSourceErrorKind::TooLarge => "os-release metadata exceeded its size limit",
         DataSourceErrorKind::UnexpectedType => "os-release metadata had an unsafe file type",
+        DataSourceErrorKind::UnsafeSource => {
+            "os-release metadata resolved outside its trusted source"
+        }
         DataSourceErrorKind::Unsupported => "os-release metadata is unsupported on this platform",
         DataSourceErrorKind::Other => "os-release metadata could not be read",
     };
@@ -306,7 +309,8 @@ fn probe_error_kind(kind: DataSourceErrorKind) -> ProbeErrorKind {
         DataSourceErrorKind::InvalidUtf8
         | DataSourceErrorKind::MalformedData
         | DataSourceErrorKind::TooLarge
-        | DataSourceErrorKind::UnexpectedType => ProbeErrorKind::MalformedData,
+        | DataSourceErrorKind::UnexpectedType
+        | DataSourceErrorKind::UnsafeSource => ProbeErrorKind::MalformedData,
         DataSourceErrorKind::Unsupported => ProbeErrorKind::Unsupported,
         DataSourceErrorKind::NotFound => ProbeErrorKind::MissingProvider,
         DataSourceErrorKind::Other => ProbeErrorKind::TemporaryFailure,

@@ -7,7 +7,9 @@ use super::commands::Command;
 use super::{output, parser};
 use crate::{APPLICATION_NAME, GuiStartupError, start_gui};
 use endfield_unix_domain::{ProbeError, ProbeErrorKind};
-use endfield_unix_platform_linux::{LinuxPlatformProbe, LinuxPlatformReport};
+use endfield_unix_platform_linux::{
+    LinuxHardwareProbe, LinuxHardwareReport, LinuxPlatformProbe, LinuxPlatformReport,
+};
 
 pub const EXIT_SUCCESS: u8 = 0;
 pub const EXIT_INVALID_ARGUMENTS: u8 = 2;
@@ -28,6 +30,7 @@ pub enum CliError {
     Diagnostics(endfield_unix_diagnostics::DiagnosticsError),
     Ipc(endfield_unix_ipc::ClientError),
     PlatformProbe(ProbeError),
+    HardwareProbe(ProbeError),
 }
 
 impl CliError {
@@ -60,6 +63,13 @@ impl CliError {
                     EXIT_PLATFORM_PROBE_FAILED
                 }
             }
+            Self::HardwareProbe(error) => {
+                if error.kind() == ProbeErrorKind::Unsupported {
+                    EXIT_PLATFORM_UNSUPPORTED
+                } else {
+                    EXIT_PLATFORM_PROBE_FAILED
+                }
+            }
         }
     }
 }
@@ -73,6 +83,7 @@ impl fmt::Display for CliError {
             Self::Diagnostics(error) => fmt::Display::fmt(error, formatter),
             Self::Ipc(error) => fmt::Display::fmt(error, formatter),
             Self::PlatformProbe(error) => fmt::Display::fmt(error, formatter),
+            Self::HardwareProbe(error) => fmt::Display::fmt(error, formatter),
         }
     }
 }
@@ -86,6 +97,7 @@ impl Error for CliError {
             Self::Diagnostics(error) => Some(error),
             Self::Ipc(error) => Some(error),
             Self::PlatformProbe(error) => Some(error),
+            Self::HardwareProbe(error) => Some(error),
         }
     }
 }
@@ -110,9 +122,14 @@ where
     O: Write,
     E: Write,
 {
-    run_with_io_and_gui_and_platform(arguments, stdout, stderr, start_gui, || {
-        LinuxPlatformProbe::system().inspect()
-    })
+    run_with_io_and_gui_and_probes(
+        arguments,
+        stdout,
+        stderr,
+        start_gui,
+        || LinuxPlatformProbe::system().inspect(),
+        || LinuxHardwareProbe::system().inspect(),
+    )
 }
 
 #[cfg(test)]
@@ -128,11 +145,17 @@ where
     E: Write,
     G: FnOnce() -> Result<(), GuiStartupError>,
 {
-    run_with_io_and_gui_and_platform(arguments, stdout, stderr, gui_start, || {
-        LinuxPlatformProbe::system().inspect()
-    })
+    run_with_io_and_gui_and_probes(
+        arguments,
+        stdout,
+        stderr,
+        gui_start,
+        || LinuxPlatformProbe::system().inspect(),
+        || LinuxHardwareProbe::system().inspect(),
+    )
 }
 
+#[cfg(test)]
 pub(crate) fn run_with_io_and_gui_and_platform<I, O, E, G, P>(
     arguments: I,
     stdout: &mut O,
@@ -147,28 +170,62 @@ where
     G: FnOnce() -> Result<(), GuiStartupError>,
     P: FnOnce() -> Result<LinuxPlatformReport, ProbeError>,
 {
+    run_with_io_and_gui_and_probes(
+        arguments,
+        stdout,
+        stderr,
+        gui_start,
+        platform_inspect,
+        || LinuxHardwareProbe::system().inspect(),
+    )
+}
+
+pub(crate) fn run_with_io_and_gui_and_probes<I, O, E, G, P, H>(
+    arguments: I,
+    stdout: &mut O,
+    stderr: &mut E,
+    gui_start: G,
+    platform_inspect: P,
+    hardware_inspect: H,
+) -> u8
+where
+    I: IntoIterator<Item = std::ffi::OsString>,
+    O: Write,
+    E: Write,
+    G: FnOnce() -> Result<(), GuiStartupError>,
+    P: FnOnce() -> Result<LinuxPlatformReport, ProbeError>,
+    H: FnOnce() -> Result<LinuxHardwareReport, ProbeError>,
+{
     let command = match parser::parse(arguments).map_err(CliError::InvalidArguments) {
         Ok(command) => command,
         Err(error) => return report_error(stderr, &error.to_string(), error.exit_status()),
     };
 
-    let result = execute(command, stdout, gui_start, platform_inspect);
+    let result = execute(
+        command,
+        stdout,
+        gui_start,
+        platform_inspect,
+        hardware_inspect,
+    );
     match result {
         Ok(()) => EXIT_SUCCESS,
         Err(error) => report_error(stderr, &error.to_string(), error.exit_status()),
     }
 }
 
-fn execute<O, G, P>(
+fn execute<O, G, P, H>(
     command: Command,
     stdout: &mut O,
     gui_start: G,
     platform_inspect: P,
+    hardware_inspect: H,
 ) -> Result<(), CliError>
 where
     O: Write,
     G: FnOnce() -> Result<(), GuiStartupError>,
     P: FnOnce() -> Result<LinuxPlatformReport, ProbeError>,
+    H: FnOnce() -> Result<LinuxHardwareReport, ProbeError>,
 {
     match command {
         Command::Help(topic) => output::write_help(topic, stdout).map_err(CliError::Output),
@@ -186,6 +243,10 @@ where
         Command::DiagnosePlatform => {
             let report = platform_inspect().map_err(CliError::PlatformProbe)?;
             output::write_platform_report(&report, stdout).map_err(CliError::Output)
+        }
+        Command::DiagnoseHardware => {
+            let report = hardware_inspect().map_err(CliError::HardwareProbe)?;
+            output::write_hardware_report(&report, stdout).map_err(CliError::Output)
         }
         Command::ServicePing => {
             let client =

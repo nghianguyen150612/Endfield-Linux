@@ -19,12 +19,15 @@ distribution is valid only with the Linux family. Optional versions remain
 absent when the adapter does not know them; the domain layer does not infer a
 version from a name.
 
-P011 implements the Linux adapter in `crates/platform-linux`. It maps the
+P011 and P012 are implemented by the Linux adapter in `crates/platform-linux`. It maps the
 running kernel's `uname` system name, release, and machine fields into these
 existing P007 types, and maps validated os-release `ID`, version, and display
 name into `DistributionIdentity`. The portable schema is unchanged. Linux-only
 container/WSL evidence and user runtime-directory status live in the adapter's
-separately versioned `LinuxPlatformReport`.
+separately versioned `LinuxPlatformReport`. P012 CPU, memory, and their
+capability records are normalized into the same snapshot; details without a
+portable P007 field (such as cgroup controls and frequency-policy metadata)
+remain in `LinuxHardwareReport`.
 
 The family identifiers are the existing P001/P003 C ABI values:
 
@@ -196,11 +199,34 @@ subsystem's diagnostic category. Malformed or conflicting provider data is
 discarded without erasing earlier valid reports. No providers and all providers
 failing are typed total errors. These traits contain no GTK types, OS-specific
 paths, global mutable state, privileged access, network operation, or hardware
-probe. P011 implements Linux identity through this boundary. A valid running
-kernel identity is required; distribution metadata, environment classification,
-and runtime-directory assessment fail independently and remain diagnostics or
-unknown/partial facts. P011 does not add hardware discovery or alter snapshot
-schema version 1.
+probe. P011 and P012 implement Linux discovery through the same adapter. A
+valid running-kernel identity is required; distribution metadata, environment
+classification, runtime-directory assessment, CPU, memory, cgroup, and
+frequency/power observations fail independently and remain diagnostics or
+unknown/partial facts. P012 adds typed CPU and memory values and capability
+records without changing snapshot schema version 1 or the C ABI.
+
+## P012 Linux hardware mapping
+
+P012 maps online host-visible logical processor count and a physical-core
+count only when package/die/core topology is complete and internally
+consistent. Process-allowed CPU IDs, possible/present/offline CPU sets, CPU-time
+quota, and physical topology remain distinct facts. `CpuInfo.observed_frequency`
+stays unknown because this one-shot discovery probe does not sample frequency.
+Scheduling capability records describe queryable interfaces; they do not claim
+permission to change policy. cpufreq and platform-profile interface details
+remain in the Linux-specific report, and readable controls do not prove
+writability.
+
+RAM and swap are mapped from bounded `/proc/meminfo` data. Kernel kB values use
+checked multiplication by 1024; missing `MemAvailable` or `SwapTotal` remain
+unknown, while a valid zero `SwapTotal` represents absent configured swap.
+Host-visible memory is not replaced by a cgroup limit. Cgroup v2 CPU quota and
+memory controls are reported separately from topology and host memory; ancestor
+limits are not resolved, and cgroup v1 resource discovery is unsupported or
+partial. The Linux adapter assigns fresh snapshot-local CPU instance and
+provenance IDs when merging P011 and P012, then runs normal P007 snapshot
+validation and ordering.
 
 Future macOS and FreeBSD adapters can implement the same contracts. P011 only
 implements Linux; identifying a platform does not establish compatibility or

@@ -19,6 +19,7 @@ pub enum Command {
         overwrite: bool,
     },
     DiagnosePlatform,
+    DiagnoseHardware,
     ServicePing,
     ServiceStatus,
 }

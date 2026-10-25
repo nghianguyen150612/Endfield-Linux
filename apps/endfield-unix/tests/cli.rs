@@ -22,6 +22,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("native GTK4 desktop application"));
     assert!(stdout.contains("diagnose report --output PATH"));
     assert!(stdout.contains("diagnose platform"));
+    assert!(stdout.contains("diagnose hardware"));
     assert!(stdout.contains("service ping"));
     assert!(stdout.contains("service status"));
     assert!(!stdout.contains("  game "));
@@ -54,7 +55,9 @@ fn command_specific_help_describes_gui_and_about() {
     assert_eq!(service.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&service.stdout).contains("authenticated local Ping/Pong"));
     assert_eq!(diagnose.status.code(), Some(0));
-    assert!(String::from_utf8_lossy(&diagnose.stdout).contains("diagnose <report|platform>"));
+    assert!(
+        String::from_utf8_lossy(&diagnose.stdout).contains("diagnose <report|platform|hardware>")
+    );
 }
 
 #[test]
@@ -84,6 +87,24 @@ fn diagnose_platform_runs_headlessly_without_a_daemon_or_runtime_directory() {
     assert!(stdout.contains("User runtime directory: missing"));
     assert!(stdout.contains("Probe result: partial"));
     assert!(!stdout.contains("Daemon:"));
+}
+
+#[test]
+fn diagnose_hardware_runs_headlessly_without_a_daemon_or_runtime_directory() {
+    let output = invoke(&["diagnose", "hardware"]);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Hardware probe: Linux"));
+    assert!(stdout.contains("Logical CPUs online:"));
+    assert!(stdout.contains("CPUs allowed to process:"));
+    assert!(stdout.contains("Host-visible total RAM:"));
+    assert!(stdout.contains("Cgroup memory limit:"));
+    assert!(stdout.contains("Probe result:"));
+    assert!(!stdout.contains("Daemon:"));
+    assert!(!stdout.contains("/sys/"));
+    assert!(!stdout.contains("/proc/"));
 }
 
 #[test]
