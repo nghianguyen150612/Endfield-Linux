@@ -223,6 +223,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "endfield-unix-telemetry"
+version = "0.1.0"
+dependencies = [
+ "endfield-unix-domain",
+]
+
+[[package]]
 name = "endfield-unixd"
 version = "0.1.0"
 dependencies = [

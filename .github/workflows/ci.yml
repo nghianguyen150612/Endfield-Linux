@@ -63,6 +63,9 @@ jobs:
       - name: Run Linux platform-adapter parser and live-probe tests
         run: cargo test --locked -p endfield-unix-platform-linux --all-targets
 
+      - name: Run normalized telemetry contract tests
+        run: cargo test --locked -p endfield-unix-telemetry --all-targets
+
       - name: Run workspace, CLI, FFI, storage, domain, and diagnostics contract tests
         run: cargo test --locked --workspace
 
@@ -113,10 +116,16 @@ jobs:
           assert domain["dependencies"] == [], domain["dependencies"]
           assert any("lib" in target["kind"] for target in domain["targets"]), domain["targets"]
           assert not any("bin" in target["kind"] for target in domain["targets"]), domain["targets"]
+          gui_dependencies = {"gtk4", "libadwaita", "relm4"}
+          telemetry = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-telemetry")
+          assert any("lib" in target["kind"] for target in telemetry["targets"]), telemetry["targets"]
+          assert not any("bin" in target["kind"] for target in telemetry["targets"]), telemetry["targets"]
+          assert {dependency["name"] for dependency in telemetry["dependencies"]} == {"endfield-unix-domain"}, telemetry["dependencies"]
+          assert not any(dependency["name"] in gui_dependencies for dependency in telemetry["dependencies"]), telemetry["dependencies"]
+          assert not any(dependency["name"] in {"ash", "nix", "vulkan", "wayland-client", "wayland-protocols", "x11rb"} for dependency in telemetry["dependencies"]), telemetry["dependencies"]
           diagnostics = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-diagnostics")
           assert any("lib" in target["kind"] for target in diagnostics["targets"]), diagnostics["targets"]
           assert not any("bin" in target["kind"] for target in diagnostics["targets"]), diagnostics["targets"]
-          gui_dependencies = {"gtk4", "libadwaita", "relm4"}
           assert not any(dependency["name"] in gui_dependencies for dependency in diagnostics["dependencies"]), diagnostics["dependencies"]
           platform = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-platform-linux")
           assert any("lib" in target["kind"] for target in platform["targets"]), platform["targets"]

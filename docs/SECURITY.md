@@ -123,3 +123,16 @@ Wayland roundtrips, X11 queries, and caller waits are bounded, but an OS
 connect or protocol-library call that blocks cannot be forcibly cancelled.
 Such a worker may finish after the CLI has returned a timeout result. See
 [DISPLAY-LINUX.md](DISPLAY-LINUX.md) for exact bounds and source semantics.
+
+## P015 telemetry contract privacy boundary
+
+P015 defines in-memory contracts only. It performs no hardware collection,
+filesystem or network access, background sampling, IPC, or persistent logging.
+Provider IDs use P007's restricted identifier validation. Diagnostics contain
+only fixed category IDs; metric values and raw provider error details are not
+automatically sent to P008 logs or support reports. Device references are
+snapshot-local, process/game targets use opaque caller-assigned contexts, and
+the contract contains no usernames, paths, command lines, credentials,
+serials, GPU UUIDs, container IDs, or environment maps. Future providers must
+keep samples local by default and follow this policy before adding any storage
+or reporting path. See [TELEMETRY.md](TELEMETRY.md).

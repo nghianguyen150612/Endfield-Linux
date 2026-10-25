@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource discovery; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter. Candidate generation, runtime, telemetry, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource discovery; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts. Candidate generation, Linux telemetry collection, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -44,6 +44,7 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | --- | --- |
 | `PlatformProbe` | P007's synchronous boundary for a normalized snapshot. The generic composite probe retains successful subsystem reports when another provider fails. P011's Linux adapter implements it with kernel identity and optional distribution metadata. |
 | `CapabilityProvider` | P007's synchronous boundary for one independent capability source and a partial discovery report. |
+| `TelemetryProvider` | P015's synchronous boundary for declared telemetry metrics, caller-supplied sampling context, partial batches, and typed fatal failures. Linux collection is deferred to P016–P018. |
 | `RuntimeProvider` | Detect, verify, install, select, pin, and remove user-managed Wine/Proton-compatible runners under the runtime policy. |
 | `HardwareTelemetryProvider` | Read available hardware, utilization, FPS/frametime, thermal, and power observations with source and availability metadata. |
 | `SessionSupervisor` | Start, observe, and end game sessions; preserve a running game if the GUI closes. |
@@ -52,7 +53,7 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | `BenchmarkProvider` | Run or ingest repeatable observations with configuration and provenance. |
 | `ServiceManager` | Install, start, stop, and inspect the unprivileged per-user `endfield-unixd` service where supported. |
 
-The runtime, telemetry, session, planner, executor, benchmark, and service-manager entries are responsibilities, not pre-existing Rust trait signatures. P007 defines `PlatformProbe` and `CapabilityProvider`; P011 implements `PlatformProbe` in the Linux adapter. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
+The runtime, session, planner, executor, benchmark, and service-manager entries are responsibilities, not pre-existing Rust trait signatures. P007 defines `PlatformProbe` and `CapabilityProvider`; P011 implements `PlatformProbe` in the Linux adapter. P015 defines `TelemetryProvider` and portable telemetry observations, but no provider collects real metrics yet. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
 
 ## P007 portable domain library
 
@@ -90,6 +91,23 @@ existing `DisplayInfo` are reused without changing snapshot schema 1. No
 output-to-connector mapping is inferred from matching labels. See
 [DISPLAY-LINUX.md](DISPLAY-LINUX.md) for protocol behavior, bounds, privacy,
 partial failures, validation status, and known provider cancellation limits.
+
+## P015 normalized telemetry contracts
+
+`crates/telemetry` is the library-only `endfield-unix-telemetry` crate. It
+depends only on `endfield-unix-domain`, uses Rust 2024/MSRV 1.85.0, and forbids
+unsafe Rust. It defines stable telemetry-only metric IDs, explicit P007 and
+basis-point units, signed temperature values, monotonic clock domains,
+observation windows, collection/ingestion times, typed missing-data states,
+freshness outcomes, safe provenance, snapshot-scoped device targets, quality,
+counter/rate validation, bounded normalized batches, and a synchronous future
+provider boundary. The in-memory telemetry schema v1 is independent of the P007
+snapshot schema, P003 ABI, P010 IPC, TOML, SQLite, and diagnostics schema.
+
+The crate does not query CPU/GPU/FPS/thermal sources, start timers or workers,
+write storage, expose IPC, or marshal telemetry to C. Synthetic examples and
+contract tests validate the data model. P016–P018 own Linux collectors and
+scheduling policies. See [TELEMETRY.md](TELEMETRY.md).
 
 `PlatformProbe` and `CapabilityProvider` are synchronous, portable traits. `CompositePlatformProbe` runs providers independently and preserves successful results alongside typed diagnostics when one provider fails. It returns a typed total error if there are no providers or none can produce a valid report. The test adapters and desktop, laptop, and incomplete fixtures are in-memory synthetic data; they never read the host machine.
 
