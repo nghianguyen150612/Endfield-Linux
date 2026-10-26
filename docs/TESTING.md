@@ -587,3 +587,16 @@ read returned `WouldBlock` instead of EOF. The test took 1.61 seconds. See
 workflow/job ID applies to this local container. IPC was not retried locally;
 qualification continues through the normal hosted workflow as requested. A
 separate focused IPC reliability repair remains recommended.
+
+P017 implementation commit `8ea541b17160fd29a729dd55470a242c31869b02`
+passed hosted qualification on the first attempt in [run 40316047680](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40316047680).
+Rust/GTK/Linux/IPC job `121548786536`, Clang `121548787049`, and GCC
+`121548787129` all succeeded. Hosted workspace tests, both IPC gates, 170 Linux
+adapter tests, the no-GPU telemetry CLI/live smoke, CPU/memory telemetry,
+Xvfb/RandR, GTK screenshot, builds and metadata gates passed. The local capacity
+race did not recur in this hosted attempt. See the [full P017 report](P017-IMPLEMENTATION-REPORT.md)
+for output, source limitations, file/dependency details and physical validation
+status. A follow-up preserves required platform failures as CLI 70/78 while
+optional GPU source failures remain partial results; native workspace check,
+Clippy, 48 application unit tests and the GPU CLI integration test passed for
+that correction.

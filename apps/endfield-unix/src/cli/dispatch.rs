@@ -191,9 +191,12 @@ fn run_gpu_telemetry<O: Write>(interval_ms: u64, stdout: &mut O) -> Result<(), C
     use endfield_unix_platform_linux::gpu_telemetry_sources::GpuSensorSource;
     TelemetryInterval::from_millis(interval_ms).map_err(CliError::TelemetryConfig)?;
     let source = SystemLinuxDataSource::new();
-    let context = LinuxPlatformProbe::system().inspect().ok().and_then(|r| {
-        GpuIdentityContext::discover(&source, r.snapshot, SnapshotRefId::new(1).unwrap()).ok()
-    });
+    let platform = LinuxPlatformProbe::system()
+        .inspect()
+        .map_err(CliError::PlatformProbe)?;
+    let context =
+        GpuIdentityContext::discover(&source, platform.snapshot, SnapshotRefId::new(1).unwrap())
+            .ok();
     let provider = LinuxGpuTelemetryProvider::new(source.clone(), SystemNvml, context);
     let request = CollectionRequest::new(
         SamplingContextId::new(1).unwrap(),
