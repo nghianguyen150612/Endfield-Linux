@@ -8,9 +8,10 @@ use super::{output, parser};
 use crate::{APPLICATION_NAME, GuiStartupError, start_gui};
 use endfield_unix_domain::{ProbeError, ProbeErrorKind};
 use endfield_unix_platform_linux::{
+    FrameInputError, FrameInputErrorKind, FrameLogTelemetryProvider, FrameSourceFormat,
     LinuxCpuMemoryTelemetryProvider, LinuxCpuSnapshotContext, LinuxDisplayProbe, LinuxGpuProbe,
     LinuxHardwareProbe, LinuxHardwareReport, LinuxPlatformProbe, LinuxPlatformReport,
-    LinuxTelemetryConfigError, SystemLinuxDataSource, TelemetryInterval,
+    LinuxTelemetryConfigError, SystemLinuxDataSource, TelemetryInterval, read_frame_recording,
 };
 use endfield_unix_telemetry::{
     CollectionRequest, MetricId, ProviderError, ProviderErrorKind, SamplingContextId,
@@ -42,6 +43,7 @@ pub enum CliError {
     TelemetryProvider(ProviderError),
     TelemetryContract(TelemetryError),
     TelemetryConfig(LinuxTelemetryConfigError),
+    FrameInput(FrameInputError),
 }
 
 impl CliError {
@@ -104,6 +106,11 @@ impl CliError {
             }
             Self::TelemetryContract(_) => EXIT_PLATFORM_PROBE_FAILED,
             Self::TelemetryConfig(_) => EXIT_INVALID_ARGUMENTS,
+            Self::FrameInput(error) => match error.kind() {
+                FrameInputErrorKind::Io => EXIT_IO_ERROR,
+                FrameInputErrorKind::UnsupportedFormat => EXIT_PLATFORM_UNSUPPORTED,
+                FrameInputErrorKind::Malformed => EXIT_PLATFORM_PROBE_FAILED,
+            },
         }
     }
 }
@@ -130,6 +137,17 @@ impl fmt::Display for CliError {
             Self::TelemetryConfig(LinuxTelemetryConfigError::InvalidCpuSnapshotContext) => {
                 formatter.write_str("CPU snapshot context could not be validated.")
             }
+            Self::FrameInput(error) => match error.kind() {
+                FrameInputErrorKind::Io => {
+                    formatter.write_str("could not read the explicitly selected frame recording.")
+                }
+                FrameInputErrorKind::UnsupportedFormat => {
+                    formatter.write_str("the selected frame recording format is unsupported.")
+                }
+                FrameInputErrorKind::Malformed => formatter.write_str(
+                    "the selected frame recording is malformed or exceeds the input limits.",
+                ),
+            },
         }
     }
 }
@@ -149,6 +167,7 @@ impl Error for CliError {
             Self::TelemetryProvider(_) => None,
             Self::TelemetryContract(error) => Some(error),
             Self::TelemetryConfig(_) => None,
+            Self::FrameInput(_) => None,
         }
     }
 }
@@ -443,6 +462,9 @@ where
         Command::DiagnoseTelemetryCpuMemory { interval_ms } => {
             run_cpu_memory_telemetry(interval_ms, stdout)
         }
+        Command::DiagnoseTelemetryFrames { format, input } => {
+            run_frame_telemetry(format, &input, stdout)
+        }
         Command::ServicePing => {
             let client =
                 endfield_unix_ipc::Client::from_environment(std::time::Duration::from_secs(2))
@@ -538,6 +560,34 @@ fn run_cpu_memory_telemetry<O: Write>(interval_ms: u64, stdout: &mut O) -> Resul
         .collect(&request)
         .map_err(CliError::TelemetryProvider)?;
     output::write_telemetry_report(&report, expected_logical_cpus, stdout).map_err(CliError::Output)
+}
+
+fn run_frame_telemetry<O: Write>(
+    format: FrameSourceFormat,
+    input: &Path,
+    stdout: &mut O,
+) -> Result<(), CliError> {
+    let recording = read_frame_recording(input, format).map_err(CliError::FrameInput)?;
+    let sampling_context = SamplingContextId::new(1).expect("nonzero import-local context");
+    let clock_domain =
+        endfield_unix_telemetry::ClockDomainId::new(1).expect("nonzero import-local clock domain");
+    let provider = FrameLogTelemetryProvider::new(recording, clock_domain);
+    let request = CollectionRequest::new(
+        sampling_context,
+        vec![
+            MetricId::FramesPerSecond,
+            MetricId::FrameTime,
+            MetricId::MeanFrameTime,
+            MetricId::FrameCount,
+            MetricId::P99FrameTime,
+        ],
+        None,
+    )
+    .map_err(CliError::TelemetryContract)?;
+    let report = provider
+        .collect_report(&request)
+        .map_err(CliError::TelemetryProvider)?;
+    output::write_frame_telemetry_report(&report, stdout).map_err(CliError::Output)
 }
 
 fn lifecycle_name(state: endfield_unix_ipc::DaemonLifecycle) -> &'static str {

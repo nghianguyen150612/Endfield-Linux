@@ -227,8 +227,11 @@ the network.
 P016 uses these contracts for Linux CPU and memory collection; source selection,
 counter accounting, snapshot-local CPU mapping, quality, CLI behavior, and
 validation limits are documented in [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md).
-P017 adds Linux GPU providers and P018 can add frame providers. Scheduling beyond
-one bounded on-demand sample, retention, daemon transport, UI graphs, benchmark
+P017 adds Linux GPU providers. P018 adds an on-demand frame-log provider using
+the existing `GameSession` scope and metric registry without changing this
+schema. Source and clock semantics are documented in
+[FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md). Scheduling beyond one
+bounded on-demand sample, retention, daemon transport, UI graphs, benchmark
 workflows, and optimizer consumption remain future work.
 
 ## P017 GPU telemetry

@@ -157,3 +157,21 @@ headlessly, without Vulkan/display initialization or the daemon. Unsupported
 utilization windows and missing sensors remain explicit partial data. Suspended
 and unknown-power devices are skipped conservatively. No live samples are
 persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+
+## P018 frame recording import
+
+P018 consumes only a regular file explicitly selected by the user. The Linux
+adapter opens the final component without following symlinks, uses nonblocking
+open flags to reject FIFOs safely, checks the opened descriptor, streams at
+most 64 MiB, caps each CSV record at 64 KiB and 64 fields, and caps interval
+records at 4,093. It uses a CSV parser for quoting rather than splitting on
+commas. Invalid UTF-8, malformed rows, unsupported schemas, nonmonotonic
+timestamps, and oversized input fail with fixed diagnostics.
+
+The importer does not scan directories, execute fields, launch a game, inspect
+processes, enable MangoHud, access the network, write application state, or
+persist telemetry. Paths, MangoHud system metadata, and raw CSV contents are
+not emitted or sent to diagnostics/support reports. Imported timestamps remain
+recording-relative in a distinct caller-assigned P015 clock domain; file
+modification time is ignored. See
+[FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md).

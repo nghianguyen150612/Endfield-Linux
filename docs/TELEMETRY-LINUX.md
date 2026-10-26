@@ -185,9 +185,11 @@ Synthetic fixtures and Ubuntu CI do not replace these checks. Current status:
 **Arch desktop validation: UNVERIFIED**; **Dell Vostro 3510 validation:
 UNVERIFIED**.
 
-P016 does not implement GPU utilization, GPU memory/thermal/power, FPS,
+P016 did not implement GPU utilization, GPU memory/thermal/power, FPS,
 frametime, process monitoring, daemon sampling, telemetry IPC, persistent
-history, GTK graphs, benchmarks, or optimization actions. P017 adds the optional GPU gauge provider described below.
+history, GTK graphs, benchmarks, or optimization actions. P017 adds the optional
+GPU gauge provider described below; P018 frame-log import is described in
+[FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md).
 
 ## P017 GPU telemetry
 
@@ -198,3 +200,27 @@ headlessly, without Vulkan/display initialization or the daemon. Unsupported
 utilization windows and missing sensors remain explicit partial data. Suspended
 and unknown-power devices are skipped conservatively. No live samples are
 persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+
+## P018 frame-log import
+
+P018 adds an on-demand provider for one explicitly selected frame recording.
+The parser distinguishes canonical consecutive event timestamps from sampled
+MangoHud CSV rows and maps supported observations into existing P015
+`GameSession` metrics. FPS requires a verified event window; sampled MangoHud
+`fps` values and unknown row cadence are preserved without extrapolation.
+Mean, P99, gaps, recording-relative clocks, P015 quality, bounded file policy,
+and upstream MangoHud format evidence are documented in
+[FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md).
+
+Manual Arch Linux import:
+
+```sh
+cargo +1.85.0 run --locked -p endfield-unix -- \
+  diagnose telemetry frames \
+  --format mangohud-csv \
+  --input /path/to/recording.csv
+```
+
+The user supplies the file explicitly. No gameplay capture is started. Real
+Endfield capture, Arch RTX 5070 frame telemetry, and Dell Vostro frame
+telemetry remain **UNVERIFIED**.

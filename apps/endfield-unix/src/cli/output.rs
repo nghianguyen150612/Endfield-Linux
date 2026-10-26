@@ -3,10 +3,12 @@ use std::io::{self, Write};
 use endfield_unix_domain::DisplayConnection;
 use endfield_unix_platform_linux::{
     CgroupLimit, CgroupStatus, ConnectorEnabled, ConnectorState, CpuTimeQuota, DisplayOutputSource,
-    DisplayOutputState, EnvironmentClassification, GpuSourceStatus, LinuxDisplayCompleteness,
-    LinuxDisplayMode, LinuxDisplayReport, LinuxHardwareCompleteness, LinuxHardwareReport,
-    LinuxPlatformReport, LinuxReportCompleteness, OutputInventoryStatus, ProviderStatus,
-    QueryAvailability, RuntimeDirectoryStatus, SessionTypeHint, VerifiedDisplayProtocol,
+    DisplayOutputState, EnvironmentClassification, FrameMetricStatus, FrameSourceFormat,
+    FrameSourceMetadata, FrameSourceVersion, FrameTelemetryResult, GpuSourceStatus,
+    LinuxDisplayCompleteness, LinuxDisplayMode, LinuxDisplayReport, LinuxHardwareCompleteness,
+    LinuxHardwareReport, LinuxPlatformReport, LinuxReportCompleteness, OutputInventoryStatus,
+    ProviderStatus, QueryAvailability, RuntimeDirectoryStatus, SessionTypeHint,
+    VerifiedDisplayProtocol,
 };
 use endfield_unix_telemetry::{
     CollectionCompleteness, MetricId, MonotonicObservation, ObservationState, ObservationTarget,
@@ -505,6 +507,193 @@ pub fn write_telemetry_report<W: Write>(
             CollectionCompleteness::Partial => "partial",
         }
     )
+}
+
+pub fn write_frame_telemetry_report<W: Write>(
+    report: &FrameTelemetryResult,
+    output: &mut W,
+) -> io::Result<()> {
+    let metadata = report.source_metadata();
+    let observations = report.collection().batch().observations();
+    writeln!(output, "Frame telemetry: Linux")?;
+    writeln!(output, "Source: {}", frame_source_name(metadata))?;
+    writeln!(output, "Recording: user-supplied")?;
+    writeln!(
+        output,
+        "Session association: import-local; game identity unknown"
+    )?;
+    writeln!(output, "Clock: recording-relative import-local timeline")?;
+    writeln!(output, "Capture type: {}", frame_capture_name(metadata))?;
+    writeln!(output)?;
+    writeln!(output, "Frames:")?;
+    writeln!(
+        output,
+        "  Valid frame interval observations: {}{}",
+        report.valid_interval_count(),
+        if metadata.granularity()
+            == endfield_unix_platform_linux::FrameObservationGranularity::SampledIndividualFrameIntervals
+        {
+            " (sampled rows; not every frame)"
+        } else {
+            ""
+        }
+    )?;
+    match report.recording_duration_ns() {
+        Some(duration) => writeln!(
+            output,
+            "  First-to-last observation span: {}",
+            format_frame_duration(duration)
+        )?,
+        None => writeln!(output, "  First-to-last observation span: unknown")?,
+    }
+    write_frame_metric_line(
+        output,
+        "FPS",
+        report.fps_status(),
+        find_metric(observations, MetricId::FramesPerSecond),
+        true,
+    )?;
+    write_frame_metric_line(
+        output,
+        "Mean frametime",
+        report.mean_status(),
+        find_metric(observations, MetricId::MeanFrameTime),
+        false,
+    )?;
+    write_frame_metric_line(
+        output,
+        "P99 frametime",
+        report.p99_status(),
+        find_metric(observations, MetricId::P99FrameTime),
+        false,
+    )?;
+    writeln!(
+        output,
+        "  FrameCount: not published (recording lifetime is unknown)"
+    )?;
+    if let Some(count) = metadata.source_fps_sample_count() {
+        writeln!(
+            output,
+            "  MangoHud FPS values: {count} sampled instantaneous last-frame reciprocals; no recording-wide rate window"
+        )?;
+    }
+
+    writeln!(output, "Quality:")?;
+    writeln!(
+        output,
+        "  Missing records: {}",
+        metadata
+            .missing_record_count()
+            .map_or_else(|| "unknown".to_owned(), |count| count.to_string())
+    )?;
+    writeln!(
+        output,
+        "  Discontinuities: {}",
+        metadata
+            .discontinuity_count()
+            .map_or_else(|| "unknown".to_owned(), |count| count.to_string())
+    )?;
+    writeln!(
+        output,
+        "  Invalid records: {}",
+        metadata.invalid_record_count()
+    )?;
+    writeln!(
+        output,
+        "  Source sampling interval: {}",
+        metadata
+            .source_sampling_interval_ns()
+            .map(format_frame_duration)
+            .unwrap_or_else(|| "not reported".to_owned())
+    )?;
+    writeln!(
+        output,
+        "  Timing precision: {}",
+        match metadata.format() {
+            FrameSourceFormat::FrameEventsV1 => "source timestamps in nanoseconds",
+            FrameSourceFormat::MangoHudCsv => {
+                "decimal milliseconds converted to nanoseconds; source sampling is unknown"
+            }
+        }
+    )?;
+    writeln!(
+        output,
+        "  Result: {}",
+        match report.collection().completeness() {
+            CollectionCompleteness::Complete => "complete",
+            CollectionCompleteness::Partial => "partial",
+        }
+    )
+}
+
+fn frame_source_name(metadata: FrameSourceMetadata) -> &'static str {
+    match metadata.version() {
+        FrameSourceVersion::CanonicalV1 => "frame-events-v1",
+        FrameSourceVersion::MangoHudLegacyHeader => "MangoHud CSV (legacy header)",
+        FrameSourceVersion::MangoHudVersionedV1 => "MangoHud CSV (versioned v1 header)",
+    }
+}
+
+fn frame_capture_name(metadata: FrameSourceMetadata) -> &'static str {
+    match metadata.semantics() {
+        endfield_unix_platform_linux::FrameMeasurementSemantics::PresentedFrameEventTimeline => {
+            "timestamped presented-frame events"
+        }
+        endfield_unix_platform_linux::FrameMeasurementSemantics::SampledLastFrameIntervalAndInstantaneousFps => {
+            "sampled latest frame interval and instantaneous reciprocal FPS"
+        }
+        endfield_unix_platform_linux::FrameMeasurementSemantics::SampledFpsOnly => {
+            "sampled FPS values"
+        }
+        endfield_unix_platform_linux::FrameMeasurementSemantics::AveragedFrametime => {
+            "averaged frametime values"
+        }
+        endfield_unix_platform_linux::FrameMeasurementSemantics::AggregatedBenchmarkStatistics => {
+            "aggregated benchmark statistics"
+        }
+        endfield_unix_platform_linux::FrameMeasurementSemantics::Unknown => "unknown source semantics",
+    }
+}
+
+fn write_frame_metric_line<W: Write>(
+    output: &mut W,
+    label: &str,
+    status: FrameMetricStatus,
+    observation: Option<&endfield_unix_telemetry::TelemetryObservation>,
+    fps: bool,
+) -> io::Result<()> {
+    let value = observation
+        .and_then(|observation| observation.value())
+        .and_then(|measurement| match measurement.value() {
+            endfield_unix_domain::MeasurementValue::Unsigned(value) => Some(value),
+            endfield_unix_domain::MeasurementValue::Signed(_) => None,
+        });
+    let formatted = value.map(|value| {
+        if fps {
+            format!("{}.{:03} FPS", value / 1000, value % 1000)
+        } else {
+            format_frame_duration(value)
+        }
+    });
+    let suffix = match (status, formatted.is_some()) {
+        (FrameMetricStatus::Measured, _) => "",
+        (FrameMetricStatus::DiscontinuousTimeline, true) => " (degraded: frame-index gap)",
+        (FrameMetricStatus::DiscontinuousTimeline, false) => " (unknown: frame-index gap)",
+        (FrameMetricStatus::InsufficientSamples, _) => " (unknown: insufficient observations)",
+        (FrameMetricStatus::NoVerifiedObservationWindow, _) => {
+            " (unknown: no verified frame-event window)"
+        }
+        (FrameMetricStatus::UnsupportedBySource, _) => " (unsupported by source)",
+    };
+    writeln!(
+        output,
+        "  {label}: {}{suffix}",
+        formatted.unwrap_or_else(|| "unknown".to_owned())
+    )
+}
+
+fn format_frame_duration(nanos: u64) -> String {
+    format!("{}.{:06} ms", nanos / 1_000_000, nanos % 1_000_000)
 }
 
 fn find_metric(
@@ -1384,6 +1573,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
         output,
         "  diagnose display  Inspect Linux outputs, sessions, and DRM connectors"
     )?;
+    writeln!(
+        output,
+        "  diagnose telemetry frames --input PATH  Import selected frame data headlessly"
+    )?;
     writeln!(output, "  service ping  Verify authenticated daemon IPC")?;
     writeln!(
         output,
@@ -1447,11 +1640,15 @@ fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "Platform, hardware, GPU, display, and telemetry perform bounded, read-only Linux discovery without GTK or the daemon."
+        "Platform, hardware, GPU, display, and live telemetry run without GTK or the daemon. Frame import reads only an explicitly selected file."
     )?;
     writeln!(
         output,
         "Telemetry usage: {APPLICATION_NAME} diagnose telemetry cpu-memory [--interval-ms 250] (100–2000 ms)."
+    )?;
+    writeln!(
+        output,
+        "Frame import: {APPLICATION_NAME} diagnose telemetry frames --input PATH [--format frame-events-v1|mangohud-csv]."
     )?;
     writeln!(
         output,

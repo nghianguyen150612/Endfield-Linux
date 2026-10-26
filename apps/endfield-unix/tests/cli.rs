@@ -24,6 +24,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("diagnose platform"));
     assert!(stdout.contains("diagnose hardware"));
     assert!(stdout.contains("diagnose display"));
+    assert!(stdout.contains("diagnose telemetry frames --input PATH"));
     assert!(stdout.contains("service ping"));
     assert!(stdout.contains("service status"));
     assert!(!stdout.contains("  game "));
@@ -217,6 +218,145 @@ fn unknown_commands_and_extra_arguments_return_status_two() {
         assert!(output.stdout.is_empty());
         assert!(!output.stderr.is_empty());
     }
+}
+
+#[test]
+fn frame_event_import_is_a_read_only_headless_file_based_end_to_end() {
+    let directory = tempdir().expect("isolated import directory");
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/platform-linux/tests/fixtures/frame-events-v1.csv");
+    let input = directory.path().join("selected-recording.csv");
+    fs::copy(source, &input).expect("copy validated deterministic fixture");
+    let original = fs::read(&input).expect("read fixture bytes");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .env("HOME", directory.path())
+        .env("XDG_CONFIG_HOME", directory.path())
+        .env("XDG_STATE_HOME", directory.path())
+        .current_dir(directory.path())
+        .args([
+            "diagnose",
+            "telemetry",
+            "frames",
+            "--format",
+            "frame-events-v1",
+            "--input",
+        ])
+        .arg(&input)
+        .output()
+        .expect("execute real endfield-unix binary");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 CLI output");
+    assert!(stdout.contains("Frame telemetry: Linux"));
+    assert!(stdout.contains("Source: frame-events-v1"));
+    assert!(stdout.contains("Session association: import-local"));
+    assert!(stdout.contains("Valid frame interval observations: 2"));
+    assert!(stdout.contains("FPS: 100.000 FPS"));
+    assert!(stdout.contains("Mean frametime: 10.000000 ms"));
+    assert!(stdout.contains("P99 frametime: unknown (unknown: insufficient observations)"));
+    assert!(stdout.contains("FrameCount: not published"));
+    assert!(stdout.contains("Result: partial"));
+    assert!(!stdout.contains("selected-recording.csv"));
+    assert_eq!(fs::read(&input).expect("input remains readable"), original);
+    assert_eq!(
+        fs::read_dir(directory.path())
+            .expect("isolated output directory")
+            .count(),
+        1,
+        "the import must not create state or telemetry files"
+    );
+}
+
+#[test]
+fn frame_import_distinguishes_invalid_arguments_unsupported_input_and_io_failure() {
+    let missing_input = invoke(&["diagnose", "telemetry", "frames"]);
+    assert_eq!(missing_input.status.code(), Some(2));
+
+    let directory = tempdir().expect("isolated import directory");
+    let malformed = directory.path().join("malformed.csv");
+    fs::write(
+        &malformed,
+        b"# endfield-frame-events-v1\nframe_index,time\n1,1\n",
+    )
+    .expect("write malformed frame source");
+    let malformed_result = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .arg("diagnose")
+        .arg("telemetry")
+        .arg("frames")
+        .arg("--input")
+        .arg(&malformed)
+        .output()
+        .expect("execute malformed import");
+    assert_eq!(malformed_result.status.code(), Some(70));
+    assert!(String::from_utf8_lossy(&malformed_result.stderr).contains("recording is malformed"));
+
+    let unsupported_result = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .arg("diagnose")
+        .arg("telemetry")
+        .arg("frames")
+        .arg("--format")
+        .arg("mangohud-csv")
+        .arg("--input")
+        .arg(&malformed)
+        .output()
+        .expect("execute unsupported import");
+    assert_eq!(unsupported_result.status.code(), Some(78));
+    assert!(String::from_utf8_lossy(&unsupported_result.stderr).contains("format is unsupported"));
+
+    let inaccessible = directory.path().join("missing.csv");
+    let io_result = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .arg("diagnose")
+        .arg("telemetry")
+        .arg("frames")
+        .arg("--input")
+        .arg(inaccessible)
+        .output()
+        .expect("execute inaccessible import");
+    assert_eq!(io_result.status.code(), Some(74));
+}
+
+#[test]
+fn mangohud_cli_keeps_source_sampled_values_distinct_from_measured_fps() {
+    let directory = tempdir().expect("isolated import directory");
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/platform-linux/tests/fixtures/mangohud-versioned-v1.csv");
+    let input = directory.path().join("selected-mangohud.csv");
+    fs::copy(source, &input).expect("copy source-backed MangoHud schema fixture");
+    let output = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .arg("diagnose")
+        .arg("telemetry")
+        .arg("frames")
+        .arg("--format")
+        .arg("mangohud-csv")
+        .arg("--input")
+        .arg(&input)
+        .output()
+        .expect("execute MangoHud frame import");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("MangoHud CSV (versioned v1 header)"));
+    assert!(stdout.contains("sampled rows; not every frame"));
+    assert!(stdout.contains("FPS: unknown (unknown: no verified frame-event window)"));
+    assert!(stdout.contains("MangoHud FPS values: 3 sampled instantaneous last-frame reciprocals"));
+    assert!(stdout.contains("Missing records: unknown"));
 }
 
 #[test]

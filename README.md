@@ -4,7 +4,7 @@
 
 **Status:** P001 documents the product and architecture. P002 established the Rust 2024 workspace and `endfield-unix` executable. P003 established C17 ABI 1.0 and its safe Rust wrapper; valid planner requests still return an empty plan set. P004 adds the GTK4/libadwaita/Relm4 application shell. P005 adds typed CLI commands. P006 adds versioned TOML preferences and transactional SQLite migrations. P007 adds portable domain models and probe interfaces. P008 adds structured local logging and privacy-safe support reports. P009 adds the independent `endfield-unixd` foreground daemon with a typed lifecycle, SIGTERM/SIGINT handling, and graceful shutdown. P010 adds Linux-only authenticated local IPC with versioned Ping and Status requests. P011 implements read-only Linux distribution, kernel, architecture, and runtime-environment discovery; hosted qualification passed in [CI run 40087592204](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40087592204). P012 adds read-only Linux CPU, memory, cgroup, scheduling, cpufreq, and power-interface inventory with `diagnose hardware`. P013 adds read-only PCI/DRM GPU, kernel graphics-driver, Vulkan physical-device, and conservative memory discovery with `diagnose gpu`; hosted qualification passed in [CI run 40170150212](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40170150212), while physical Arch desktop/laptop validation remains unverified. P014 implements read-only Wayland/X11 session and output discovery, precise Linux mode rates, conservative DRM connector reporting, and `diagnose display`; hosted qualification passed in [CI run 40176731426](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40176731426); real Arch/Wayland desktop validation remains unverified. P016 implements one-shot Linux CPU and memory telemetry through `diagnose telemetry cpu-memory`; hosted Rust, GTK, Linux smoke, IPC, GCC, and Clang qualification passed in [CI run 40205107552](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40205107552). P017 adds optional read-only Linux GPU gauges. Game-session tracking, and game management remain future work. See [GPU discovery](docs/GPU-LINUX.md), [display discovery](docs/DISPLAY-LINUX.md), and [Linux telemetry](docs/TELEMETRY-LINUX.md). The workspace has exactly two application executables: `endfield-unix` (GUI and CLI) and `endfield-unixd` (daemon). The GTK Settings page does not yet edit or apply stored preferences.
 
-P015 adds the portable [`endfield-unix-telemetry` contract library](docs/TELEMETRY.md), including metric identities, units, timestamps, provenance, quality, freshness, missing-data states, snapshot-scoped targets, and bounded batches. P016 maps Linux CPU counters, RAM/swap gauges, cgroup v2 memory, and optional current frequency into those contracts. P017 adds optional GPU thermal, power, frequency and memory gauges; process and frame collection remain future work; see [P016 source and quality semantics](docs/TELEMETRY-LINUX.md).
+P015 adds the portable [`endfield-unix-telemetry` contract library](docs/TELEMETRY.md), including metric identities, units, timestamps, provenance, quality, freshness, missing-data states, snapshot-scoped targets, and bounded batches. P016 maps Linux CPU counters, RAM/swap gauges, cgroup v2 memory, and optional current frequency into those contracts. P017 adds optional GPU thermal, power, frequency and memory gauges. P018 imports explicitly selected timestamped frame events and supported MangoHud CSV variants into P015 without starting game capture. Process telemetry remains future work. See [Linux telemetry](docs/TELEMETRY-LINUX.md) and [frame telemetry](docs/FRAME-TELEMETRY-LINUX.md).
 
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
@@ -23,6 +23,7 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [Portable domain models and platform interfaces](docs/DOMAIN.md)
 - [Normalized telemetry contracts](docs/TELEMETRY.md)
 - [Linux CPU and memory telemetry](docs/TELEMETRY-LINUX.md)
+- [Linux frame telemetry import](docs/FRAME-TELEMETRY-LINUX.md)
 - [Linux platform and runtime discovery](docs/PLATFORM-LINUX.md)
 - [Linux hardware discovery](docs/HARDWARE-LINUX.md)
 - [Linux GPU discovery](docs/GPU-LINUX.md)
@@ -67,6 +68,8 @@ cargo +1.85.0 run --locked -p endfield-unix -- diagnose gpu
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose display
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry cpu-memory
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry cpu-memory --interval-ms 500
+cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry frames --format frame-events-v1 --input ./frames.csv
+cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry frames --format mangohud-csv --input ./mangohud.csv
 cargo +1.85.0 run --locked -p endfield-unix -- help gui
 cargo +1.85.0 run --locked -p endfield-unix -- gui
 cargo +1.85.0 run --locked -p endfield-unix
@@ -91,3 +94,13 @@ headlessly, without Vulkan/display initialization or the daemon. Unsupported
 utilization windows and missing sensors remain explicit partial data. Suspended
 and unknown-power devices are skipped conservatively. No live samples are
 persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](docs/GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+
+## P018 frame telemetry import
+
+`diagnose telemetry frames` reads only an explicitly selected file. The
+versioned `frame-events-v1` format supports measured frame-event rate and
+frametime statistics; MangoHud legacy and versioned-v1 CSV headers retain
+sampled frametime meaning and do not fabricate a recording-wide FPS window.
+The command is headless and does not instrument a game or persist data. See
+[FRAME-TELEMETRY-LINUX.md](docs/FRAME-TELEMETRY-LINUX.md) for upstream format
+evidence, statistics, limits, privacy, and validation status.

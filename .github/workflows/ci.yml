@@ -49,6 +49,13 @@ jobs:
       - name: Run bounded headless Linux CPU and memory telemetry
         run: ./target/debug/endfield-unix diagnose telemetry cpu-memory --interval-ms 250
 
+      - name: Run deterministic frame-file CLI smoke
+        run: |
+          ./target/debug/endfield-unix diagnose telemetry frames --format frame-events-v1 --input crates/platform-linux/tests/fixtures/frame-events-v1.csv | tee /tmp/endfield-frame-telemetry.txt
+          grep -Fq "Valid frame interval observations: 2" /tmp/endfield-frame-telemetry.txt
+          grep -Fq "FPS: 100.000 FPS" /tmp/endfield-frame-telemetry.txt
+          grep -Fq "Mean frametime: 10.000000 ms" /tmp/endfield-frame-telemetry.txt
+
       - name: Run headless GPU telemetry without a display or daemon
         run: ./target/debug/endfield-unix diagnose telemetry gpu
 
@@ -137,6 +144,8 @@ jobs:
           assert any("lib" in target["kind"] for target in platform["targets"]), platform["targets"]
           assert not any("bin" in target["kind"] for target in platform["targets"]), platform["targets"]
           assert not any(dependency["name"] in gui_dependencies for dependency in platform["dependencies"]), platform["dependencies"]
+          assert "csv" in {dependency["name"] for dependency in platform["dependencies"]}, platform["dependencies"]
+          assert not any(dependency["name"] in {"mangohud", "MangoHud"} for dependency in platform["dependencies"]), platform["dependencies"]
           assert "endfield-unix-telemetry" in {dependency["name"] for dependency in platform["dependencies"]}, platform["dependencies"]
           assert {"wayland-client", "wayland-protocols", "x11rb"}.issubset({dependency["name"] for dependency in platform["dependencies"]})
           assert not any(dependency["name"] in {"ash", "vulkan", "vulkano"} for dependency in telemetry["dependencies"]), telemetry["dependencies"]

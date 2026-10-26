@@ -1,3 +1,5 @@
+use endfield_unix_platform_linux::FrameSourceFormat;
+
 /// A topic supported by command-specific help.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HelpTopic {
@@ -27,6 +29,10 @@ pub enum Command {
     },
     DiagnoseTelemetryCpuMemory {
         interval_ms: u64,
+    },
+    DiagnoseTelemetryFrames {
+        format: FrameSourceFormat,
+        input: std::path::PathBuf,
     },
     ServicePing,
     ServiceStatus,

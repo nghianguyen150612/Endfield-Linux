@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, and `diagnose telemetry cpu-memory` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Hardware, display, and telemetry output is printed only for an explicit command and is not automatically persisted or exported. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, `diagnose telemetry cpu-memory`, and `diagnose telemetry frames` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Frame import reads one explicitly named regular file and never searches for recordings. Hardware, display, and telemetry output is printed only for an explicit command and is not automatically persisted or exported. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
 
 ## Available commands
 
@@ -19,10 +19,11 @@
 | `endfield-unix diagnose gpu` | Inspect PCI graphics devices, DRM nodes, kernel drivers, and Vulkan physical devices | No |
 | `endfield-unix diagnose display` | Inspect local Wayland/X11 sessions, output modes, and DRM connectors | No |
 | `endfield-unix diagnose telemetry cpu-memory [--interval-ms MS]` | Sample CPU utilization and collect RAM, swap, cgroup memory, and optional current frequency | No |
+| `endfield-unix diagnose telemetry frames --input PATH [--format frame-events-v1|mangohud-csv]` | Import one selected frame recording and report only source-supported P015 metrics | No |
 | `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
 | `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
 
-Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, and display/session discovery through `diagnose display`. GPU telemetry gauges are available through `diagnose telemetry gpu`. Runtime discovery, optimization, and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), and [DISPLAY-LINUX.md](DISPLAY-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, and display/session discovery through `diagnose display`. GPU telemetry gauges are available through `diagnose telemetry gpu`. Frame telemetry is an explicit file import with canonical timestamped events by default; select `mangohud-csv` for supported MangoHud schema variants. Runtime discovery, optimization, and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), and [DISPLAY-LINUX.md](DISPLAY-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -59,6 +60,8 @@ endfield-unix diagnose gpu
 endfield-unix diagnose display
 endfield-unix diagnose telemetry cpu-memory
 endfield-unix diagnose telemetry cpu-memory --interval-ms 500
+endfield-unix diagnose telemetry frames --input ./frames.csv
+endfield-unix diagnose telemetry frames --format mangohud-csv --input ./recording.csv
 endfield-unix help gui
 endfield-unix service ping
 endfield-unix service status
@@ -80,13 +83,13 @@ Output writers can be injected through `run_with_io` for deterministic dispatch 
 | `0` | Command succeeded |
 | `2` | Invalid arguments, unknown command, unsupported argument combination, or extra argument |
 | `69` | GUI startup failed, including unavailable graphical session |
-| `74` | Standard output or standard error write failed |
+| `74` | Selected input or command output I/O failed |
 | `75` | Local daemon unavailable, connection/request timeout, shutdown, or saturation |
 | `76` | Protocol mismatch or invalid daemon response |
 | `77` | Socket permission or peer authentication denied |
 | `65` | Daemon rejected an unsupported operation |
-| `70` | Fatal platform identity or required hardware-probe failure |
-| `78` | Platform probe is unsupported on this operating system |
+| `70` | Malformed frame source, fatal provider, required platform identity, or hardware-probe failure |
+| `78` | Platform or explicitly selected frame format is unsupported |
 
 Status `74` also covers report destination and file-write failures. Invalid
 syntax or an unsupported report option remains status `2`. IPC failures use
@@ -157,3 +160,18 @@ headlessly, without Vulkan/display initialization or the daemon. Unsupported
 utilization windows and missing sensors remain explicit partial data. Suspended
 and unknown-power devices are skipped conservatively. No live samples are
 persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+
+## P018 frame telemetry import
+
+`diagnose telemetry frames` defaults to the versioned `frame-events-v1`
+schema. `--format mangohud-csv` explicitly selects the supported MangoHud
+legacy or versioned-v1 CSV structures. The command opens only the supplied
+regular file, does not print its path or raw headers, and requires no GTK,
+daemon, game, or storage. Valid partial results exit `0`; invalid CLI arguments
+exit `2`; malformed data/provider failures exit `70`; inaccessible input and
+output failures exit `74`; unsupported source variants exit `78`.
+
+MangoHud rows preserve their latest frame-interval and instantaneous reciprocal
+FPS semantics. P018 does not infer `log_interval`, treat every row as a frame,
+or derive a recording-wide FPS window from the sampled FPS column. See
+[FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md) for details.

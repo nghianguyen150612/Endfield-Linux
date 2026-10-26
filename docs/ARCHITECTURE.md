@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; and P016 adds one-shot Linux CPU and memory telemetry. P017 adds optional PCI-correlated GPU gauges without Vulkan initialization. Candidate generation, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; and P018 adds bounded on-demand frame-log ingestion. Candidate generation, runtime, game-session supervision, and process telemetry remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -44,7 +44,7 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | --- | --- |
 | `PlatformProbe` | P007's synchronous boundary for a normalized snapshot. The generic composite probe retains successful subsystem reports when another provider fails. P011's Linux adapter implements it with kernel identity and optional distribution metadata. |
 | `CapabilityProvider` | P007's synchronous boundary for one independent capability source and a partial discovery report. |
-| `TelemetryProvider` | P015's synchronous boundary for declared metrics, caller-supplied sampling context, partial batches, and typed fatal failures. P016 implements bounded on-demand Linux CPU/memory collection; P017 implements optional Linux GPU gauges; P018 frame providers remain future work. |
+| `TelemetryProvider` | P015's synchronous boundary for declared metrics, caller-supplied sampling context, partial batches, and typed fatal failures. P016 implements bounded on-demand Linux CPU/memory collection; P017 implements optional Linux GPU gauges; P018 implements bounded frame-log import. |
 | `RuntimeProvider` | Detect, verify, install, select, pin, and remove user-managed Wine/Proton-compatible runners under the runtime policy. |
 | `HardwareTelemetryProvider` | Read available hardware, utilization, FPS/frametime, thermal, and power observations with source and availability metadata. |
 | `SessionSupervisor` | Start, observe, and end game sessions; preserve a running game if the GUI closes. |
@@ -264,3 +264,20 @@ headlessly, without Vulkan/display initialization or the daemon. Unsupported
 utilization windows and missing sensors remain explicit partial data. Suspended
 and unknown-power devices are skipped conservatively. No live samples are
 persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+
+## P018 frame-log ingestion
+
+P018 extends the Linux adapter with a bounded source parser and
+`FrameLogTelemetryProvider`. The provider consumes one typed recording plus a
+caller-supplied P015 sampling context and import-local clock domain. The
+canonical `frame-events-v1` source derives a rate only from a continuous
+timestamped event span. Supported MangoHud legacy and versioned-v1 CSV schemas
+preserve sampled frametime meaning and do not imply that rows cover every
+frame or that the `fps` column is a recording-window rate. Batches use the
+existing P015 metric IDs and validators.
+
+The single `endfield-unix` CLI exposes import headlessly. The adapter does not
+start MangoHud, a game, the daemon, Vulkan, or a display connection, and it
+adds no telemetry persistence or executable. See
+[FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md) for schema evidence,
+statistics, privacy, and test coverage.

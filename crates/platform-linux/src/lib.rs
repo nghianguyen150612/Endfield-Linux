@@ -18,6 +18,12 @@ mod display_sources;
 mod drm_connectors;
 mod environment;
 mod errors;
+mod frame_csv;
+mod frame_events;
+mod frame_mangohud;
+mod frame_sources;
+mod frame_statistics;
+mod frame_telemetry;
 mod gpu_probe;
 mod gpu_sources;
 mod hardware_common;
@@ -69,6 +75,22 @@ pub use environment::{
     RuntimeDirectoryAssessment, RuntimeDirectoryStatus, RuntimeEnvironmentFacts,
 };
 pub use errors::{DataSourceError, DataSourceErrorKind, OsReleaseParseError};
+pub use frame_csv::{
+    MAX_CSV_FIELDS, MAX_CSV_RECORD_BYTES, MAX_FRAME_EVENT_RECORDS, MAX_FRAME_INPUT_BYTES,
+    MAX_FRAME_INTERVALS,
+};
+pub use frame_events::{FrameEvent, FrameEventsV1Source, FrameTimeline};
+pub use frame_mangohud::{MangoHudCsvSource, MangoHudFrameSample, MangoHudRecording};
+pub use frame_sources::{
+    FrameDataSource, FrameInputError, FrameInputErrorKind, FrameMeasurementSemantics,
+    FrameObservationGranularity, FrameRecording, FrameSourceFormat, FrameSourceMetadata,
+    FrameSourceVersion, FrameTimestampUnit, parse_frame_recording, read_frame_recording,
+};
+pub use frame_statistics::{
+    MIN_P99_FRAME_INTERVALS, arithmetic_mean_nanos, measured_frame_rate_milli,
+    nearest_rank_p99_nanos,
+};
+pub use frame_telemetry::{FrameLogTelemetryProvider, FrameMetricStatus, FrameTelemetryResult};
 pub use gpu_probe::{
     DISPLAY_INSTANCE_ID_BASE, GPU_INSTANCE_ID_BASE, GpuSourceStatus,
     LINUX_GPU_REPORT_SCHEMA_VERSION, LinuxGpuCompleteness, LinuxGpuProbe, LinuxGpuReport,

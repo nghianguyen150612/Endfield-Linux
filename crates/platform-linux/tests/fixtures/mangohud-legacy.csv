@@ -1,0 +1,5 @@
+os,cpu,gpu,ram,kernel,driver,cpuscheduler
+Linux,fixture-cpu,fixture-gpu,0,fixture-kernel,fixture-driver,unknown
+fps,frametime,cpu_load,cpu_power,gpu_load,cpu_temp,gpu_temp,gpu_core_clock,gpu_mem_clock,gpu_vram_used,gpu_power,ram_used,swap_used,process_rss,cpu_mhz,elapsed
+60,16.6667,0,0,0,0,0,0,0,0,0,0,0,0,0,10000000
+30,33.3333,0,0,0,0,0,0,0,0,0,0,0,0,0,30000000

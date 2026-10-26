@@ -28,6 +28,7 @@ P001 validation is limited to repository/document checks: file and link inspecti
 
 - Verify GTK access stays on the GUI main thread and slow operations do not block it; test cancellation, progress, worker failure, and window closure.
 - Test GUI and CLI use the same executable and application services.
+- Run a deterministic frame-event file through the real headless CLI and verify its P015 batch, measured result, and unchanged input file.
 - Test daemon authentication, message bounds, version mismatches, malformed input, socket permissions, reconnects, graceful shutdown, and game survival after GUI exit.
 - Test Linux capability detection against missing tools, permissions, unsupported devices, and partial sensor data. Test capability-driven behavior instead of relying only on OS-name branches.
 - Test installer source verification, interrupted downloads, rollback, pin preservation, prefix backup/restore, and user-data retention without contacting invented endpoints.

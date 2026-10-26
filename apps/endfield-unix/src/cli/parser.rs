@@ -7,6 +7,7 @@ use clap::{ArgAction, CommandFactory, FromArgMatches, Parser, Subcommand, ValueE
 
 use super::commands::{Command, HelpTopic};
 use crate::APPLICATION_NAME;
+use endfield_unix_platform_linux::FrameSourceFormat;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -101,6 +102,32 @@ enum TelemetryArgs {
         )]
         interval_ms: u64,
     },
+    /// Import one explicitly selected frame recording without a daemon or GUI.
+    Frames {
+        /// Supported source schema. MangoHud must be selected explicitly.
+        #[arg(long, value_enum, default_value = "frame-events-v1")]
+        format: FrameFormatArg,
+        /// User-selected regular file; paths are never discovered automatically.
+        #[arg(long, value_name = "PATH")]
+        input: PathBuf,
+    },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum FrameFormatArg {
+    #[value(name = "frame-events-v1")]
+    FrameEventsV1,
+    #[value(name = "mangohud-csv")]
+    MangoHudCsv,
+}
+
+impl From<FrameFormatArg> for FrameSourceFormat {
+    fn from(value: FrameFormatArg) -> Self {
+        match value {
+            FrameFormatArg::FrameEventsV1 => Self::FrameEventsV1,
+            FrameFormatArg::MangoHudCsv => Self::MangoHudCsv,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -188,6 +215,15 @@ where
                     command: TelemetryArgs::Gpu { interval_ms },
                 },
         }) => Command::DiagnoseTelemetryGpu { interval_ms },
+        Some(SubcommandArgs::Diagnose {
+            command:
+                DiagnoseArgs::Telemetry {
+                    command: TelemetryArgs::Frames { format, input },
+                },
+        }) => Command::DiagnoseTelemetryFrames {
+            format: format.into(),
+            input,
+        },
         Some(SubcommandArgs::Service {
             command: ServiceArgs::Ping,
         }) => Command::ServicePing,
@@ -339,6 +375,55 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn frame_import_defaults_to_the_canonical_schema_and_requires_a_file() {
+        assert_command(
+            &[
+                "diagnose",
+                "telemetry",
+                "frames",
+                "--input",
+                "recording.csv",
+            ],
+            Command::DiagnoseTelemetryFrames {
+                format: FrameSourceFormat::FrameEventsV1,
+                input: PathBuf::from("recording.csv"),
+            },
+        );
+        assert!(parse(args(&["diagnose", "telemetry", "frames"])).is_err());
+    }
+
+    #[test]
+    fn frame_import_accepts_only_explicit_supported_format_names() {
+        assert_command(
+            &[
+                "diagnose",
+                "telemetry",
+                "frames",
+                "--format",
+                "mangohud-csv",
+                "--input",
+                "recording.csv",
+            ],
+            Command::DiagnoseTelemetryFrames {
+                format: FrameSourceFormat::MangoHudCsv,
+                input: PathBuf::from("recording.csv"),
+            },
+        );
+        assert!(
+            parse(args(&[
+                "diagnose",
+                "telemetry",
+                "frames",
+                "--format",
+                "auto",
+                "--input",
+                "recording.csv",
+            ]))
+            .is_err()
+        );
     }
 
     #[test]
