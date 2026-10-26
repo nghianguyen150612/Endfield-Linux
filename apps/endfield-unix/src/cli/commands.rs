@@ -22,6 +22,9 @@ pub enum Command {
     DiagnoseHardware,
     DiagnoseGpu,
     DiagnoseDisplay,
+    DiagnoseTelemetryGpu {
+        interval_ms: u64,
+    },
     DiagnoseTelemetryCpuMemory {
         interval_ms: u64,
     },

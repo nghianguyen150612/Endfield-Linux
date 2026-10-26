@@ -114,3 +114,13 @@ This roadmap preserves the requested development order. P001 established the doc
 - **P088** — Complete recovery, upgrade, downgrade, and user-data preservation drills.
 - **P089** — Publish platform-specific support status and release evidence.
 - **P090** — Establish cross-platform release gates and document the next roadmap.
+
+## P017 GPU telemetry
+
+Read-only Linux GPU telemetry is implemented through PCI-correlated optional
+AMDGPU sysfs/hwmon, Intel i915 current frequency, and dynamically loaded NVIDIA
+NVML gauges. `endfield-unix diagnose telemetry gpu --interval-ms 250` runs
+headlessly, without Vulkan/display initialization or the daemon. Unsupported
+utilization windows and missing sensors remain explicit partial data. Suspended
+and unknown-power devices are skipped conservatively. No live samples are
+persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.

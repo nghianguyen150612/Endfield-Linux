@@ -118,3 +118,7 @@ pub use vulkan::{
 };
 pub use wayland::{SystemWaylandBackend, WaylandDisplayBackend};
 pub use x11::{SystemX11Backend, X11DisplayBackend};
+
+pub mod gpu_nvidia;
+pub mod gpu_telemetry;
+pub mod gpu_telemetry_sources;

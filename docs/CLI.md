@@ -22,7 +22,7 @@
 | `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
 | `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
 
-Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, and display/session discovery through `diagnose display`. Runtime discovery, GPU telemetry, optimization, and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), and [DISPLAY-LINUX.md](DISPLAY-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, and display/session discovery through `diagnose display`. GPU telemetry gauges are available through `diagnose telemetry gpu`. Runtime discovery, optimization, and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), and [DISPLAY-LINUX.md](DISPLAY-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -147,3 +147,13 @@ The command returns 0 for complete or partial valid data, 2 for invalid
 arguments, 70 for fatal provider failure, 74 for output failure, and 78 for an
 unsupported platform. See [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md) for source
 limits, metric semantics, and failure states.
+
+## P017 GPU telemetry
+
+Read-only Linux GPU telemetry is implemented through PCI-correlated optional
+AMDGPU sysfs/hwmon, Intel i915 current frequency, and dynamically loaded NVIDIA
+NVML gauges. `endfield-unix diagnose telemetry gpu --interval-ms 250` runs
+headlessly, without Vulkan/display initialization or the daemon. Unsupported
+utilization windows and missing sensors remain explicit partial data. Suspended
+and unknown-power devices are skipped conservatively. No live samples are
+persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.

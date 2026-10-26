@@ -86,6 +86,11 @@ enum DiagnoseArgs {
 
 #[derive(Debug, Subcommand)]
 enum TelemetryArgs {
+    /// Collect supported GPU gauges without graphics initialization.
+    Gpu {
+        #[arg(long, default_value_t = 250, value_parser = clap::value_parser!(u64).range(100..=2000))]
+        interval_ms: u64,
+    },
     /// Sample CPU counters and collect current memory gauges.
     CpuMemory {
         /// Time between the two bounded CPU counter reads (100–2000 ms).
@@ -177,6 +182,12 @@ where
                     command: TelemetryArgs::CpuMemory { interval_ms },
                 },
         }) => Command::DiagnoseTelemetryCpuMemory { interval_ms },
+        Some(SubcommandArgs::Diagnose {
+            command:
+                DiagnoseArgs::Telemetry {
+                    command: TelemetryArgs::Gpu { interval_ms },
+                },
+        }) => Command::DiagnoseTelemetryGpu { interval_ms },
         Some(SubcommandArgs::Service {
             command: ServiceArgs::Ping,
         }) => Command::ServicePing,
@@ -389,5 +400,27 @@ mod tests {
         let error = parse([OsString::from_vec(vec![0xff])])
             .expect_err("non-UTF-8 command should be rejected");
         assert!(!error.to_string().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod gpu_telemetry_tests {
+    use super::*;
+    #[test]
+    fn bounds() {
+        for value in ["100", "2000", "500"] {
+            assert!(parse(["diagnose", "telemetry", "gpu", "--interval-ms", value]).is_ok());
+        }
+        for value in ["99", "2001", "bad"] {
+            assert!(parse(["diagnose", "telemetry", "gpu", "--interval-ms", value]).is_err());
+        }
+    }
+
+    #[test]
+    fn gpu_default_custom_and_invalid_interval() {
+        assert_eq!(
+            parse(["diagnose", "telemetry", "gpu"]).unwrap(),
+            Command::DiagnoseTelemetryGpu { interval_ms: 250 }
+        );
     }
 }

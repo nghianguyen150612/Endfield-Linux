@@ -249,7 +249,7 @@ fn validate_under_sys_devices(path: &Path, sys_devices: &Path) -> Result<(), Dat
     }
 }
 
-fn read_attribute(path: &Path, limit: usize) -> Result<Vec<u8>, DataSourceError> {
+pub(crate) fn read_attribute(path: &Path, limit: usize) -> Result<Vec<u8>, DataSourceError> {
     let metadata = fs::symlink_metadata(path).map_err(map_io_error)?;
     if !metadata.is_file() || metadata.file_type().is_symlink() {
         return Err(DataSourceError::new(DataSourceErrorKind::UnexpectedType));
@@ -271,7 +271,7 @@ fn read_attribute(path: &Path, limit: usize) -> Result<Vec<u8>, DataSourceError>
     Ok(bytes)
 }
 
-fn map_io_error(error: io::Error) -> DataSourceError {
+pub(crate) fn map_io_error(error: io::Error) -> DataSourceError {
     DataSourceError::new(match error.kind() {
         io::ErrorKind::NotFound => DataSourceErrorKind::NotFound,
         io::ErrorKind::PermissionDenied => DataSourceErrorKind::PermissionDenied,

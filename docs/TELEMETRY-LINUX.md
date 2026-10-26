@@ -187,5 +187,14 @@ UNVERIFIED**.
 
 P016 does not implement GPU utilization, GPU memory/thermal/power, FPS,
 frametime, process monitoring, daemon sampling, telemetry IPC, persistent
-history, GTK graphs, benchmarks, or optimization actions. P017 remains the
-next GPU telemetry milestone.
+history, GTK graphs, benchmarks, or optimization actions. P017 adds the optional GPU gauge provider described below.
+
+## P017 GPU telemetry
+
+Read-only Linux GPU telemetry is implemented through PCI-correlated optional
+AMDGPU sysfs/hwmon, Intel i915 current frequency, and dynamically loaded NVIDIA
+NVML gauges. `endfield-unix diagnose telemetry gpu --interval-ms 250` runs
+headlessly, without Vulkan/display initialization or the daemon. Unsupported
+utilization windows and missing sensors remain explicit partial data. Suspended
+and unknown-power devices are skipped conservatively. No live samples are
+persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.

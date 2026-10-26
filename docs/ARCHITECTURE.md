@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; and P016 adds one-shot Linux CPU and memory telemetry. Candidate generation, GPU telemetry, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; and P016 adds one-shot Linux CPU and memory telemetry. P017 adds optional PCI-correlated GPU gauges without Vulkan initialization. Candidate generation, runtime, and game services remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -44,7 +44,7 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | --- | --- |
 | `PlatformProbe` | P007's synchronous boundary for a normalized snapshot. The generic composite probe retains successful subsystem reports when another provider fails. P011's Linux adapter implements it with kernel identity and optional distribution metadata. |
 | `CapabilityProvider` | P007's synchronous boundary for one independent capability source and a partial discovery report. |
-| `TelemetryProvider` | P015's synchronous boundary for declared metrics, caller-supplied sampling context, partial batches, and typed fatal failures. P016 implements bounded on-demand Linux CPU/memory collection; P017–P018 remain future providers. |
+| `TelemetryProvider` | P015's synchronous boundary for declared metrics, caller-supplied sampling context, partial batches, and typed fatal failures. P016 implements bounded on-demand Linux CPU/memory collection; P017 implements optional Linux GPU gauges; P018 frame providers remain future work. |
 | `RuntimeProvider` | Detect, verify, install, select, pin, and remove user-managed Wine/Proton-compatible runners under the runtime policy. |
 | `HardwareTelemetryProvider` | Read available hardware, utilization, FPS/frametime, thermal, and power observations with source and availability metadata. |
 | `SessionSupervisor` | Start, observe, and end game sessions; preserve a running game if the GUI closes. |
@@ -254,3 +254,13 @@ Storage methods are synchronous and may block on filesystem or SQLite work. GUI 
 ## Compatibility policy
 
 Linux is the only initial implementation target. macOS and FreeBSD remain experimental until platform-specific functionality and game/runtime behavior have been validated on real systems. Do not advertise game compatibility, optimization availability, or equivalent telemetry merely because a platform adapter can identify the OS.
+
+## P017 GPU telemetry
+
+Read-only Linux GPU telemetry is implemented through PCI-correlated optional
+AMDGPU sysfs/hwmon, Intel i915 current frequency, and dynamically loaded NVIDIA
+NVML gauges. `endfield-unix diagnose telemetry gpu --interval-ms 250` runs
+headlessly, without Vulkan/display initialization or the daemon. Unsupported
+utilization windows and missing sensors remain explicit partial data. Suspended
+and unknown-power devices are skipped conservatively. No live samples are
+persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.

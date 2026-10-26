@@ -1,0 +1,15 @@
+Local Ubuntu 24.04 validation container; Rust 1.85.0.
+Command: cargo test --locked --workspace -- --test-threads=1
+No hosted workflow/job ID applies to this local run.
+
+thread 'subprocess_daemon_and_cli_complete_ping_status_malformed_frame_and_sigterm' panicked at apps/endfield-unix/tests/ipc_e2e.rs:144:14:
+over-capacity connection closes: Os { code: 11, kind: WouldBlock, message: "Resource temporarily unavailable" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    subprocess_daemon_and_cli_complete_ping_status_malformed_frame_and_sigterm
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.61s
+
+error: test failed, to rerun pass `-p endfield-unix --test ipc_e2e`

@@ -338,3 +338,30 @@ fn diagnose_report_refuses_symlink_destination() {
     assert_eq!(output.status.code(), Some(74));
     assert_eq!(fs::read(target).expect("target unchanged"), b"preserve");
 }
+
+#[test]
+fn gpu_telemetry_is_headless_on_demand_and_does_not_create_configuration() {
+    let root = tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .env("HOME", root.path())
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .env("XDG_DATA_HOME", root.path().join("data"))
+        .args(["diagnose", "telemetry", "gpu"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("GPU telemetry: Linux"));
+    assert!(text.contains("Probe result:"));
+    assert!(text.contains("NVIDIA NVML:"));
+    assert!(text.contains("Utilization: unsupported normalized window"));
+    assert_eq!(fs::read_dir(root.path()).unwrap().count(), 0);
+    let invalid = invoke(&["diagnose", "telemetry", "gpu", "--interval-ms", "99"]);
+    assert_eq!(invalid.status.code(), Some(2));
+}

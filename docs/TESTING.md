@@ -558,3 +558,32 @@ after rerunning the failed Rust job without code or test changes.
 - Real device status remains **Arch desktop validation: UNVERIFIED** and
   **Dell Vostro 3510 validation: UNVERIFIED**. Ubuntu CI and container smoke do
   not replace those checks.
+
+## P017 GPU telemetry
+
+Read-only Linux GPU telemetry is implemented through PCI-correlated optional
+AMDGPU sysfs/hwmon, Intel i915 current frequency, and dynamically loaded NVIDIA
+NVML gauges. `endfield-unix diagnose telemetry gpu --interval-ms 250` runs
+headlessly, without Vulkan/display initialization or the daemon. Unsupported
+utilization windows and missing sensors remain explicit partial data. Suspended
+and unknown-power devices are skipped conservatively. No live samples are
+persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+
+P017 local qualification uses Rust 1.85.0 and a temporary Ubuntu 24.04 container
+with native GTK development packages. The 14 deterministic GPU contracts and
+headless live smoke pass; the local live host has zero verified GPUs and produces
+an empty valid partial P015 batch. GCC and Clang C17 ABI and sanitizer scripts
+pass. A parallel full-workspace run encountered the unchanged CLI test
+`default_and_explicit_gui_use_the_same_startup_behavior`: an asynchronous
+`state_path_unavailable` diagnostics message differed between the two GUI startup
+stderr streams. No GUI/diagnostics or IPC implementation/test is changed to mask
+this result. Hosted qualification and exact workflow evidence will be recorded
+following the implementation push.
+
+The local serial workspace run passed app unit/CLI tests, then reproduced the
+pre-existing IPC capacity race at `apps/endfield-unix/tests/ipc_e2e.rs:144`: the
+read returned `WouldBlock` instead of EOF. The test took 1.61 seconds. See
+[retained failure excerpt](validation/p017-local-ipc-failure.txt). No hosted
+workflow/job ID applies to this local container. IPC was not retried locally;
+qualification continues through the normal hosted workflow as requested. A
+separate focused IPC reliability repair remains recommended.

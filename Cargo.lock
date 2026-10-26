@@ -204,6 +204,7 @@ dependencies = [
  "endfield-unix-domain",
  "endfield-unix-telemetry",
  "libc",
+ "libloading",
  "nix",
  "tempfile",
  "wayland-client",

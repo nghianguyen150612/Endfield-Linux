@@ -532,7 +532,7 @@ where
     }
 }
 
-fn read_pci_device<S: LinuxGpuDataSource>(
+pub(crate) fn read_pci_device<S: LinuxGpuDataSource>(
     source: &S,
     bdf: String,
 ) -> Result<Option<PciGraphicsDevice>, (DataSourceErrorKind, &'static str)> {
@@ -770,7 +770,7 @@ fn unique_pci_match(pci: &[PciGraphicsDevice], device: &VulkanPhysicalDevice) ->
     (matches.len() == 1).then(|| matches[0])
 }
 
-fn allocate_gpu_ids(count: usize) -> Result<Vec<InstanceId>, ProbeError> {
+pub(crate) fn allocate_gpu_ids(count: usize) -> Result<Vec<InstanceId>, ProbeError> {
     (0..count)
         .map(|index| {
             let index = u32::try_from(index).map_err(|_| {
@@ -844,7 +844,7 @@ fn push_capability(
     snapshot.capabilities.push(record);
 }
 
-fn gpu_vendor(id: u16) -> GpuVendor {
+pub(crate) fn gpu_vendor(id: u16) -> GpuVendor {
     match id {
         0x8086 => GpuVendor::Intel,
         0x10de => GpuVendor::Nvidia,

@@ -227,6 +227,16 @@ the network.
 P016 uses these contracts for Linux CPU and memory collection; source selection,
 counter accounting, snapshot-local CPU mapping, quality, CLI behavior, and
 validation limits are documented in [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md).
-P017 can add GPU providers and P018 can add frame providers. Scheduling beyond
+P017 adds Linux GPU providers and P018 can add frame providers. Scheduling beyond
 one bounded on-demand sample, retention, daemon transport, UI graphs, benchmark
 workflows, and optimizer consumption remain future work.
+
+## P017 GPU telemetry
+
+Read-only Linux GPU telemetry is implemented through PCI-correlated optional
+AMDGPU sysfs/hwmon, Intel i915 current frequency, and dynamically loaded NVIDIA
+NVML gauges. `endfield-unix diagnose telemetry gpu --interval-ms 250` runs
+headlessly, without Vulkan/display initialization or the daemon. Unsupported
+utilization windows and missing sensors remain explicit partial data. Suspended
+and unknown-power devices are skipped conservatively. No live samples are
+persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.

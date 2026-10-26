@@ -183,6 +183,131 @@ where
     )
 }
 
+fn run_gpu_telemetry<O: Write>(interval_ms: u64, stdout: &mut O) -> Result<(), CliError> {
+    use endfield_unix_platform_linux::gpu_nvidia::SystemNvml;
+    use endfield_unix_platform_linux::gpu_telemetry::{
+        GPU_METRICS, GpuIdentityContext, LinuxGpuTelemetryProvider,
+    };
+    use endfield_unix_platform_linux::gpu_telemetry_sources::GpuSensorSource;
+    TelemetryInterval::from_millis(interval_ms).map_err(CliError::TelemetryConfig)?;
+    let source = SystemLinuxDataSource::new();
+    let context = LinuxPlatformProbe::system().inspect().ok().and_then(|r| {
+        GpuIdentityContext::discover(&source, r.snapshot, SnapshotRefId::new(1).unwrap()).ok()
+    });
+    let provider = LinuxGpuTelemetryProvider::new(source.clone(), SystemNvml, context);
+    let request = CollectionRequest::new(
+        SamplingContextId::new(1).unwrap(),
+        GPU_METRICS.to_vec(),
+        None,
+    )
+    .map_err(CliError::TelemetryContract)?;
+    let report = provider
+        .collect(&request)
+        .map_err(CliError::TelemetryProvider)?;
+    writeln!(stdout, "GPU telemetry: Linux").map_err(CliError::Output)?;
+    if let Some(context) = provider.context() {
+        if context.devices().is_empty() {
+            writeln!(stdout, "GPUs: none verified").map_err(CliError::Output)?;
+        }
+        for (i, device) in context.devices().iter().enumerate() {
+            let vendor = match device.vendor_id {
+                0x10de => "NVIDIA",
+                0x8086 => "Intel",
+                0x1002 => "AMD",
+                _ => "Other PCI vendor",
+            };
+            writeln!(stdout,"\nGPU {}:\n  Vendor: {}\n  PCI identity: {}\n  Kernel driver: {}\n  Power state: {:?}",i+1,vendor,device.bdf,device.driver_name.as_deref().unwrap_or("unknown"),source.power(device.bdf.parse().unwrap())).map_err(CliError::Output)?;
+            for observation in report
+                .batch()
+                .observations()
+                .iter()
+                .filter(|o| Some(o.target()) == context.target(i))
+            {
+                writeln!(
+                    stdout,
+                    "  {}: {}",
+                    gpu_metric_label(observation.metric()),
+                    gpu_metric_value(observation)
+                )
+                .map_err(CliError::Output)?;
+            }
+        }
+    } else {
+        writeln!(
+            stdout,
+            "GPU identity: unavailable; no measurements assigned"
+        )
+        .map_err(CliError::Output)?;
+    }
+    writeln!(stdout, "\nSources:").map_err(CliError::Output)?;
+    for (vendor, label, provider_id) in [
+        (0x10de, "NVIDIA NVML", "linux-nvidia-nvml"),
+        (0x1002, "AMDGPU sysfs/hwmon", "linux-amdgpu-sysfs"),
+        (0x8086, "Intel interfaces", "linux-intel-sysfs"),
+    ] {
+        let queried = provider.context().is_some_and(|c| {
+            c.devices().iter().any(|d| {
+                d.vendor_id == vendor
+                    && source.power(d.bdf.parse().unwrap())
+                        == endfield_unix_platform_linux::gpu_telemetry_sources::RuntimePower::Active
+            })
+        });
+        let measured =
+            report.batch().observations().iter().any(|o| {
+                o.provenance().provider().as_str() == provider_id && o.state().is_measured()
+            });
+        let status = if measured {
+            "available (partial metrics possible)"
+        } else if queried {
+            "unavailable or unsupported"
+        } else {
+            "not queried"
+        };
+        writeln!(stdout, "  {label}: {status}").map_err(CliError::Output)?;
+    }
+    writeln!(stdout,"Utilization: unsupported normalized window; one-shot busy percentages are not interval averages\nProbe result: {:?}",report.completeness()).map_err(CliError::Output)
+}
+fn gpu_metric_label(metric: MetricId) -> &'static str {
+    match metric {
+        MetricId::GpuUtilization => "Utilization",
+        MetricId::GpuMemoryUsed => "GPU memory used",
+        MetricId::GpuDedicatedMemoryCapacity => "Dedicated VRAM",
+        MetricId::GpuTemperature => "Temperature",
+        MetricId::GpuPower => "Power",
+        MetricId::GpuFrequency => "GPU frequency",
+        _ => "Unknown metric",
+    }
+}
+fn gpu_metric_value(observation: &endfield_unix_telemetry::TelemetryObservation) -> String {
+    use endfield_unix_domain::MeasurementValue;
+    use endfield_unix_telemetry::ObservationState;
+    let ObservationState::Measured(value) = observation.state() else {
+        return match observation.state() {
+            ObservationState::Unsupported => "Unsupported",
+            ObservationState::PermissionDenied => "Unavailable (permission denied)",
+            ObservationState::MalformedSourceData => "Unavailable (malformed source)",
+            ObservationState::TemporaryFailure => "Unavailable (temporary failure)",
+            ObservationState::Degraded(_) => "Unavailable (degraded)",
+            _ => "Unknown",
+        }
+        .to_owned();
+    };
+    let raw = match value.value() {
+        MeasurementValue::Unsigned(v) => v as f64,
+        MeasurementValue::Signed(v) => v as f64,
+    };
+    match observation.metric() {
+        MetricId::GpuMemoryUsed | MetricId::GpuDedicatedMemoryCapacity => {
+            format!("{:.2} MiB", raw / 1048576.0)
+        }
+        MetricId::GpuTemperature => format!("{:.3} °C", raw / 1000.0),
+        MetricId::GpuPower => format!("{:.3} W", raw / 1000.0),
+        MetricId::GpuFrequency => format!("{:.3} MHz", raw / 1000000.0),
+        MetricId::GpuUtilization => format!("{:.2}%", raw / 100.0),
+        _ => "Unknown".to_owned(),
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn run_with_io_and_gui<I, O, E, G>(
     arguments: I,
@@ -311,6 +436,7 @@ where
                 .map_err(CliError::DisplayProbe)?;
             output::write_display_report(&report, stdout).map_err(CliError::Output)
         }
+        Command::DiagnoseTelemetryGpu { interval_ms } => run_gpu_telemetry(interval_ms, stdout),
         Command::DiagnoseTelemetryCpuMemory { interval_ms } => {
             run_cpu_memory_telemetry(interval_ms, stdout)
         }

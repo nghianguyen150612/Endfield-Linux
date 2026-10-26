@@ -53,3 +53,13 @@ vulkaninfo --summary # only when already installed
 The reference desktop check must verify NVIDIA RTX 5070 identification, real driver binding, DRM mapping, Vulkan identity, and avoid VRAM assumptions. The Dell Vostro 3510 check must independently verify Intel Iris Xe and NVIDIA MX350 and their mappings. No active game GPU or solved power-delivery issue is implied. Both physical-machine checks remain **UNVERIFIED** until run on those machines.
 
 P014 adds display and graphical-session observations in the same adapter; see [DISPLAY-LINUX.md](DISPLAY-LINUX.md). P017 owns dynamic GPU utilization, thermal, power, and memory usage. Optimizer work must not interpret Vulkan enumeration as benchmark, compatibility, or default GPU-selection evidence.
+
+## P017 GPU telemetry
+
+Read-only Linux GPU telemetry is implemented through PCI-correlated optional
+AMDGPU sysfs/hwmon, Intel i915 current frequency, and dynamically loaded NVIDIA
+NVML gauges. `endfield-unix diagnose telemetry gpu --interval-ms 250` runs
+headlessly, without Vulkan/display initialization or the daemon. Unsupported
+utilization windows and missing sensors remain explicit partial data. Suspended
+and unknown-power devices are skipped conservatively. No live samples are
+persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.

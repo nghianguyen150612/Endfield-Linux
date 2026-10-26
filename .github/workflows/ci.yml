@@ -49,6 +49,9 @@ jobs:
       - name: Run bounded headless Linux CPU and memory telemetry
         run: ./target/debug/endfield-unix diagnose telemetry cpu-memory --interval-ms 250
 
+      - name: Run headless GPU telemetry without a display or daemon
+        run: ./target/debug/endfield-unix diagnose telemetry gpu
+
       - name: Run the headless Linux GPU CLI against this runner
         run: ./target/debug/endfield-unix diagnose gpu
 
