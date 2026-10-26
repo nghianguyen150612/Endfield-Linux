@@ -601,3 +601,32 @@ status. A follow-up preserves required platform failures as CLI 70/78 while
 optional GPU source failures remain partial results; native workspace check,
 Clippy, 48 application unit tests and the GPU CLI integration test passed for
 that correction.
+
+## P018 frame telemetry
+
+P018 adds bounded canonical frame-event and source-verified MangoHud CSV
+readers, checked FPS/mean/P99 calculations, a validated P015 provider, and a
+read-only `diagnose telemetry frames` CLI. The local P018 contract run passed
+31 parser, statistics, provider, and file-safety tests. The complete Linux
+adapter suite passed, as did the workspace suite excluding the GTK application
+package. Workspace check and Clippy type-checked all targets with temporary
+pkg-config metadata; those local stubs do not validate native GTK linking.
+Local GCC C17 ABI and sanitizer scripts passed, while Clang and Xvfb were not
+installed locally.
+
+Hosted [CI run 40341956819](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40341956819)
+passed on rerun. Its first attempt passed formatting, workspace check/Clippy,
+the app build, frame-file CLI smoke, Linux and telemetry tests, workspace tests,
+and daemon lifecycle, then reproduced the known IPC capacity race in the
+subprocess gate. The exact timestamped failure excerpt is retained in
+[p018-hosted-ipc-first-attempt.txt](validation/p018-hosted-ipc-first-attempt.txt).
+The retry passed that IPC gate, GTK smoke and screenshot upload, workspace
+build, and metadata gate. GCC and Clang C17 hosted jobs passed on the first
+attempt. No IPC implementation or test was changed, so the race remains
+unresolved; a passing retry is not evidence that it was fixed.
+
+The workflow's canonical CLI smoke and real-binary fixture integration passed.
+The committed MangoHud fixtures are source-backed schemas, not runtime logs.
+Real Endfield frame capture, Arch RTX 5070 frame telemetry, and Dell Vostro
+frame telemetry remain **UNVERIFIED**. P019 session ownership remains future
+work.

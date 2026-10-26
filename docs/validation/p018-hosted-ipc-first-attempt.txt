@@ -1,0 +1,13 @@
+GitHub Actions Rust CI run 40341956819, first attempt, commit
+9411278b33168d534eb26d0bf9505353d4bcc780.
+Command: cargo test --locked -p endfield-unix --test ipc_e2e -- --test-threads=1
+Run: https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40341956819
+
+2026-10-26T14:45:40.5001173Z Running tests/ipc_e2e.rs (target/debug/deps/ipc_e2e-997df0ce9155e235)
+2026-10-26T14:45:40.5013560Z running 1 test
+2026-10-26T14:45:41.8423947Z test subprocess_daemon_and_cli_complete_ping_status_malformed_frame_and_sigterm ... FAILED
+2026-10-26T14:45:41.8425943Z thread 'subprocess_daemon_and_cli_complete_ping_status_malformed_frame_and_sigterm' panicked at apps/endfield-unix/tests/ipc_e2e.rs:144:14:
+2026-10-26T14:45:41.8426832Z over-capacity connection closes: Os { code: 11, kind: WouldBlock, message: "Resource temporarily unavailable" }
+2026-10-26T14:45:41.8427582Z note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+2026-10-26T14:45:41.8429015Z test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.34s
+2026-10-26T14:45:41.8482204Z ##[error]Process completed with exit code 101.
