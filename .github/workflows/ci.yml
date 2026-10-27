@@ -61,7 +61,8 @@ jobs:
 
       - name: Mark real systemd user-manager integration unavailable
         if: ${{ vars.ENDFIELD_SYSTEMD_USER_INTEGRATION != '1' }}
-        run: echo "Real systemd --user integration: UNVERIFIED (optional isolated-manager gate is not enabled)."
+        run: |
+          echo "Real systemd --user integration: UNVERIFIED (optional isolated-manager gate is not enabled)."
 
       - name: Check formatting
         run: cargo fmt --all -- --check
