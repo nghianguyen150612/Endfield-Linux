@@ -36,6 +36,72 @@ pub fn write_version<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(output, "{APPLICATION_NAME} {APPLICATION_VERSION}")
 }
 
+pub fn write_systemd_status<W: Write>(
+    status: &super::systemd::ServiceStatus,
+    ipc_healthy: bool,
+    output: &mut W,
+) -> io::Result<()> {
+    use super::systemd::UnitFileState;
+
+    writeln!(output, "systemd user manager: {}", status.manager)?;
+    writeln!(
+        output,
+        "Unit file: {}",
+        match status.unit_file {
+            UnitFileState::Absent => "not installed",
+            UnitFileState::Installed => "installed and matches the P020 unit",
+            UnitFileState::ModifiedOrUnsafe => "modified or unsafe; contents were not trusted",
+        }
+    )?;
+    if let Some(unit) = &status.unit {
+        writeln!(output, "Manager load state: {}", unit.load_state)?;
+        writeln!(output, "Autostart: {}", unit.enabled_state)?;
+        writeln!(
+            output,
+            "Unit active state: {} ({})",
+            unit.active_state, unit.sub_state
+        )?;
+        writeln!(output, "Main process: {}", unit.main_pid)?;
+        writeln!(output, "Last result: {}", unit.result)?;
+    } else if status.manager == super::systemd::ManagerAvailability::Available {
+        writeln!(
+            output,
+            "Manager unit state: unavailable or invalid response"
+        )?;
+    }
+    writeln!(
+        output,
+        "Authenticated IPC: {}",
+        if ipc_healthy {
+            "healthy (Ping/Pong succeeded)"
+        } else {
+            "unavailable or unhealthy"
+        }
+    )?;
+    if status
+        .unit
+        .as_ref()
+        .is_some_and(|unit| unit.active_state == "active")
+        && !ipc_healthy
+    {
+        writeln!(
+            output,
+            "Discrepancy: the unit is active, but authenticated IPC failed; the daemon is not reported healthy."
+        )?;
+    } else if status
+        .unit
+        .as_ref()
+        .is_none_or(|unit| unit.active_state != "active")
+        && ipc_healthy
+    {
+        writeln!(
+            output,
+            "IPC is available while this unit is not active. A separately started daemon may own it; it was not adopted or stopped."
+        )?;
+    }
+    Ok(())
+}
+
 pub fn write_about<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(output, "Application: {APPLICATION_NAME}")?;
     writeln!(output, "Version: {APPLICATION_VERSION}")?;
@@ -1582,6 +1648,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
         output,
         "  service status  Show validated daemon lifecycle status"
     )?;
+    writeln!(
+        output,
+        "  service systemd <install|uninstall|enable|disable|start|stop|restart|status>"
+    )?;
     writeln!(output, "Options:")?;
     writeln!(output, "  -h, --help    Show this help message")?;
     writeln!(output, "  --version     Show the application version\n")?;
@@ -1595,7 +1665,7 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "The service commands require an independently running endfield-unixd daemon."
+        "`service ping` and `service status` use authenticated daemon IPC. `service systemd` explicitly manages the optional user unit."
     )
 }
 
@@ -1618,7 +1688,10 @@ fn write_about_help<W: Write>(output: &mut W) -> io::Result<()> {
 }
 
 fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
-    writeln!(output, "Usage: {APPLICATION_NAME} service <ping|status>\n")?;
+    writeln!(
+        output,
+        "Usage: {APPLICATION_NAME} service <ping|status|systemd>\n"
+    )?;
     writeln!(
         output,
         "Ping verifies a real authenticated local Ping/Pong exchange."
@@ -1629,7 +1702,15 @@ fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "The commands never start the daemon or initialize GTK."
+        "Ping and status use authenticated daemon IPC. The systemd subcommands manage the foreground daemon as a per-user service and never initialize GTK."
+    )?;
+    writeln!(
+        output,
+        "Installation is explicit, does not enable or start the unit, and never uses root privileges."
+    )?;
+    writeln!(
+        output,
+        "Run `{APPLICATION_NAME} help service` for the complete command list."
     )
 }
 

@@ -671,3 +671,63 @@ tests and remains an independent hosted gate. No Endfield game was launched.
 `Real Endfield session supervision: UNVERIFIED`, `Arch desktop Endfield
 survival test: UNVERIFIED`, and `Dell Vostro Endfield survival test:
 UNVERIFIED`.
+
+The supplied P019 qualification, [GitHub Actions run 40441896200](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40441896200),
+passed all three jobs on the first attempt. This validates hosted CI checks,
+not real Endfield gameplay or game-process survival.
+
+## P020 systemd user-service integration
+
+Local Rust 1.85.0 validation passed formatting, full-workspace `cargo check`
+and Clippy with warnings denied using temporary pkg-config metadata for Rust
+type-checking. The metadata does not provide GTK/GLib native libraries and does
+not verify native linking. An isolated CLI source harness ran 62 existing and
+new parser, dispatch, output, and systemd-manager tests; all passed. These
+tests used an injected command runner and private temporary directories, not
+the developer's systemd user configuration. `cargo test --locked --workspace
+--exclude endfield-unix` passed the non-GUI workspace regressions, including
+P006 storage, P007 domain, P008 diagnostics, P009 lifecycle, P010 protocol,
+P011–P014 Linux adapters, P015–P018 telemetry, P019 session supervision, and
+the C17 FFI contracts. The daemon's focused targets passed 35 tests: 16 unit,
+5 CLI, 13 lifecycle, and 1 supervisor integration test.
+
+The daemon notification tests cover absent `NOTIFY_SOCKET`, private filesystem
+and Linux abstract sockets, fixed one-shot READY/STOPPING messages, invalid
+destinations, oversized data, typed send failure/retry, no READY on failed
+IPC startup, no READY when shutdown precedes readiness, and STOPPING before
+clean process exit. A Linux subprocess test starts the real daemon with an
+isolated notification socket, then verifies authenticated Ping and Status
+after READY, SIGTERM shutdown, STOPPING, and socket cleanup.
+
+The application service tests cover fixed systemctl arguments, injectable
+timeouts and failures, manager classification, install/idempotency, no
+automatic enable/start, explicit unit and binary replacement with recoverable
+backups, conflicting-file and symlink refusal, executable validation,
+ownership-checked uninstall, active-service refusal, modified-binary retention,
+and preservation of unrelated files. The generated unit is byte-compared with
+the packaging source.
+Local `systemd-analyze verify` passed on a temporary copy with its installed
+daemon command substituted by `/usr/bin/true`; the Rust test checks the
+canonical command and directives. CI runs the same syntax gate.
+
+This container has no GTK4/libadwaita native development libraries, so native
+application linking, the application subprocess/IPC gate, the full native
+workspace test/build, and GTK smoke/screenshot were not run locally. The
+temporary pkg-config metadata is type-check-only. The real user-manager probe
+could not connect to a session bus, so the recorded result is exactly
+`Real systemd --user integration: UNVERIFIED`. The optional
+`scripts/systemd-user-integration.sh` is guarded by explicit opt-in and a
+disposable-account assertion; it was not run here. Arch Linux manual validation
+has not been performed.
+
+P020 leaves the existing IPC saturation test unchanged and does not add a
+second socket owner. Its local subprocess tests did not exercise the
+`ipc_e2e.rs:144` saturation path because that test links the GTK application.
+The historical `WouldBlock`-instead-of-EOF race therefore remains
+**UNVERIFIED in this P020 local run**; the full hosted workflow runs the
+unchanged gate and will record any recurrence. P020 stays
+**Implemented; hosted qualification pending** until the pushed workflow
+passes. The local GCC C17 ABI and sanitizer scripts passed; Clang is not
+installed in this container. Hosted Rust/GTK, IPC e2e, screenshot, GCC, and
+Clang regression results are pending that same hosted run. No Endfield game
+was launched, and no P021 behavior was added.

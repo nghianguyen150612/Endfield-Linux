@@ -58,6 +58,9 @@ version, request ID, response type, payload shape, and status values.
 P019 leaves this protocol and its strict `DaemonStatus` schema unchanged. The
 daemon's internal session registry has no public IPC operation; authenticated
 same-UID peers cannot register, inspect, stop, or attach to processes.
+P020 also leaves the v1.0 wire schema unchanged. Its systemd start/restart
+readiness gate uses the existing authenticated Ping implementation; it does
+not infer IPC health from an active unit or add service-control IPC.
 
 ## Framing and time limits
 
@@ -140,6 +143,15 @@ unavailable service, timeout/shutdown, protocol or response failure,
 authentication denial, and unsupported operation. No request logs a peer UID,
 PID, socket path, request body, or successful ping event.
 
+When launched by the P020 user unit, the daemon sends systemd `READY=1` only
+after the P010 listener is activated and a real client Ping/Pong succeeds.
+`systemctl --user start` therefore waits for the application endpoint. The
+`service systemd status` command reports unit properties separately from a
+fresh Ping. If a manually started daemon owns the socket while the unit is
+inactive, the CLI reports that independent possibility without adopting or
+stopping the process. `NOTIFY_SOCKET` does not change the P010 protocol,
+runtime-directory checks, peer authentication, or socket ownership rules.
+
 ## Manual Arch Linux check
 
 Install Rust 1.85.0, GTK4/libadwaita development packages, `pkgconf`, and GCC
@@ -178,6 +190,11 @@ client limit with slow partial frames, verifies over-capacity connections are
 closed and service health recovers, sends malformed and truncated requests,
 and signals a daemon with active work before checking bounded socket cleanup
 and child reaping. It also starts a fresh daemon and verifies SIGINT cleanup.
+P020 additionally has an isolated notification-socket daemon test that checks
+READY after Ping, Status, STOPPING before exit, and owned-socket cleanup. The
+service manager is injectable for deterministic install and command tests. If
+an isolated real user manager is unavailable, the result remains exactly
+`Real systemd --user integration: UNVERIFIED`.
 The deterministic UID mismatch policy test does not claim a cross-UID kernel
 test; that requires another UID and is not run in unprivileged CI.
 

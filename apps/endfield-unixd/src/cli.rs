@@ -21,8 +21,9 @@ stopped with SIGTERM or Ctrl+C (SIGINT). Running without options is the same
 as --foreground; the process stays attached to its supervisor and terminal.
 
 The daemon provides authenticated, read-only local IPC for ping and status.
-Telemetry, game-session tracking, and game management are not implemented.
-No systemd unit is installed or enabled by this application.
+Telemetry and game management are not implemented. The endfield-unix CLI can
+explicitly install and manage an optional systemd user unit; installation does
+not enable autostart or launch the daemon.
 ";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

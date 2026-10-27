@@ -36,4 +36,15 @@ pub enum Command {
     },
     ServicePing,
     ServiceStatus,
+    SystemdInstall {
+        daemon: Option<std::path::PathBuf>,
+        replace: bool,
+    },
+    SystemdUninstall,
+    SystemdEnable,
+    SystemdDisable,
+    SystemdStart,
+    SystemdStop,
+    SystemdRestart,
+    SystemdStatus,
 }

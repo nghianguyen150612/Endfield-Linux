@@ -1,0 +1,22 @@
+# Managed by endfield-unix service systemd install (P020).
+[Unit]
+Description=Endfield-Unix User Daemon
+Documentation=https://github.com/nghianguyen150612/Endfield-Linux
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=%h/.local/bin/endfield-unixd --foreground
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=15s
+TimeoutStopSec=10s
+KillSignal=SIGTERM
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

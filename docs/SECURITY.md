@@ -12,7 +12,7 @@ P001 sets the baseline requirements. P006 implements the storage protections bel
 
 ## Daemon and future IPC
 
-`endfield-unixd` runs as the logged-in user. It uses `signal-hook`'s self-pipe based iterator to move SIGTERM/SIGINT handling out of asynchronous signal context; callbacks do not perform filesystem access or lock lifecycle state. P019 adds one bounded worker that monitors only explicitly transferred owned `Child` handles. The daemon has no root helper and installs no systemd unit.
+`endfield-unixd` runs as the logged-in user. It uses `signal-hook`'s self-pipe based iterator to move SIGTERM/SIGINT handling out of asynchronous signal context; callbacks do not perform filesystem access or lock lifecycle state. P019 adds one bounded worker that monitors only explicitly transferred owned `Child` handles. P020 adds optional unprivileged user-service management; it rejects root invocation and adds no privileged helper or system-level unit.
 
 The lifecycle coordinator synchronizes one typed state, makes repeated stop requests idempotent, and tracks registered worker completion. A timeout reports that work is still active; it does not cancel the operation. In particular, synchronous filesystem calls cannot be forcibly canceled. Before the lifecycle reaches Stopped, the signal iterator releases its registration and reports worker completion; shutdown avoids an unbounded thread join. Optional log failures emit only a sanitized, one-time notice and do not stop the daemon.
 
@@ -25,6 +25,24 @@ terminal, process-group, logout, cgroup, or machine shutdown behavior, and it
 does not adopt processes after daemon restart.
 
 P010 implements authenticated Linux local IPC at `$XDG_RUNTIME_DIR/endfield-unix/endfield-unixd.sock`. The runtime root and app directory are owner-checked; the app directory uses mode `0700`, and the socket and instance-lock file use `0600`. Linux `SO_PEERCRED` must match the daemon's effective UID before a request is parsed. Framing is capped at 16 KiB, each server request has a 1.5-second overall deadline, and the client uses a 2-second total deadline. The server uses four workers plus a queue bounded to twelve connections. An exclusive instance lock, same-UID socket validation, live-kernel-socket check, and inode recheck gate stale recovery. P010 has no TCP listener and only exposes read-only Ping and Status. Same-UID authentication does not isolate mutually untrusted processes under the same account; future state changes need additional authorization and user approval. IPC requests, UIDs, PIDs, socket paths, and successful pings are not persisted in diagnostics. Future platform transports require their own validation before support is claimed.
+
+P020's generated systemd user unit executes the installed daemon directly and
+uses `Type=notify`. The daemon sends fixed readiness/stopping protocol messages
+to the manager-provided notification socket; it does not log the destination
+or any private state. The CLI invokes only a root-owned `systemctl` or
+`systemd-analyze` executable from a fixed path, with fixed subcommands, a
+minimal allowlisted environment, bounded output, and deadlines. It never uses
+a shell or sudo. Installation validates user-owned, non-symlink directory
+chains, executable and unit types, modes, and ownership; writes are staged in
+the destination directory and recorded in a private ownership manifest.
+Replacement requires explicit `--replace`, a reachable manager, an inactive
+unit, and unavailable authenticated IPC, and saves a hard-link backup. Removal
+checks the generated unit and recorded file identity; it does not recursively
+delete directories and retains a daemon that no longer matches the recorded
+inode identity. Installation neither enables the unit nor starts it. The unit
+retains `KillMode=control-group`; a child that P019 does not signal may still
+be cleaned up by systemd on service stop. P020 therefore makes no game-process
+survival claim.
 
 ## Data and consent
 

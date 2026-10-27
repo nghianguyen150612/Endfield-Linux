@@ -55,8 +55,9 @@ using the configured shutdown policy.
 ## Startup, signals, and shutdown
 
 Startup parses and validates arguments before any runtime setup. The daemon
-pins `signal-hook` 0.3.18; Cargo resolves `signal-hook-registry` 1.4.8 and
-`libc` 0.2.191, alongside `thiserror` 2.0.11. These dependencies compile with
+pins `signal-hook` 0.3.18 and `nix` 0.29.0; Cargo resolves
+`signal-hook-registry` 1.4.8 and `libc` 0.2.191, alongside `thiserror` 2.0.11.
+These dependencies compile with
 the repository's Rust 1.85.0 toolchain. Foreground startup registers SIGTERM
 and SIGINT through the signal iterator, which uses a self-pipe so raw
 asynchronous handlers do not perform filesystem work, allocate, or lock the
@@ -126,18 +127,40 @@ terminal and cannot accidentally restart the daemon.
 ## Boundaries and P010 readiness
 
 P019 adds bounded session supervision for trusted owned child handles. It does
-not add production game launching, telemetry collection, persistence, process
-recovery, or systemd integration. The GTK application neither starts nor owns
-the daemon; closing the GUI does not stop an independently supervised daemon.
-Daemon shutdown does not kill active children, but monitoring ends when the
-daemon exits. Terminal, logout, cgroup, and system shutdown behavior remains
-outside P019.
+not add production game launching, telemetry collection, persistence, or
+process recovery. P020 adds optional unprivileged Linux user-service
+management; it does not launch or recover games. The GTK application neither
+starts nor owns the daemon; closing the GUI does not stop an independently
+supervised daemon or user service. Daemon shutdown does not signal active
+children, but monitoring ends when the daemon exits. With the P020 unit's
+`KillMode=control-group`, systemd can still terminate remaining processes in
+the service cgroup. Terminal, logout, and machine shutdown behavior is not a
+game-survival guarantee.
 
 P010 attaches the authenticated local IPC service to the foreground runtime's
 startup and shutdown ownership. It provides protocol 1.0, Linux peer-credential
 validation, private paths and permissions, 16 KiB frames, a bounded worker
 pool, 1.5-second request deadlines, and only Ping and GetStatus. Wire contracts,
 stale socket recovery, and Linux test evidence are in [IPC.md](IPC.md).
+
+## P020 systemd readiness and shutdown
+
+The optional per-user unit runs the foreground daemon directly with
+`Type=notify` and `NotifyAccess=main`. The daemon reads `NOTIFY_SOCKET` from the
+manager environment and sends only fixed `READY=1` and `STOPPING=1` messages.
+It sends READY only after the listener is activated and a real authenticated
+IPC Ping succeeds; this is stronger than the listener thread's internal
+startup signal. A failed runtime directory, socket bind, worker, authenticated
+Ping, or readiness send prevents successful readiness. No notification is
+required for manual foreground mode when `NOTIFY_SOCKET` is absent.
+
+On SIGTERM, STOPPING is sent when the lifecycle enters shutdown, before IPC
+and session cleanup. A notification error is reported safely and does not
+interrupt cleanup. P010 continues to own the socket, runtime directory
+validation, stale recovery, and inode-safe removal. The unit does not use
+`RuntimeDirectory=` and does not create a `/tmp` fallback. See
+[SYSTEMD-USER.md](SYSTEMD-USER.md) for user commands, unit policy, restart
+limits, cgroup behavior, and the optional real-manager test gate.
 
 ## Validation
 
@@ -152,4 +175,6 @@ real socket Ping/Status, malformed-request, timeout, reconnection, and
 subprocess shutdown tests.
 
 The qualified commands and hosted GTK, C17, and CI results are recorded in
-[TESTING.md](TESTING.md).
+[TESTING.md](TESTING.md). P020 notification and manager-command test evidence
+is recorded there; no real user-manager integration is claimed when the
+isolated manager gate is unavailable.

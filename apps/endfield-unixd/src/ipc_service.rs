@@ -133,6 +133,13 @@ impl IpcService {
             .take()
             .ok_or(DaemonError::WorkerStartup)?
             .send(())
+            .map_err(|_| DaemonError::WorkerFailure)?;
+
+        // A real authenticated request proves that the listener is accepting
+        // work and its bounded workers are servicing the endpoint before the
+        // daemon can report READY=1 to systemd.
+        endfield_unix_ipc::Client::from_environment(Duration::from_secs(2))
+            .and_then(|client| client.ping())
             .map_err(|_| DaemonError::WorkerFailure)
     }
 

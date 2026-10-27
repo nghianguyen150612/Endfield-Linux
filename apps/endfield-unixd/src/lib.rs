@@ -4,6 +4,7 @@ pub mod cli;
 pub mod errors;
 pub mod ipc_service;
 pub mod lifecycle;
+pub mod notify;
 pub mod runtime;
 pub mod session_service;
 pub mod signals;

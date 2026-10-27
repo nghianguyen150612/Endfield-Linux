@@ -28,6 +28,7 @@ pub const EXIT_IPC_AUTHENTICATION_ERROR: u8 = 77;
 pub const EXIT_IPC_REQUEST_REJECTED: u8 = 65;
 pub const EXIT_PLATFORM_PROBE_FAILED: u8 = 70;
 pub const EXIT_PLATFORM_UNSUPPORTED: u8 = 78;
+pub const EXIT_SYSTEMD_ERROR: u8 = 79;
 
 #[derive(Debug)]
 pub enum CliError {
@@ -44,6 +45,7 @@ pub enum CliError {
     TelemetryContract(TelemetryError),
     TelemetryConfig(LinuxTelemetryConfigError),
     FrameInput(FrameInputError),
+    Systemd(super::systemd::SystemdError),
 }
 
 impl CliError {
@@ -111,6 +113,7 @@ impl CliError {
                 FrameInputErrorKind::UnsupportedFormat => EXIT_PLATFORM_UNSUPPORTED,
                 FrameInputErrorKind::Malformed => EXIT_PLATFORM_PROBE_FAILED,
             },
+            Self::Systemd(_) => EXIT_SYSTEMD_ERROR,
         }
     }
 }
@@ -148,6 +151,7 @@ impl fmt::Display for CliError {
                     "the selected frame recording is malformed or exceeds the input limits.",
                 ),
             },
+            Self::Systemd(error) => fmt::Display::fmt(error, formatter),
         }
     }
 }
@@ -168,6 +172,7 @@ impl Error for CliError {
             Self::TelemetryContract(error) => Some(error),
             Self::TelemetryConfig(_) => None,
             Self::FrameInput(_) => None,
+            Self::Systemd(error) => Some(error),
         }
     }
 }
@@ -522,6 +527,125 @@ where
             writeln!(stdout, "Not implemented: {unimplemented}").map_err(CliError::Output)?;
             Ok(())
         }
+        Command::SystemdInstall { daemon, replace } => {
+            let manager =
+                super::systemd::SystemdUserManager::current().map_err(CliError::Systemd)?;
+            let result = manager
+                .install(daemon.as_deref(), replace)
+                .map_err(CliError::Systemd)?;
+            writeln!(stdout, "Unit: {}", manager.unit_path().display())
+                .map_err(CliError::Output)?;
+            writeln!(stdout, "Daemon: {}", manager.daemon_path().display())
+                .map_err(CliError::Output)?;
+            writeln!(stdout, "systemd user manager: {}", result.manager)
+                .map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "Manager reload: {}",
+                if result.manager_reloaded {
+                    "completed"
+                } else {
+                    "unavailable; run `systemctl --user daemon-reload` from a user session"
+                }
+            )
+            .map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "Autostart: disabled; install does not enable or start the service"
+            )
+            .map_err(CliError::Output)
+        }
+        Command::SystemdUninstall => {
+            let manager =
+                super::systemd::SystemdUserManager::current().map_err(CliError::Systemd)?;
+            let result = manager.uninstall().map_err(CliError::Systemd)?;
+            writeln!(stdout, "Unit: removed").map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "Daemon executable: {}",
+                if result.daemon_removed {
+                    "removed (verified installer-owned file)"
+                } else {
+                    "retained (not verified as installer-owned)"
+                }
+            )
+            .map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "Autostart: disabled; uninstall did not stop an active daemon"
+            )
+            .map_err(CliError::Output)
+        }
+        Command::SystemdEnable => run_systemd_operation(
+            super::systemd::ServiceOperation::Enable,
+            "Autostart enabled; the service was not started.",
+            stdout,
+        ),
+        Command::SystemdDisable => run_systemd_operation(
+            super::systemd::ServiceOperation::Disable,
+            "Autostart disabled; an active service was not stopped.",
+            stdout,
+        ),
+        Command::SystemdStart => run_systemd_operation(
+            super::systemd::ServiceOperation::Start,
+            "systemd start completed after the Type=notify readiness handshake.",
+            stdout,
+        )
+        .and_then(|()| report_ipc_health(stdout, "start")),
+        Command::SystemdStop => run_systemd_operation(
+            super::systemd::ServiceOperation::Stop,
+            "systemd stop completed after graceful SIGTERM shutdown.",
+            stdout,
+        )
+        .and_then(|()| report_ipc_after_stop(stdout)),
+        Command::SystemdRestart => run_systemd_operation(
+            super::systemd::ServiceOperation::Restart,
+            "systemd restart completed after the Type=notify readiness handshake.",
+            stdout,
+        )
+        .and_then(|()| report_ipc_health(stdout, "restart")),
+        Command::SystemdStatus => {
+            let manager =
+                super::systemd::SystemdUserManager::current().map_err(CliError::Systemd)?;
+            let status = manager.status();
+            let ipc_healthy = ipc_is_healthy();
+            output::write_systemd_status(&status, ipc_healthy, stdout).map_err(CliError::Output)
+        }
+    }
+}
+
+fn run_systemd_operation<W: Write>(
+    operation: super::systemd::ServiceOperation,
+    message: &str,
+    stdout: &mut W,
+) -> Result<(), CliError> {
+    let manager = super::systemd::SystemdUserManager::current().map_err(CliError::Systemd)?;
+    manager.operate(operation).map_err(CliError::Systemd)?;
+    writeln!(stdout, "{message}").map_err(CliError::Output)
+}
+
+fn ipc_is_healthy() -> bool {
+    endfield_unix_ipc::Client::from_environment(std::time::Duration::from_secs(2))
+        .and_then(|client| client.ping())
+        .is_ok()
+}
+
+fn report_ipc_health<W: Write>(stdout: &mut W, action: &str) -> Result<(), CliError> {
+    if ipc_is_healthy() {
+        writeln!(stdout, "Authenticated IPC Ping: healthy.").map_err(CliError::Output)
+    } else {
+        writeln!(stdout, "Authenticated IPC Ping: unavailable after systemd {action}; unit state does not prove IPC health. Inspect the user journal for diagnostics.")
+            .map_err(CliError::Output)
+    }
+}
+
+fn report_ipc_after_stop<W: Write>(stdout: &mut W) -> Result<(), CliError> {
+    if ipc_is_healthy() {
+        writeln!(stdout, "IPC remains available. A separately started daemon may own it; it was not adopted or stopped.")
+            .map_err(CliError::Output)
+    } else {
+        writeln!(stdout, "Authenticated IPC Ping: unavailable after stop.")
+            .map_err(CliError::Output)
     }
 }
 

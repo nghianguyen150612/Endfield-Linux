@@ -2,6 +2,8 @@ use std::fs;
 use std::io::Read;
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(target_os = "linux")]
+use std::os::unix::net::UnixDatagram;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
@@ -274,6 +276,88 @@ fn unavailable_optional_diagnostics_does_not_prevent_signal_shutdown() {
 }
 
 #[cfg(target_os = "linux")]
+#[test]
+fn systemd_notifications_follow_authenticated_ipc_readiness_and_shutdown() {
+    let directory = tempfile::tempdir().expect("isolated notification directory");
+    let runtime_dir = directory.path().join("runtime");
+    fs::create_dir(&runtime_dir).expect("create private runtime directory");
+    fs::set_permissions(&runtime_dir, fs::Permissions::from_mode(0o700))
+        .expect("make runtime directory private");
+    let systemd_dir = runtime_dir.join("systemd");
+    fs::create_dir(&systemd_dir).expect("create systemd runtime directory");
+    let notify_path = systemd_dir.join("notify");
+    let listener = UnixDatagram::bind(&notify_path).expect("bind private notification socket");
+    listener
+        .set_read_timeout(Some(Duration::from_secs(4)))
+        .expect("bounded notification receive");
+    let mut daemon = TestDaemon::start_with_notification_path(&notify_path, &runtime_dir);
+
+    let mut message = [0_u8; 32];
+    let (length, _) = listener
+        .recv_from(&mut message)
+        .expect("read notification after startup");
+    assert_eq!(&message[..length], b"READY=1");
+
+    let socket = daemon.runtime_dir.join("endfield-unix/endfield-unixd.sock");
+    let client = endfield_unix_ipc::Client::at_socket_path(socket, Duration::from_secs(2));
+    client
+        .ping()
+        .expect("authenticated IPC is ready after READY");
+    assert_eq!(
+        client.status().unwrap().lifecycle,
+        endfield_unix_ipc::DaemonLifecycle::Running
+    );
+
+    daemon.send_signal(libc::SIGTERM);
+    let (length, _) = listener
+        .recv_from(&mut message)
+        .expect("read STOPPING before daemon exit");
+    assert_eq!(&message[..length], b"STOPPING=1");
+    assert_eq!(daemon.wait_for_exit(Duration::from_secs(4)).code(), Some(0));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn failed_ipc_startup_sends_no_ready_notification() {
+    let directory = tempfile::tempdir().expect("isolated failed-start directory");
+    let runtime_dir = directory.path().join("runtime");
+    fs::create_dir(&runtime_dir).expect("create private runtime directory");
+    fs::set_permissions(&runtime_dir, fs::Permissions::from_mode(0o700))
+        .expect("make runtime directory private");
+    let systemd_dir = runtime_dir.join("systemd");
+    fs::create_dir(&systemd_dir).expect("create systemd runtime directory");
+    fs::write(
+        runtime_dir.join("endfield-unix"),
+        b"block the IPC runtime directory",
+    )
+    .expect("block daemon IPC directory creation");
+    let notify_path = systemd_dir.join("notify");
+    let listener = UnixDatagram::bind(&notify_path).expect("bind private notification socket");
+    listener
+        .set_read_timeout(Some(Duration::from_millis(250)))
+        .expect("bounded notification receive");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_endfield-unixd"))
+        .env_clear()
+        .env("HOME", directory.path().join("home"))
+        .env("XDG_STATE_HOME", directory.path().join("state"))
+        .env("XDG_RUNTIME_DIR", runtime_dir)
+        .env("NOTIFY_SOCKET", &notify_path)
+        .arg("--foreground")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("start daemon with invalid IPC runtime");
+    let mut message = [0_u8; 32];
+    let error = listener.recv_from(&mut message).unwrap_err();
+    assert!(matches!(
+        error.kind(),
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+    ));
+    assert_eq!(child.wait().expect("reap failed startup").code(), Some(70));
+}
+
+#[cfg(target_os = "linux")]
 struct TestDaemon {
     child: Child,
     _directory: TempDir,
@@ -291,21 +375,43 @@ impl TestDaemon {
         Self::start_inner(true)
     }
 
+    fn start_with_notification_path(path: &Path, runtime_dir: &Path) -> Self {
+        Self::start_inner_with_notification(false, Some(path), Some(runtime_dir))
+    }
+
     fn start_inner(unavailable_diagnostics: bool) -> Self {
+        Self::start_inner_with_notification(unavailable_diagnostics, None, None)
+    }
+
+    fn start_inner_with_notification(
+        unavailable_diagnostics: bool,
+        notification_path: Option<&Path>,
+        runtime_override: Option<&Path>,
+    ) -> Self {
         let directory = tempfile::tempdir().expect("isolated daemon test directory");
         let state_home = directory.path().join("state");
-        let runtime_dir = directory.path().join("runtime");
-        fs::create_dir(&runtime_dir).expect("runtime directory");
-        fs::set_permissions(&runtime_dir, fs::Permissions::from_mode(0o700))
-            .expect("private runtime directory");
+        let runtime_dir = if let Some(runtime_dir) = runtime_override {
+            runtime_dir.to_path_buf()
+        } else {
+            let runtime_dir = directory.path().join("runtime");
+            fs::create_dir(&runtime_dir).expect("runtime directory");
+            fs::set_permissions(&runtime_dir, fs::Permissions::from_mode(0o700))
+                .expect("private runtime directory");
+            runtime_dir
+        };
         if unavailable_diagnostics {
             fs::write(&state_home, b"not a directory").expect("block log directory creation");
         }
-        let child = Command::new(env!("CARGO_BIN_EXE_endfield-unixd"))
+        let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unixd"));
+        command
             .env_clear()
             .env("HOME", directory.path().join("home"))
             .env("XDG_STATE_HOME", &state_home)
-            .env("XDG_RUNTIME_DIR", &runtime_dir)
+            .env("XDG_RUNTIME_DIR", &runtime_dir);
+        if let Some(path) = notification_path {
+            command.env("NOTIFY_SOCKET", path);
+        }
+        let child = command
             .arg("--foreground")
             .stdin(Stdio::null())
             .stdout(Stdio::null())

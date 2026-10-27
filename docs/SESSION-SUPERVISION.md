@@ -3,7 +3,10 @@
 P019 adds the library-only `endfield-unix-sessions` crate and one required
 monitor worker to `endfield-unixd`. It establishes trusted process ownership
 and session lifecycle mechanics; it does not start a game or provide a public
-launch/stop API. There are still exactly two application binaries.
+launch/stop API. Its supplied hosted qualification passed all three jobs on
+the first attempt in [CI run 40441896200](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40441896200).
+This is CI evidence and does not establish real Endfield gameplay validation.
+There are still exactly two application binaries.
 
 ## Identity and registry
 
@@ -82,11 +85,13 @@ nonblocking exit check, marks remaining monitor status `Cancelled`, drops its
 or SIGKILL. The P009 bounded worker wait remains authoritative; a timeout is
 reported as failure and is not treated as worker completion.
 
-Dropping a Rust `Child` handle does not terminate its process. A game may
-continue running after daemon shutdown, but monitoring ends when the daemon
-exits. P019 does not guarantee survival across terminal, process-group,
-logout, service-manager, cgroup, or system shutdown policies. It does not
-persist session state or adopt processes after restart. P036 owns recovery.
+Dropping a Rust `Child` handle does not itself terminate its process. A process
+may continue after daemon shutdown, but monitoring ends when the daemon exits.
+P019 does not guarantee survival across terminal, process-group, logout,
+service-manager, cgroup, or system shutdown policies. P020's user unit retains
+`KillMode=control-group`, so systemd can terminate remaining service-cgroup
+processes on stop. No production game process is launched by P020. Session
+state is not persisted or adopted after restart; P036 owns recovery.
 
 The supervisor is daemon-owned, not GUI-owned. Closing a client/control handle
 does not remove its registry entry or child handle. This boundary is covered by
@@ -138,6 +143,8 @@ for real child ownership tests.
 
 `Dell Vostro Endfield survival test: UNVERIFIED`
 
-P020 can add Linux user-service-manager lifecycle integration. Real game launch
-ownership belongs to P034/P035; interrupted launch and restart recovery belong
-to P036.
+P020 adds optional Linux user-service-manager lifecycle integration. It keeps
+the daemon foregrounded and does not alter P019 child ownership. Real game
+launch ownership belongs to P034/P035; game-scope isolation and interrupted
+launch/restart recovery require separate evaluation in P034–P036. The
+hosted P019 pass is not an Endfield game-session validation.

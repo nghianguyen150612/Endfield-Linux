@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; and P019 adds the in-memory daemon-owned process supervisor. Candidate generation, runtime, production game launch, process telemetry, and persistent session recovery remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; and P020 adds optional Linux user-service lifecycle management. Candidate generation, runtime, production game launch, process telemetry, and persistent session recovery remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -51,9 +51,9 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | `OptimizationPlanner` | Convert normalized snapshots and user goals into one or more proposed plans through the C17 engine. |
 | `OptimizationExecutor` | Revalidate and apply only approved, supported actions; report partial failure and rollback state. |
 | `BenchmarkProvider` | Run or ingest repeatable observations with configuration and provenance. |
-| `ServiceManager` | Install, start, stop, and inspect the unprivileged per-user `endfield-unixd` service where supported. |
+| `ServiceManager` | P020's application-owned Linux adapter installs, enables, starts, stops, restarts, uninstalls, and inspects the optional unprivileged per-user `endfield-unixd` service. |
 
-P019 implements the `SessionSupervisor` in `crates/sessions` as a library-only crate; the daemon owns its monitor worker. P007 defines `PlatformProbe` and `CapabilityProvider`; P011 implements `PlatformProbe` in the Linux adapter. P015 defines `TelemetryProvider` and portable telemetry observations; P016 implements the Linux CPU/memory adapter. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
+P019 implements the `SessionSupervisor` in `crates/sessions` as a library-only crate; the daemon owns its monitor worker. P020 keeps systemd calls and installation policy in the Linux-facing CLI adapter and adds no systemd dependency to the portable domain or telemetry crates. P007 defines `PlatformProbe` and `CapabilityProvider`; P011 implements `PlatformProbe` in the Linux adapter. P015 defines `TelemetryProvider` and portable telemetry observations; P016 implements the Linux CPU/memory adapter. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
 
 ## P007 portable domain library
 
@@ -214,7 +214,7 @@ SQLite is suitable for structured local session/benchmark records; TOML is suita
 
 The daemon writes only approved fixed lifecycle events using `Component::Daemon` and the existing schema-version-1 diagnostics event type. Its private log worker uses P008's bounded queue, private XDG paths, advisory lock, rotation, and retention. Error strings and signal-handler details are never added to persistent events. There are no periodic idle events. Support reports mark the daemon **Partial** to mean lifecycle-only support; the serialized report schema remains version 1. The report does not claim the daemon is live.
 
-At P009, the daemon opened no socket, started no process, collected no telemetry, and initialized no storage. P010 later added read-only IPC, and P019 added owned-child monitoring without production launch. GUI startup does not start the daemon, and closing the GUI does not stop an independently launched daemon. A real game surviving GUI closure remains unverified until P034/P035 integration.
+At P009, the daemon opened no socket, started no process, collected no telemetry, and initialized no storage. P010 later added read-only IPC, P019 added owned-child monitoring without production launch, and P020 added optional per-user systemd management. GUI startup does not start the daemon, and closing the GUI does not stop an independently launched daemon or enabled user service. A real game surviving GUI closure remains unverified until P034/P035 integration.
 
 ## P010 authenticated IPC boundary
 
@@ -233,13 +233,14 @@ ownership policy, shutdown behavior, and portability boundary.
 The app package uses pinned Clap 4.5.53, whose crate metadata declares Rust 1.74 support, below the workspace's Rust 1.85 minimum. Parsing uses Clap's non-terminating matches API and consumes `OsString` arguments. Parser errors return to the dispatcher, which owns predictable exit-status mapping and injected stdout/stderr writers. The `cli` module separates the typed command model, parser, output formatting, and dispatch.
 
 The implemented command model contains general and command-specific help,
-version, about, GUI startup, report export, and P010's `service ping` and
-`service status`. Help documents only implemented commands. About reads its
+version, about, GUI startup, report export, P010's `service ping` and
+`service status`, and P020's explicit `service systemd` management commands.
+Help documents only implemented commands. About reads its
 version, purpose, license, and repository from Cargo package metadata and
 static development-stage text; it does not probe hardware, runtimes, or games.
 The game, runtime, optimize, benchmark, and profile namespaces remain planned.
 
-Static CLI commands run before GTK or libadwaita initialization. Both no-argument startup and `gui` call the same existing `start_gui` boundary. The CLI model has no GTK widget types. `service ping` and `service status` use the shared typed IPC client and return distinct IPC exit statuses without blocking GUI startup. Future frontends must call the same Rust application services rather than duplicating Wine/Proton, optimizer, benchmark, or game-management behavior.
+Static CLI commands run before GTK or libadwaita initialization. Both no-argument startup and `gui` call the same existing `start_gui` boundary. The CLI model has no GTK widget types. `service ping` and `service status` use the shared typed IPC client and return distinct IPC exit statuses without blocking GUI startup. `service systemd status` separately reports manager/unit state and makes a real Ping to identify discrepancies. systemd operations use fixed trusted executables and argument lists, bounded output/timeouts, and never invoke a shell. Future frontends must call the same Rust application services rather than duplicating Wine/Proton, optimizer, benchmark, or game-management behavior.
 
 ## P006 Rust storage crate
 
@@ -301,3 +302,17 @@ No session persistence or restart adoption exists. P019 associates one stable
 sampling context with a session but starts no telemetry provider. See
 [SESSION-SUPERVISION.md](SESSION-SUPERVISION.md) for state, privacy, limits,
 tests, and the P020/P034 boundary.
+
+## P020 systemd user service
+
+`endfield-unix service systemd` manages a generated user unit that executes the
+installed `~/.local/bin/endfield-unixd --foreground` directly. Installation
+and autostart are separate explicit actions. The unit uses `Type=notify`; the
+daemon reports READY only after worker startup, listener activation, and a
+successful authenticated Ping. The existing P010 runtime-directory and socket
+ownership rules remain authoritative. SIGTERM follows the P009/P019 cleanup
+path. The unit retains `KillMode=control-group`, so P019's no-signal behavior
+does not imply child survival after a service stop. No production game launch,
+logout persistence, lingering, or restart recovery is provided. See
+[SYSTEMD-USER.md](SYSTEMD-USER.md) for installation, lifecycle, testing, and
+manual Arch validation.

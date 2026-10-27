@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, `diagnose telemetry cpu-memory`, and `diagnose telemetry frames` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Frame import reads one explicitly named regular file and never searches for recordings. Hardware, display, and telemetry output is printed only for an explicit command and is not automatically persisted or exported. The two `service` commands make one bounded local Unix-socket request and never start the daemon. See [IPC.md](IPC.md) for protocol, socket ownership, and authentication details.
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, `diagnose telemetry cpu-memory`, and `diagnose telemetry frames` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Frame import reads one explicitly named regular file and never searches for recordings. Hardware, display, and telemetry output is printed only for an explicit command and is not automatically persisted or exported. `service ping` and `service status` make bounded local Unix-socket requests and never start the daemon. P020's explicit `service systemd` operations manage the user service through fixed `systemctl --user` commands. See [IPC.md](IPC.md) and [SYSTEMD-USER.md](SYSTEMD-USER.md) for the separate health and lifecycle contracts.
 
 ## Available commands
 
@@ -22,8 +22,11 @@
 | `endfield-unix diagnose telemetry frames --input PATH [--format frame-events-v1|mangohud-csv]` | Import one selected frame recording and report only source-supported P015 metrics | No |
 | `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
 | `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
+| `endfield-unix service systemd install [--daemon PATH] [--replace]` | Install the foreground daemon and generated unit; autostart remains disabled | No |
+| `endfield-unix service systemd uninstall` | Remove verified installer-owned files after the unit is inactive | No |
+| `endfield-unix service systemd enable/disable/start/stop/restart/status` | Manage autostart/lifecycle or inspect unit state plus a separate live IPC Ping | No |
 
-Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, and display/session discovery through `diagnose display`. GPU telemetry gauges are available through `diagnose telemetry gpu`. Frame telemetry is an explicit file import with canonical timestamped events by default; select `mangohud-csv` for supported MangoHud schema variants. Runtime discovery, optimization, and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), and [DISPLAY-LINUX.md](DISPLAY-LINUX.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, and display/session discovery through `diagnose display`. GPU telemetry gauges are available through `diagnose telemetry gpu`. Frame telemetry is an explicit file import with canonical timestamped events by default; select `mangohud-csv` for supported MangoHud schema variants. Runtime discovery, optimization, and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), [DISPLAY-LINUX.md](DISPLAY-LINUX.md), and [SYSTEMD-USER.md](SYSTEMD-USER.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -43,8 +46,9 @@ invalid arguments, `70` for signal, lifecycle, worker, worker-timeout, or
 cleanup failure, and `74` for help/version output I/O failure. Optional
 diagnostic write failures produce a sanitized warning but retain status `0` on
 otherwise orderly shutdown. The daemon's P010 IPC provides only read-only
-Ping and Status; telemetry, session tracking, service-management commands,
-and systemd installation remain unimplemented.
+Ping and Status. P020 adds user-service-management commands to the separate
+`endfield-unix` CLI; it does not add daemon service-control IPC. See
+[SYSTEMD-USER.md](SYSTEMD-USER.md) for installation and lifecycle behavior.
 
 Examples:
 
@@ -65,6 +69,13 @@ endfield-unix diagnose telemetry frames --format mangohud-csv --input ./recordin
 endfield-unix help gui
 endfield-unix service ping
 endfield-unix service status
+endfield-unix service systemd install --daemon /absolute/path/to/endfield-unixd
+endfield-unix service systemd enable
+endfield-unix service systemd start
+endfield-unix service systemd status
+endfield-unix service systemd stop
+endfield-unix service systemd disable
+endfield-unix service systemd uninstall
 endfield-unix gui
 ```
 
@@ -90,6 +101,7 @@ Output writers can be injected through `run_with_io` for deterministic dispatch 
 | `65` | Daemon rejected an unsupported operation |
 | `70` | Malformed frame source, fatal provider, required platform identity, or hardware-probe failure |
 | `78` | Platform or explicitly selected frame format is unsupported |
+| `79` | systemd user-service command or installation failed |
 
 Status `74` also covers report destination and file-write failures. Invalid
 syntax or an unsupported report option remains status `2`. IPC failures use
@@ -106,8 +118,9 @@ argument failures remain `74` and `2`.
 
 The following namespaces are reserved for later work. The `diagnose`
 namespace implements safe report export, Linux platform/hardware/GPU/display
-inspection, and one-shot CPU/memory telemetry. `service` currently implements
-only `ping` and `status`.
+inspection, and one-shot CPU/memory telemetry. `service ping` and
+`service status` check authenticated IPC; `service systemd` explicitly manages
+the optional Linux user service.
 
 ```text
 endfield-unix game ...

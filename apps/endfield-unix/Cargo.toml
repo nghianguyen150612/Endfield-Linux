@@ -19,6 +19,9 @@ endfield-unix-telemetry = { path = "../../crates/telemetry" }
 adw = { package = "libadwaita", version = "=0.7.2", features = ["v1_4"] }
 gtk = { package = "gtk4", version = "=0.9.6" }
 relm4 = { version = "=0.9.1", features = ["libadwaita"] }
+nix = { version = "=0.29.0", features = ["user"] }
+fs2 = "=0.4.3"
+libc = "=0.2.191"
 
 [dev-dependencies]
 nix = { version = "=0.29.0", features = ["signal"] }

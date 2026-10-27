@@ -8,6 +8,7 @@ use endfield_unix_diagnostics::{
 use crate::errors::{DaemonError, OptionalDiagnosticsFailure};
 use crate::ipc_service::IpcService;
 use crate::lifecycle::{FailureReason, LifecycleState, ShutdownCoordinator};
+use crate::notify::NotificationClient;
 use crate::session_service::SessionService;
 use crate::signals::SignalListener;
 
@@ -41,6 +42,16 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
         Err(error) => {
             let _ = coordinator.fail(FailureReason::SignalHandlerInitialization);
             return Err(error);
+        }
+    };
+
+    let mut notifications = match NotificationClient::from_environment() {
+        Ok(notifications) => notifications,
+        Err(_) => {
+            let _ = coordinator.fail(FailureReason::WorkerStartup);
+            close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+            let _ = coordinator.wait_for_workers(policy.worker_timeout);
+            return Err(DaemonError::NotificationFailure);
         }
     };
 
@@ -112,7 +123,22 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
                         return Err(error);
                     }
                 }
-                record(&log_handle, Severity::Info, EventCode::DaemonRunning);
+                match notify_ready_if_running(&coordinator, &mut notifications) {
+                    Ok(true) => record(&log_handle, Severity::Info, EventCode::DaemonRunning),
+                    Ok(false) => {}
+                    Err(error) => {
+                        record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
+                        let _ = coordinator.fail(FailureReason::WorkerStartup);
+                        if let Some(service) = ipc_service.as_mut() {
+                            let _ = service.shutdown(policy.worker_timeout);
+                        }
+                        let _ = session_service.shutdown(policy.worker_timeout);
+                        stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
+                        close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+                        let _ = coordinator.wait_for_workers(policy.worker_timeout);
+                        return Err(error);
+                    }
+                }
             }
         }
         LifecycleState::Stopping => {}
@@ -141,6 +167,19 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
     }
 
     let snapshot = coordinator.wait_for_shutdown_or_failure()?;
+    if matches!(
+        snapshot.state,
+        LifecycleState::Stopping | LifecycleState::Failed(_)
+    ) {
+        if let Some(notifier) = notifications.as_mut() {
+            if notifier.stopping().is_err() {
+                let _ = writeln!(
+                    io::stderr().lock(),
+                    "endfield-unixd: could not send STOPPING=1; continuing graceful cleanup."
+                );
+            }
+        }
+    }
     let mut failed = matches!(snapshot.state, LifecycleState::Failed(_));
     if failed {
         record(&log_handle, Severity::Error, EventCode::DaemonRuntimeFailed);
@@ -209,6 +248,22 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
     stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
     coordinator.complete_shutdown()?;
     Ok(())
+}
+
+fn notify_ready_if_running(
+    coordinator: &ShutdownCoordinator,
+    notifications: &mut Option<NotificationClient>,
+) -> Result<bool, DaemonError> {
+    let result = coordinator.while_running(|| {
+        notifications
+            .as_mut()
+            .map_or(Ok(()), NotificationClient::ready)
+    })?;
+    match result {
+        Some(Ok(())) => Ok(true),
+        Some(Err(_)) => Err(DaemonError::NotificationFailure),
+        None => Ok(false),
+    }
 }
 
 fn record(handle: &Option<LogHandle>, severity: Severity, code: EventCode) {
@@ -294,6 +349,54 @@ fn write_optional_diagnostics_warning() {
 mod tests {
     use super::*;
     use crate::lifecycle::ShutdownReason;
+    use std::os::unix::net::UnixDatagram;
+    use tempfile::tempdir;
+
+    #[test]
+    fn shutdown_before_readiness_sends_no_ready_notification() {
+        let directory = tempdir().expect("private notify directory");
+        let path = directory.path().join("notify.sock");
+        let listener = UnixDatagram::bind(&path).expect("bind private notify socket");
+        listener
+            .set_read_timeout(Some(Duration::from_millis(100)))
+            .expect("bound notification receive");
+        let mut notifications = Some(
+            crate::notify::NotificationClient::for_test(path.as_os_str().to_os_string())
+                .expect("validate private socket"),
+        );
+        let coordinator = ShutdownCoordinator::new();
+        coordinator.mark_running().expect("enter running");
+        coordinator
+            .request_shutdown(ShutdownReason::Sigterm)
+            .expect("request shutdown before readiness");
+
+        assert!(!notify_ready_if_running(&coordinator, &mut notifications).unwrap());
+        let mut message = [0_u8; 32];
+        assert!(matches!(
+            listener.recv_from(&mut message).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+        ));
+    }
+
+    #[test]
+    fn readiness_notification_failure_is_a_typed_startup_error() {
+        let directory = tempdir().expect("private notify directory");
+        let path = directory.path().join("notify.sock");
+        let listener = UnixDatagram::bind(&path).expect("bind private notify socket");
+        let mut notifications = Some(
+            crate::notify::NotificationClient::for_test(path.as_os_str().to_os_string())
+                .expect("validate private socket"),
+        );
+        drop(listener);
+        std::fs::remove_file(&path).expect("remove private notify socket");
+        let coordinator = ShutdownCoordinator::new();
+        coordinator.mark_running().expect("enter running");
+
+        assert!(matches!(
+            notify_ready_if_running(&coordinator, &mut notifications),
+            Err(DaemonError::NotificationFailure)
+        ));
+    }
 
     #[test]
     fn lifecycle_records_use_only_fixed_daemon_event_codes() {

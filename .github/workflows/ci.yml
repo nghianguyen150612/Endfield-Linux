@@ -28,6 +28,41 @@ jobs:
           toolchain: 1.85.0
           components: clippy, rustfmt
 
+      - name: Validate the canonical user unit with systemd-analyze
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tempfile
+
+          source = Path("packaging/systemd/user/endfield-unixd.service").read_text(encoding="utf-8")
+          expected = "ExecStart=%h/.local/bin/endfield-unixd --foreground"
+          assert source.count(expected) == 1
+          validation = source.replace(expected, "ExecStart=/usr/bin/true --foreground")
+          with tempfile.TemporaryDirectory(prefix="endfield-p020-unit-") as directory:
+              unit = Path(directory) / "endfield-unixd.service"
+              unit.write_text(validation, encoding="utf-8")
+              subprocess.run(["systemd-analyze", "verify", str(unit)], check=True)
+          PY
+
+      - name: Run optional isolated systemd user-manager integration
+        if: ${{ vars.ENDFIELD_SYSTEMD_USER_INTEGRATION == '1' }}
+        run: |
+          cargo build --locked --release -p endfield-unix -p endfield-unixd
+          set +e
+          ENDFIELD_SYSTEMD_USER_INTEGRATION=1 ENDFIELD_DISPOSABLE_TEST_ACCOUNT=1 scripts/systemd-user-integration.sh
+          result=$?
+          set -e
+          if [ "$result" -eq 77 ]; then
+            echo "Real systemd --user integration: UNVERIFIED (optional runner gate unavailable)."
+            exit 0
+          fi
+          exit "$result"
+
+      - name: Mark real systemd user-manager integration unavailable
+        if: ${{ vars.ENDFIELD_SYSTEMD_USER_INTEGRATION != '1' }}
+        run: echo "Real systemd --user integration: UNVERIFIED (optional isolated-manager gate is not enabled)."
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 

@@ -27,6 +27,11 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("diagnose telemetry frames --input PATH"));
     assert!(stdout.contains("service ping"));
     assert!(stdout.contains("service status"));
+    assert!(
+        stdout.contains(
+            "service systemd <install|uninstall|enable|disable|start|stop|restart|status>"
+        )
+    );
     assert!(!stdout.contains("  game "));
     assert!(output.stderr.is_empty());
 }
@@ -55,7 +60,10 @@ fn command_specific_help_describes_gui_and_about() {
     assert_eq!(about.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&about.stdout).contains("static purpose, version"));
     assert_eq!(service.status.code(), Some(0));
-    assert!(String::from_utf8_lossy(&service.stdout).contains("authenticated local Ping/Pong"));
+    let service_help = String::from_utf8_lossy(&service.stdout);
+    assert!(service_help.contains("authenticated local Ping/Pong"));
+    assert!(service_help.contains("does not enable or start the unit"));
+    assert!(service_help.contains("never uses root privileges"));
     assert_eq!(diagnose.status.code(), Some(0));
     assert!(
         String::from_utf8_lossy(&diagnose.stdout)

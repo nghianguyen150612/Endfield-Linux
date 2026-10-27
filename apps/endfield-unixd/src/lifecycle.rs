@@ -111,6 +111,20 @@ impl ShutdownCoordinator {
         Ok(())
     }
 
+    /// Runs a short startup action only while the lifecycle is still Running.
+    /// The state lock orders the action against a concurrent shutdown request.
+    pub fn while_running<T>(
+        &self,
+        action: impl FnOnce() -> T,
+    ) -> Result<Option<T>, LifecycleError> {
+        let snapshot = self.lock_snapshot()?;
+        if snapshot.state == LifecycleState::Running {
+            Ok(Some(action()))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Changes Starting or Running to Stopping. Later stop requests are safe
     /// and return `false`, allowing callers to run cleanup exactly once.
     pub fn request_shutdown(&self, reason: ShutdownReason) -> Result<bool, LifecycleError> {

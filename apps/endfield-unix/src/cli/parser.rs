@@ -136,6 +136,38 @@ enum ServiceArgs {
     Ping,
     /// Print validated lifecycle and capability status from the daemon.
     Status,
+    /// Install the foreground daemon as an opt-in systemd user service.
+    Systemd {
+        #[command(subcommand)]
+        command: SystemdArgs,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum SystemdArgs {
+    /// Install the daemon and unit; autostart remains disabled.
+    Install {
+        /// Daemon executable to copy into ~/.local/bin.
+        #[arg(long, value_name = "PATH")]
+        daemon: Option<PathBuf>,
+        /// Replace conflicting installer destinations after saving recoverable backups.
+        #[arg(long)]
+        replace: bool,
+    },
+    /// Remove the owned unit and verified installed daemon after it is inactive.
+    Uninstall,
+    /// Enable autostart without starting the service now.
+    Enable,
+    /// Disable autostart without stopping an active service.
+    Disable,
+    /// Start and wait for systemd readiness.
+    Start,
+    /// Stop the systemd-managed daemon gracefully.
+    Stop,
+    /// Restart and wait for systemd readiness.
+    Restart,
+    /// Inspect manager, unit, process, and authenticated IPC state.
+    Status,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -230,6 +262,54 @@ where
         Some(SubcommandArgs::Service {
             command: ServiceArgs::Status,
         }) => Command::ServiceStatus,
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Install { daemon, replace },
+                },
+        }) => Command::SystemdInstall { daemon, replace },
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Uninstall,
+                },
+        }) => Command::SystemdUninstall,
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Enable,
+                },
+        }) => Command::SystemdEnable,
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Disable,
+                },
+        }) => Command::SystemdDisable,
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Start,
+                },
+        }) => Command::SystemdStart,
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Stop,
+                },
+        }) => Command::SystemdStop,
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Restart,
+                },
+        }) => Command::SystemdRestart,
+        Some(SubcommandArgs::Service {
+            command:
+                ServiceArgs::Systemd {
+                    command: SystemdArgs::Status,
+                },
+        }) => Command::SystemdStatus,
     })
 }
 
@@ -317,6 +397,44 @@ mod tests {
     fn service_ping_and_status_are_typed_headless_commands() {
         assert_command(&["service", "ping"], Command::ServicePing);
         assert_command(&["service", "status"], Command::ServiceStatus);
+    }
+
+    #[test]
+    fn systemd_user_service_commands_are_typed_and_reject_arbitrary_commands() {
+        assert_command(
+            &[
+                "service",
+                "systemd",
+                "install",
+                "--daemon",
+                "/opt/endfield-unixd",
+                "--replace",
+            ],
+            Command::SystemdInstall {
+                daemon: Some(PathBuf::from("/opt/endfield-unixd")),
+                replace: true,
+            },
+        );
+        assert_command(
+            &["service", "systemd", "install"],
+            Command::SystemdInstall {
+                daemon: None,
+                replace: false,
+            },
+        );
+        for (operation, command) in [
+            ("uninstall", Command::SystemdUninstall),
+            ("enable", Command::SystemdEnable),
+            ("disable", Command::SystemdDisable),
+            ("start", Command::SystemdStart),
+            ("stop", Command::SystemdStop),
+            ("restart", Command::SystemdRestart),
+            ("status", Command::SystemdStatus),
+        ] {
+            assert_command(&["service", "systemd", operation], command);
+        }
+        assert!(parse(args(&["service", "systemd", "exec", "sh"])).is_err());
+        assert!(parse(args(&["service", "systemd", "install", "--now"])).is_err());
     }
 
     #[test]

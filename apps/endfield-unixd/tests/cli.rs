@@ -30,7 +30,8 @@ fn help_is_headless_deterministic_and_describes_the_current_boundary() {
         "SIGTERM",
         "Ctrl+C",
         "authenticated, read-only local IPC",
-        "No systemd unit is installed or enabled",
+        "optional systemd user unit",
+        "not enable autostart or launch the daemon",
     ] {
         assert!(help.contains(phrase), "missing help text: {phrase}");
     }
