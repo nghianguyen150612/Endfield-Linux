@@ -176,12 +176,17 @@ top-level fields are:
 - `components`: truthful availability for the application, CLI, GUI,
   diagnostics, storage, P007 models, optimizer skeleton, hardware probes,
   telemetry, and daemon. The daemon status is `partial`: authenticated IPC,
-  Ping, Status, and lifecycle support work, while telemetry and session
-  tracking are unavailable. The report does not query whether a daemon is
+  Ping, Status, lifecycle, and internal session-supervisor infrastructure are
+  implemented. Production game launch and telemetry collection are not. The
+  report does not query whether a daemon is
   currently running.
 - `log_history`: available/missing/unavailable state, omitted corrupt record
   count, and `ERROR`/`WARN`/`INFO`/`DEBUG`/`TRACE` counts.
 - `diagnostics`: up to the most recent 128 validated, allowlisted events.
+
+Session supervisor events remain available in local diagnostics logs but are
+filtered out of generated support reports; those reports do not export session
+histories.
 
 The JSON output is capped at 256 KiB. The report does not include P007's
 synthetic fixtures as measured hardware, does not claim probe results, and does

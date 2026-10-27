@@ -60,9 +60,10 @@ pins `signal-hook` 0.3.18; Cargo resolves `signal-hook-registry` 1.4.8 and
 the repository's Rust 1.85.0 toolchain. Foreground startup registers SIGTERM
 and SIGINT through the signal iterator, which uses a self-pipe so raw
 asynchronous handlers do not perform filesystem work, allocate, or lock the
-lifecycle. It starts optional diagnostics, validates the runtime root, takes
-the IPC instance lock, binds and permissions the socket, starts its bounded
-workers, and waits for listener readiness before entering Running. The
+lifecycle. It starts optional diagnostics, starts the required bounded session
+monitor, validates the runtime root, takes the IPC instance lock, binds and
+permissions the socket, starts its bounded workers, and waits for listener
+readiness before entering Running. The
 listener begins accepting only after that transition. A signal received
 during startup produces a clean Starting → Stopping path without reporting
 Running.
@@ -70,14 +71,20 @@ Running.
 While idle, the lifecycle owner waits on a condition variable, the signal
 listener blocks on its signal pipe, and the IPC listener blocks in `poll()` on
 its socket and private shutdown wake stream. The fixed IPC workers wait on a
-bounded channel. There is no busy-spin, periodic filesystem read, child
-process, hardware query, network activity, or heartbeat event.
+bounded channel. The session monitor blocks for commands while it has no
+children and uses bounded `try_wait` checks every 100 ms only while it owns
+children. There is no busy-spin, periodic filesystem read, hardware query,
+network activity, or heartbeat event.
 
 The first SIGTERM or SIGINT changes Starting or Running to Stopping. The
 runtime records one `DAEMON_SHUTDOWN_REQUESTED`, wakes the IPC listener, stops
 accepting, allows or cancels active requests within their overall deadline,
-removes the socket it owns, releases the instance lock, closes the signal
-listener, and waits for registered worker completion. It then records
+then rejects new session registrations. It removes the socket it owns and
+releases the instance lock before notifying the monitor. The monitor makes one final
+nonblocking observation, marks still-running sessions as monitoring-cancelled
+without changing their session state, and drops child handles without sending
+signals. The runtime closes the signal listener and waits for registered worker
+completion. It then records
 `DAEMON_STOPPED`, drains optional diagnostics, and transitions to Stopped.
 Repeated signals during cleanup do not repeat cleanup. Successful handling
 returns status 0.
@@ -99,14 +106,16 @@ uses the existing private XDG state path, bounded queue, JSON Lines schema,
 advisory cross-process lock, rotation, and retention. Fixed schema-version-1
 events use `Component::Daemon`: `DAEMON_STARTING`, `DAEMON_RUNNING`,
 `DAEMON_SHUTDOWN_REQUESTED`, `DAEMON_STOPPED`, `DAEMON_STARTUP_FAILED`, and
-`DAEMON_RUNTIME_FAILED`. Each event has a compiled-in message. Signal values,
-OS error strings, paths, and arbitrary details are not persisted. Logging
+`DAEMON_RUNTIME_FAILED`, and the five fixed `SESSION_*` events documented in
+[SESSION-SUPERVISION.md](SESSION-SUPERVISION.md). Each event has a
+compiled-in message. Signal values, PIDs, session IDs, command lines, paths,
+OS error strings, and arbitrary details are not persisted. Logging
 failure is optional, reported once with sanitized text, and never recursively
 logged.
 
-Support reports mark the daemon `partial`: lifecycle and authenticated
-read-only IPC are implemented, while telemetry and session tracking remain
-unavailable. The report keeps schema version 1 and does not claim that a
+Support reports mark the daemon `partial`: lifecycle, authenticated read-only
+IPC, and session-supervisor infrastructure are implemented, while telemetry
+collection and real game launching remain unavailable. The report keeps schema version 1 and does not claim that a
 daemon process is currently running; it does not perform a live status check.
 
 Signal registration, worker startup, invalid lifecycle transitions, worker
@@ -116,13 +125,13 @@ terminal and cannot accidentally restart the daemon.
 
 ## Boundaries and P010 readiness
 
-P009 does not start game processes, collect hardware telemetry, initialize
-networking, open a Unix socket, implement IPC, initialize SQLite, supervise
-game sessions, or install/enable systemd. It does not create daemon settings,
-database tables, or migrations. The GTK application neither starts nor owns
+P019 adds bounded session supervision for trusted owned child handles. It does
+not add production game launching, telemetry collection, persistence, process
+recovery, or systemd integration. The GTK application neither starts nor owns
 the daemon; closing the GUI does not stop an independently supervised daemon.
-This process independence alone does not guarantee that a game survives GUI
-closure; that behavior belongs to P019 session supervision.
+Daemon shutdown does not kill active children, but monitoring ends when the
+daemon exits. Terminal, logout, cgroup, and system shutdown behavior remains
+outside P019.
 
 P010 attaches the authenticated local IPC service to the foreground runtime's
 startup and shutdown ownership. It provides protocol 1.0, Linux peer-credential

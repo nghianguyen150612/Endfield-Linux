@@ -84,9 +84,25 @@ pub enum EventCode {
     DaemonStopped,
     DaemonStartupFailed,
     DaemonRuntimeFailed,
+    SessionRegistered,
+    SessionStarted,
+    SessionExited,
+    SessionMonitorFailed,
+    SessionSupervisorStopped,
 }
 
 impl EventCode {
+    pub const fn is_session_event(self) -> bool {
+        matches!(
+            self,
+            Self::SessionRegistered
+                | Self::SessionStarted
+                | Self::SessionExited
+                | Self::SessionMonitorFailed
+                | Self::SessionSupervisorStopped
+        )
+    }
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::AppStarting => "APP_STARTING",
@@ -104,6 +120,11 @@ impl EventCode {
             Self::DaemonStopped => "DAEMON_STOPPED",
             Self::DaemonStartupFailed => "DAEMON_STARTUP_FAILED",
             Self::DaemonRuntimeFailed => "DAEMON_RUNTIME_FAILED",
+            Self::SessionRegistered => "SESSION_REGISTERED",
+            Self::SessionStarted => "SESSION_STARTED",
+            Self::SessionExited => "SESSION_EXITED",
+            Self::SessionMonitorFailed => "SESSION_MONITOR_FAILED",
+            Self::SessionSupervisorStopped => "SESSION_SUPERVISOR_STOPPED",
         }
     }
 
@@ -124,6 +145,11 @@ impl EventCode {
             Self::DaemonStopped => "The daemon stopped cleanly.",
             Self::DaemonStartupFailed => "The daemon failed during startup.",
             Self::DaemonRuntimeFailed => "The daemon encountered a runtime failure.",
+            Self::SessionRegistered => "A trusted child process was registered for supervision.",
+            Self::SessionStarted => "A supervised process entered the running state.",
+            Self::SessionExited => "A supervised process exit was observed.",
+            Self::SessionMonitorFailed => "Monitoring of a supervised process failed.",
+            Self::SessionSupervisorStopped => "Session process monitoring stopped.",
         }
     }
 }
@@ -377,6 +403,11 @@ impl DiagnosticEvent {
                 | EventCode::DaemonStopped
                 | EventCode::DaemonStartupFailed
                 | EventCode::DaemonRuntimeFailed
+                | EventCode::SessionRegistered
+                | EventCode::SessionStarted
+                | EventCode::SessionExited
+                | EventCode::SessionMonitorFailed
+                | EventCode::SessionSupervisorStopped
         );
         if daemon_lifecycle_event && self.component != Component::Daemon {
             return Err(DiagnosticsError::InvalidEvent(

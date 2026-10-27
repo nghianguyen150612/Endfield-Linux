@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; and P018 adds bounded on-demand frame-log ingestion. Candidate generation, runtime, game-session supervision, and process telemetry remain unimplemented. The design is Linux-first while keeping portable domain logic independent from operating-system APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; and P019 adds the in-memory daemon-owned process supervisor. Candidate generation, runtime, production game launch, process telemetry, and persistent session recovery remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -47,13 +47,13 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | `TelemetryProvider` | P015's synchronous boundary for declared metrics, caller-supplied sampling context, partial batches, and typed fatal failures. P016 implements bounded on-demand Linux CPU/memory collection; P017 implements optional Linux GPU gauges; P018 implements bounded frame-log import. |
 | `RuntimeProvider` | Detect, verify, install, select, pin, and remove user-managed Wine/Proton-compatible runners under the runtime policy. |
 | `HardwareTelemetryProvider` | Read available hardware, utilization, FPS/frametime, thermal, and power observations with source and availability metadata. |
-| `SessionSupervisor` | Start, observe, and end game sessions; preserve a running game if the GUI closes. |
+| `SessionSupervisor` | Own explicitly transferred child handles, observe process exits, retain bounded lifecycle summaries, and cancel monitoring without killing processes at daemon shutdown. |
 | `OptimizationPlanner` | Convert normalized snapshots and user goals into one or more proposed plans through the C17 engine. |
 | `OptimizationExecutor` | Revalidate and apply only approved, supported actions; report partial failure and rollback state. |
 | `BenchmarkProvider` | Run or ingest repeatable observations with configuration and provenance. |
 | `ServiceManager` | Install, start, stop, and inspect the unprivileged per-user `endfield-unixd` service where supported. |
 
-The runtime, session, planner, executor, benchmark, and service-manager entries are responsibilities, not pre-existing Rust trait signatures. P007 defines `PlatformProbe` and `CapabilityProvider`; P011 implements `PlatformProbe` in the Linux adapter. P015 defines `TelemetryProvider` and portable telemetry observations; P016 implements the Linux CPU/memory adapter. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
+P019 implements the `SessionSupervisor` in `crates/sessions` as a library-only crate; the daemon owns its monitor worker. P007 defines `PlatformProbe` and `CapabilityProvider`; P011 implements `PlatformProbe` in the Linux adapter. P015 defines `TelemetryProvider` and portable telemetry observations; P016 implements the Linux CPU/memory adapter. Prefer capability checks over OS-name conditionals. Keep Linux sysfs, procfs, systemd, process-control, Vulkan, display-server, and driver-specific details in Linux adapters. Future macOS and FreeBSD adapters can implement the same domain-facing interfaces only for capabilities they can actually provide.
 
 ## P007 portable domain library
 
@@ -214,7 +214,7 @@ SQLite is suitable for structured local session/benchmark records; TOML is suita
 
 The daemon writes only approved fixed lifecycle events using `Component::Daemon` and the existing schema-version-1 diagnostics event type. Its private log worker uses P008's bounded queue, private XDG paths, advisory lock, rotation, and retention. Error strings and signal-handler details are never added to persistent events. There are no periodic idle events. Support reports mark the daemon **Partial** to mean lifecycle-only support; the serialized report schema remains version 1. The report does not claim the daemon is live.
 
-P009 opens no socket, starts no process, collects no telemetry, and does not initialize storage. GUI startup does not start the daemon, and closing the GUI does not stop an independently supervised daemon. This independence alone does not guarantee game-session survival; that requires P019 session supervision.
+At P009, the daemon opened no socket, started no process, collected no telemetry, and initialized no storage. P010 later added read-only IPC, and P019 added owned-child monitoring without production launch. GUI startup does not start the daemon, and closing the GUI does not stop an independently launched daemon. A real game surviving GUI closure remains unverified until P034/P035 integration.
 
 ## P010 authenticated IPC boundary
 
@@ -281,3 +281,23 @@ start MangoHud, a game, the daemon, Vulkan, or a display connection, and it
 adds no telemetry persistence or executable. See
 [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md) for schema evidence,
 statistics, privacy, and test coverage.
+
+## P019 session supervision
+
+`crates/sessions` defines a library-only typed session model. A random opaque
+`SessionId` is distinct from both the child's PID and P015's separately
+allocated `SamplingContextId`. The daemon accepts only an explicitly owned
+`std::process::Child` through an internal API; no arbitrary PID attachment,
+command execution, or session IPC is available. One daemon worker owns and
+checks up to 64 child handles with bounded `try_wait` intervals. Completed
+summaries are retained in memory up to 128 records. Owned-child `try_wait`
+provides lifetime-safe reaping without relying on PID identity or pidfds.
+
+Daemon shutdown closes the P010 listener, rejects new registrations, performs
+a final nonblocking observation, marks remaining monitoring cancelled, drops
+child handles without signaling processes, and reports the P009 worker token.
+A running process may outlive daemon shutdown, but is no longer supervised.
+No session persistence or restart adoption exists. P019 associates one stable
+sampling context with a session but starts no telemetry provider. See
+[SESSION-SUPERVISION.md](SESSION-SUPERVISION.md) for state, privacy, limits,
+tests, and the P020/P034 boundary.

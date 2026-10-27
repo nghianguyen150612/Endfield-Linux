@@ -58,6 +58,34 @@ fn support_report_is_bounded_and_has_no_measured_hardware_claims() {
 }
 
 #[test]
+fn support_reports_exclude_session_event_history() {
+    let session_event = DiagnosticEvent::new_at(
+        Severity::Info,
+        endfield_unix_diagnostics::Component::Daemon,
+        EventCode::SessionExited,
+        123,
+    );
+    let ordinary_event = DiagnosticEvent::new_at(
+        Severity::Warn,
+        endfield_unix_diagnostics::Component::Diagnostics,
+        EventCode::DiagnosticsUnavailable,
+        124,
+    );
+    let report = SupportReport::from_events_at(
+        vec![session_event, ordinary_event],
+        900,
+        LogHistoryStatus::Available,
+        0,
+    );
+    let json = report.to_json().unwrap();
+    assert!(!String::from_utf8_lossy(&json).contains("SESSION_EXITED"));
+    let parsed: serde_json::Value = serde_json::from_slice(&json).unwrap();
+    assert_eq!(parsed["diagnostics"].as_array().unwrap().len(), 1);
+    assert_eq!(parsed["diagnostics"][0]["code"], "DIAGNOSTICS_UNAVAILABLE");
+    assert_eq!(parsed["log_history"]["event_counts"]["info"], 0);
+}
+
+#[test]
 fn report_export_uses_explicit_private_destination_without_silent_overwrite() {
     let directory = tempdir().expect("temporary directory");
     let destination = directory.path().join("support-report.json");

@@ -119,7 +119,10 @@ impl SupportReport {
         history_status: LogHistoryStatus,
         omitted_records: u64,
     ) -> Self {
-        let mut events = events;
+        let mut events = events
+            .into_iter()
+            .filter(|event| !event.code().is_session_event())
+            .collect::<Vec<_>>();
         events.sort_by(|left, right| {
             left.timestamp_unix_nanos()
                 .cmp(&right.timestamp_unix_nanos())

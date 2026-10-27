@@ -55,6 +55,10 @@ schema fields are rejected. The JSON parser retains its recursion limit, and
 typed deserialization rejects extra fields. A client verifies the response
 version, request ID, response type, payload shape, and status values.
 
+P019 leaves this protocol and its strict `DaemonStatus` schema unchanged. The
+daemon's internal session registry has no public IPC operation; authenticated
+same-UID peers cannot register, inspect, stop, or attach to processes.
+
 ## Framing and time limits
 
 Each message uses a 4-byte unsigned length in network byte order followed by

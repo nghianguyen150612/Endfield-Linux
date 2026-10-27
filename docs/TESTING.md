@@ -628,5 +628,46 @@ unresolved; a passing retry is not evidence that it was fixed.
 The workflow's canonical CLI smoke and real-binary fixture integration passed.
 The committed MangoHud fixtures are source-backed schemas, not runtime logs.
 Real Endfield frame capture, Arch RTX 5070 frame telemetry, and Dell Vostro
-frame telemetry remain **UNVERIFIED**. P019 session ownership remains future
-work.
+frame telemetry remain **UNVERIFIED**.
+
+## P019 daemon-owned session supervision
+
+P019 adds the library-only `endfield-unix-sessions` crate and a daemon-owned
+monitor worker. Deterministic contracts cover validated opaque IDs, separate
+sampling contexts, lifecycle transition rejection, startup exit, monitor
+failure, bounded retained summaries, concurrent registrations, the 64-active
+limit, GUI/client-handle independence, and shutdown racing with process exit.
+Real Linux child tests use a fixed stdin-controlled test-harness helper with no
+network/GPU/user-file access; they cover code 0, nonzero status, signal exit,
+child reaping, and a live child remaining alive when only monitoring stops.
+Every child cleanup path has a five-second outer deadline.
+
+The daemon integration test confirms monitor readiness is required, its P009
+worker-completion token is registered exactly once, shutdown completes that
+token, and ordinary daemon lifecycle state remains independent from session
+state. P010 wire schemas and IPC tests remain unchanged. The existing IPC
+capacity race was not addressed by P019 and is assessed separately in the
+validation report below.
+
+Local Rust validation with Rust 1.85.0 passed formatting, non-GUI workspace
+check, Clippy with warnings denied, non-GUI workspace tests, and non-GUI
+workspace build. The focused sessions tests passed all 16 active contracts
+(four helper entrypoints were correctly ignored as standalone tests); they
+covered owned child exit code 0, exit code 7, SIGABRT, injected monitor
+failure, a blocked monitor observation during shutdown, and a live process
+during shutdown. The daemon package passed 23 unit/integration tests, including P009
+lifecycle/signal subprocesses and session-worker readiness/completion. The
+diagnostics package passed its logging, redaction, report, and new session
+history exclusion contracts. Cargo metadata confirmed exactly two production
+binaries and a library-only sessions crate with no GTK dependency. GCC C17 ABI
+and sanitizer scripts passed.
+
+This container has no GTK4/libadwaita development files and no root permission
+to install them; clang is not installed. Full native GTK linking, Xvfb GUI
+smoke/screenshot, the `endfield-unix` package and real P010 CLI/IPC subprocess
+gate, complete workspace checks, and Clang C17 jobs are pending hosted CI. The
+historical P010 capacity race was not reproduced or repaired by these session
+tests and remains an independent hosted gate. No Endfield game was launched.
+`Real Endfield session supervision: UNVERIFIED`, `Arch desktop Endfield
+survival test: UNVERIFIED`, and `Dell Vostro Endfield survival test:
+UNVERIFIED`.

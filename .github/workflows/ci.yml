@@ -82,6 +82,12 @@ jobs:
       - name: Run workspace, CLI, FFI, storage, domain, and diagnostics contract tests
         run: cargo test --locked --workspace
 
+      - name: Run session lifecycle, registry, child-process, and shutdown contracts
+        run: cargo test --locked -p endfield-unix-sessions --all-targets -- --test-threads=1
+
+      - name: Run daemon supervisor worker ownership integration
+        run: cargo test --locked -p endfield-unixd --test sessions -- --test-threads=1
+
       - name: Run bounded headless daemon lifecycle gate
         run: cargo test --locked -p endfield-unixd --test lifecycle -- --test-threads=1
 
@@ -153,6 +159,10 @@ jobs:
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any(dependency["name"] in gui_dependencies for dependency in ipc["dependencies"]), ipc["dependencies"]
+          sessions = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-sessions")
+          assert any("lib" in target["kind"] for target in sessions["targets"]), sessions["targets"]
+          assert not any("bin" in target["kind"] for target in sessions["targets"]), sessions["targets"]
+          assert not any(dependency["name"] in gui_dependencies for dependency in sessions["dependencies"]), sessions["dependencies"]
           daemon = next(package for package in metadata["packages"] if package["name"] == "endfield-unixd")
           assert any("bin" in target["kind"] and target["name"] == "endfield-unixd" for target in daemon["targets"]), daemon["targets"]
           assert not any(dependency["name"] in gui_dependencies for dependency in daemon["dependencies"]), daemon["dependencies"]

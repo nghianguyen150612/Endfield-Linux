@@ -11,6 +11,7 @@ description = "Foreground lifecycle daemon for endfield-unix"
 [dependencies]
 endfield-unix-diagnostics = { path = "../../crates/diagnostics" }
 endfield-unix-ipc = { path = "../../crates/ipc" }
+endfield-unix-sessions = { path = "../../crates/sessions" }
 nix = { version = "=0.29.0", features = ["user"] }
 signal-hook = "=0.3.18"
 thiserror = "=2.0.11"

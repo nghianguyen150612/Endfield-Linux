@@ -78,6 +78,15 @@ can produce a metric. The GPU engine label is a fixed enum; arbitrary driver
 strings are not retained. Process and game-session targets use opaque
 caller-assigned context IDs. A process name or game identity is never guessed.
 
+P019 associates each daemon-owned `SessionId` with a separately allocated
+P015 `SamplingContextId`. The values are different types and are not derived
+from each other or from a PID. The association remains stable for that
+session's in-memory lifetime and is ready for a future provider to use with
+`ObservationTarget::GameSession`. P019 does not start a provider or sampling
+loop. P018 import-local frame/MangoHud contexts remain isolated and are never
+joined to live sessions by filename or process ID; P035 owns launch-to-session
+telemetry ownership.
+
 ## Units and numeric normalization
 
 The contract maps P007's existing units without changing their values or ABI

@@ -8,6 +8,7 @@ use endfield_unix_diagnostics::{
 use crate::errors::{DaemonError, OptionalDiagnosticsFailure};
 use crate::ipc_service::IpcService;
 use crate::lifecycle::{FailureReason, LifecycleState, ShutdownCoordinator};
+use crate::session_service::SessionService;
 use crate::signals::SignalListener;
 
 const LOG_QUEUE_CAPACITY: usize = 64;
@@ -53,6 +54,18 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
 
     record(&log_handle, Severity::Info, EventCode::DaemonStarting);
 
+    let mut session_service = match SessionService::start(coordinator.clone(), log_handle.clone()) {
+        Ok(service) => service,
+        Err(error) => {
+            record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
+            let _ = coordinator.fail(FailureReason::WorkerStartup);
+            stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
+            close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
+            let _ = coordinator.wait_for_workers(policy.worker_timeout);
+            return Err(error);
+        }
+    };
+
     let mut ipc_service = match IpcService::start(coordinator.clone()) {
         Ok(service) => Some(service),
         Err(error) => match coordinator.snapshot()?.state {
@@ -60,6 +73,7 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
             _ => {
                 record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
                 let _ = coordinator.fail(FailureReason::WorkerStartup);
+                let _ = session_service.shutdown(policy.worker_timeout);
                 stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
                 close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
                 let _ = coordinator.wait_for_workers(policy.worker_timeout);
@@ -78,6 +92,7 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
                     if let Some(service) = ipc_service.as_mut() {
                         let _ = service.shutdown(policy.worker_timeout);
                     }
+                    let _ = session_service.shutdown(policy.worker_timeout);
                     stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
                     close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
                     let _ = coordinator.wait_for_workers(policy.worker_timeout);
@@ -90,6 +105,7 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
                         record(&log_handle, Severity::Error, EventCode::DaemonStartupFailed);
                         let _ = coordinator.fail(FailureReason::WorkerStartup);
                         let _ = service.shutdown(policy.worker_timeout);
+                        let _ = session_service.shutdown(policy.worker_timeout);
                         stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
                         close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
                         let _ = coordinator.wait_for_workers(policy.worker_timeout);
@@ -105,6 +121,7 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
             if let Some(service) = ipc_service.as_mut() {
                 let _ = service.shutdown(policy.worker_timeout);
             }
+            let _ = session_service.shutdown(policy.worker_timeout);
             stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
             close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
             let _ = coordinator.wait_for_workers(policy.worker_timeout);
@@ -115,6 +132,7 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
             if let Some(service) = ipc_service.as_mut() {
                 let _ = service.shutdown(policy.worker_timeout);
             }
+            let _ = session_service.shutdown(policy.worker_timeout);
             stop_logger_and_report(&mut logger, policy.diagnostics_timeout);
             close_signals(&mut signals, &coordinator, policy.worker_timeout)?;
             let _ = coordinator.wait_for_workers(policy.worker_timeout);
@@ -134,6 +152,11 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
         );
     }
 
+    if session_service.reject_new_registrations().is_err() {
+        failed = true;
+        let _ = coordinator.fail(FailureReason::WorkerFailure);
+    }
+
     if let Some(service) = ipc_service.as_mut() {
         if let Err(error) = service.shutdown(policy.worker_timeout) {
             failed = true;
@@ -146,6 +169,16 @@ pub fn run_foreground_with_policy(policy: ShutdownPolicy) -> Result<(), DaemonEr
             };
             let _ = coordinator.fail(reason);
         }
+    }
+
+    if let Err(error) = session_service.shutdown(policy.worker_timeout) {
+        failed = true;
+        let reason = if matches!(error, DaemonError::ShutdownTimeout) {
+            FailureReason::ShutdownTimeout
+        } else {
+            FailureReason::WorkerFailure
+        };
+        let _ = coordinator.fail(reason);
     }
 
     if let Err(error) = close_signals(&mut signals, &coordinator, policy.worker_timeout) {
@@ -284,6 +317,32 @@ mod tests {
             assert_eq!(json["schema_version"], 1);
             assert!(json["message"].as_str().is_some());
             assert!(!json.to_string().contains("synthetic-private-detail"));
+        }
+    }
+
+    #[test]
+    fn session_events_are_allowlisted_static_and_redacted_by_construction() {
+        for (code, expected) in [
+            (EventCode::SessionRegistered, "SESSION_REGISTERED"),
+            (EventCode::SessionStarted, "SESSION_STARTED"),
+            (EventCode::SessionExited, "SESSION_EXITED"),
+            (EventCode::SessionMonitorFailed, "SESSION_MONITOR_FAILED"),
+            (
+                EventCode::SessionSupervisorStopped,
+                "SESSION_SUPERVISOR_STOPPED",
+            ),
+        ] {
+            let severity = if code == EventCode::SessionMonitorFailed {
+                Severity::Warn
+            } else {
+                Severity::Info
+            };
+            let event = DiagnosticEvent::new(severity, Component::Daemon, code);
+            event.validate().expect("approved safe session event");
+            let json = serde_json::to_string(&event).expect("serialize event");
+            assert!(json.contains(expected));
+            assert!(!json.contains("pid"));
+            assert!(!json.contains("private-path"));
         }
     }
 

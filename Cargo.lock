@@ -235,6 +235,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "endfield-unix-sessions"
+version = "0.1.0"
+dependencies = [
+ "endfield-unix-telemetry",
+ "getrandom",
+ "libc",
+ "nix",
+ "thiserror",
+]
+
+[[package]]
 name = "endfield-unix-storage"
 version = "0.1.0"
 dependencies = [
@@ -260,6 +271,7 @@ version = "0.1.0"
 dependencies = [
  "endfield-unix-diagnostics",
  "endfield-unix-ipc",
+ "endfield-unix-sessions",
  "libc",
  "nix",
  "serde_json",
