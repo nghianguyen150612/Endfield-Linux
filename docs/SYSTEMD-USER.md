@@ -178,7 +178,7 @@ assertion. It refuses existing service files, installation records, binaries,
 active units, and a live daemon. It does not run against a developer's login
 configuration by default.
 
-Hosted CI run [40503553555](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40503553555)
+Hosted CI run [40505016060](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40505016060)
 passed all three jobs: Rust workspace check/Clippy/tests, unit syntax validation,
 GTK smoke and screenshot upload, Linux daemon/IPC subprocess gates, Cargo
 metadata, and GCC/Clang C17 ABI tests. The optional real user-manager gate was

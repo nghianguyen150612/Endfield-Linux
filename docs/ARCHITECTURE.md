@@ -2,7 +2,7 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; and P020 adds optional Linux user-service lifecycle management. Candidate generation, runtime, production game launch, process telemetry, and persistent session recovery remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; P020 adds optional Linux user-service lifecycle management; and P021 defines portable runtime provider, source verification, compatibility, ownership, and non-executable launch-plan contracts. Runtime discovery, acquisition, installed-file verification, and production game launch remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -15,6 +15,13 @@ GTK4 desktop / CLI ──> Rust application services ──> portable domain con
 The GTK frontend and CLI use one Rust application core and one GUI/CLI executable named `endfield-unix`. The only companion executable is `endfield-unixd`. There is no separate GUI binary or CLI binary. GTK widgets and GTK-facing state remain on the GUI main thread. Filesystem, process, network, telemetry, benchmark, and other potentially blocking work runs in workers; workers send results back to the GUI through Relm4 messages. The synchronous C planner is bounded, deterministic planning work and must not perform I/O.
 
 The desktop stack is fixed: Rust 2024, GTK4, libadwaita, Relm4, GTK CSS, and SVG resources. C optimizer code targets C17. Rust owns the application lifecycle, CLI argument handling, UI integration, game and runtime management, platform adapters, telemetry ingestion, daemon lifecycle and IPC, SQLite/TOML persistence, safe FFI wrappers, plan validation/execution, and recovery.
+
+P021 adds endfield-unix-runtime alongside the P007 domain and P015 telemetry
+libraries as a portable contract dependency for future application services.
+The runtime crate does not depend on the GUI, Linux adapters, storage, daemon,
+IPC, or process APIs. No application executable consumes the runtime contracts
+yet; P022 and later milestones add provider implementations behind this
+boundary.
 
 ## P002 workspace and entry point
 
@@ -45,7 +52,7 @@ Define interfaces when implementation reaches the relevant feature; keep OS-spec
 | `PlatformProbe` | P007's synchronous boundary for a normalized snapshot. The generic composite probe retains successful subsystem reports when another provider fails. P011's Linux adapter implements it with kernel identity and optional distribution metadata. |
 | `CapabilityProvider` | P007's synchronous boundary for one independent capability source and a partial discovery report. |
 | `TelemetryProvider` | P015's synchronous boundary for declared metrics, caller-supplied sampling context, partial batches, and typed fatal failures. P016 implements bounded on-demand Linux CPU/memory collection; P017 implements optional Linux GPU gauges; P018 implements bounded frame-log import. |
-| `RuntimeProvider` | Detect, verify, install, select, pin, and remove user-managed Wine/Proton-compatible runners under the runtime policy. |
+| `RuntimeProvider` | P021's typed boundary for declaring capabilities and requesting discovery, inspection, source/integrity verification, compatibility assessment, installation plans, and data-only launch plans. P021 does not implement those system operations. |
 | `HardwareTelemetryProvider` | Read available hardware, utilization, FPS/frametime, thermal, and power observations with source and availability metadata. |
 | `SessionSupervisor` | Own explicitly transferred child handles, observe process exits, retain bounded lifecycle summaries, and cancel monitoring without killing processes at daemon shutdown. |
 | `OptimizationPlanner` | Convert normalized snapshots and user goals into one or more proposed plans through the C17 engine. |
@@ -91,6 +98,24 @@ existing `DisplayInfo` are reused without changing snapshot schema 1. No
 output-to-connector mapping is inferred from matching labels. See
 [DISPLAY-LINUX.md](DISPLAY-LINUX.md) for protocol behavior, bounds, privacy,
 partial failures, validation status, and known provider cancellation limits.
+
+## P021 runtime provider contracts
+
+The crates/runtime package is the library-only endfield-unix-runtime package.
+It uses Rust 2024/MSRV 1.85.0, forbids unsafe code, and has only the portable
+serde_json dependency for deterministic data-only previews. It defines runtime
+families and build identities, adapter constraints, bounded provider
+capabilities and typed provider outcomes, source provenance and verification
+states, SHA-256 metadata comparison, scoped compatibility evidence,
+ownership-aware management policy, and versioned launch-plan data.
+
+The crate does not inspect host paths, discover Wine or Proton, fetch release
+metadata, hash installed files, install/update/remove a runtime, create a
+prefix, launch a process, or query graphics APIs. The providers used by tests
+are synthetic in-memory doubles. P022 discovery, P023 UMU integration, P024
+trusted manifests, P025 acquisition, P026 installed integrity, P027 known-good
+selection, P028/P029 prefix lifecycle, and P034–P036 launch/session lifecycle
+remain separate milestones. See [RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
 
 ## P015 normalized telemetry contracts
 

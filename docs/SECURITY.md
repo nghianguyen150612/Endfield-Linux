@@ -199,3 +199,32 @@ not emitted or sent to diagnostics/support reports. Imported timestamps remain
 recording-relative in a distinct caller-assigned P015 clock domain; file
 modification time is ignored. See
 [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md).
+
+## P021 runtime contracts
+
+The portable runtime crate models untrusted provider, source, artifact,
+compatibility, path, argument, and environment metadata. It performs no
+directory search, network request, artifact read/hash, prefix creation,
+filesystem modification, privilege escalation, or process launch. A source
+URL or version tag is not authenticity evidence, and a matching digest from
+untrusted metadata does not establish trusted origin.
+
+Provider capability, provider implementation, provider availability, runtime
+presence, source verification, artifact integrity, compatibility evidence,
+risk, and user approval are independent states. Unknown and unsupported
+results stay explicit. Wine, Proton, UMU, managed Wine, and external Wine are
+not interchangeable; no Wine fallback is selected for Proton.
+
+LaunchPlan holds executable, native arguments, working directory, environment
+changes, prefix, mounts, output policy, process ownership, and risk as
+validated data. It never builds a shell command. Its bounded JSON preview
+preserves argument order, redacts private paths and classified secrets, and
+always reports executable_now as false. Structural validation does not grant
+authorization. External or unknown runtime ownership cannot be updated or
+removed through the runtime management policy.
+
+The runtime library is not connected to the GUI, daemon, IPC, systemd service,
+storage schema, C17 planner, graphics discovery, or session supervisor.
+Actual runtime discovery is P022; acquisition, trusted manifests, prefix
+management, and launch remain later milestones. See
+[RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).

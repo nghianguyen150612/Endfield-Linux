@@ -1,0 +1,16 @@
+[package]
+name = "endfield-unix-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Portable runtime provider, provenance, compatibility, and launch-plan contracts"
+
+[lib]
+name = "endfield_unix_runtime"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json = "=1.0.145"

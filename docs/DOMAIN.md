@@ -260,14 +260,14 @@ by the application.
 
 ## Later service boundaries
 
-P007 does not implement `RuntimeProvider`, `HardwareTelemetryProvider`,
-`SessionSupervisor`, `OptimizationPlanner`, `OptimizationExecutor`,
-`BenchmarkProvider`, or `ServiceManager`. Later milestones will define each
-specialized API when its behavior is scheduled. P042 will define complete
-snapshot-to-C marshalling. P015 adds a separate telemetry library that depends
-on these P007 contracts and refines metric units, timestamps, provenance,
-quality, and missing-data behavior without changing P007 snapshot schema 1 or
-any capability ID.
+P007 does not implement `HardwareTelemetryProvider`, `SessionSupervisor`,
+`OptimizationPlanner`, `OptimizationExecutor`, `BenchmarkProvider`, or
+`ServiceManager`. P021 adds a separate runtime contract library; it does not
+change P007 snapshot schema 1 or any capability ID. Runtime discovery,
+installation, prefix management, and launch remain future work. P042 will
+define complete snapshot-to-C marshalling. P015 adds a separate telemetry
+library that depends on these P007 contracts and refines metric units,
+timestamps, provenance, quality, and missing-data behavior.
 ## P013 Linux GPU facts
 
 The portable P007 schema remains v1 and gains no Linux or Vulkan dependencies. P013 maps validated PCI GPUs to existing `GpuInfo` fields and capability IDs 10–14, allocates snapshot-local IDs after the P012 CPU, and validates typed values against scalar capability records. PCI/DRM/Vulkan-specific details and unmatched devices stay in `LinuxGpuReport`; unknown VRAM, classification, driver, or Vulkan mappings are preserved.
@@ -284,6 +284,28 @@ provider-name validation, `ProvenanceId`, `InstanceId`, or `SystemSnapshot`.
 Telemetry metric IDs are a separate registry from `CapabilityId`; inventory
 capability IDs retain their meanings and numeric values. P015 adds no fields to
 P007 snapshots and does not change C17 marshalling or any existing schema.
+
+## P021 runtime contract library
+
+The portable endfield-unix-runtime crate is separate from endfield-unix-domain.
+It has no dependency on P007, Linux graphics, GTK, SQLite, IPC, or the daemon.
+Runtime identity, version labels, ownership, provider declarations, source
+verification, integrity metadata, compatibility evidence, and known-good
+references are not added to P007 snapshots or P006 database tables.
+
+Runtime contracts distinguish Wine from Proton, keep provider capability
+separate from installed-runtime presence, require exact build-scoped evidence
+for verified direct Proton, and retain source authenticity separately from
+digest comparison. Compatibility assessment can report static eligibility,
+but only exact scoped verified evidence supports a compatibility claim.
+
+LaunchPlan schema v1 is structured data. It holds a separate executable,
+ordered native arguments, explicit working directory, typed environment
+changes, explicit prefix ownership, mount requirements, risk, and review state.
+It cannot execute or mutate those references. Its deterministic JSON preview
+redacts private paths and classified secrets. See
+[RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md) for the complete contract and
+milestone boundaries.
 
 P016 adds a Linux adapter provider over these P015 contracts; it does not add
 telemetry fields to P007 snapshots, capability IDs, or the domain dependency
