@@ -740,12 +740,16 @@ future recurrence as a separate IPC reliability task. The local GCC C17 ABI
 and sanitizer scripts passed; Clang is not installed in this container. No
 Endfield game was launched and Arch Linux manual validation remains unverified.
 
-## P021 runtime provider contracts — hosted qualification pending
+## P021 runtime provider contracts — hosted qualification passed
 
-P021 is being implemented on `main` from the supplied P020 baseline. Hosted
-qualification has not yet run for P021. The portable runtime contract tests
-use synthetic identities, source evidence, digests, compatibility records,
-and provider doubles; no runtime, game, graphics API, or user data is accessed.
+P021 was implemented on `main` from the supplied P020 baseline. Hosted
+qualification passed in [GitHub Actions run 40527116968](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40527116968)
+for commit `2fa599d7d4042fb2d72bbc2573045d8b9a9fbc5a`. All three jobs passed:
+the Rust/GTK/metadata/diagnostics/workspace test job and the independent GCC
+and Clang C17 ABI jobs. The GTK smoke uploaded the `endfield-unix-gtk-smoke`
+artifact. The portable runtime contract tests use synthetic identities,
+source evidence, digests, compatibility records, and provider doubles; no
+runtime, game, graphics API, or user data is accessed.
 
 - Rust 1.85.0 formatting, runtime all-target check, and Clippy with
   warnings denied passed locally.
@@ -765,8 +769,9 @@ and provider doubles; no runtime, game, graphics API, or user data is accessed.
 - The remaining package suites passed with
   `cargo +1.85.0 test --locked --workspace --exclude endfield-unix`. The
   `endfield-unix` unit and CLI suites also passed, and the GUI smoke passed
-  separately. The full workspace test gate remains failed by the IPC race
-  recorded below.
+  separately. The full hosted workspace and serialized IPC gates passed in
+  the P021 run. The local IPC race recorded below remains unresolved; a
+  successful hosted run does not establish that it cannot recur.
 - Two non-root Ubuntu 24.04 runs of
   `cargo +1.85.0 test --locked --workspace` reproduced the existing IPC
   capacity race. The `ipc_e2e` test panicked at
@@ -774,10 +779,13 @@ and provider doubles; no runtime, game, graphics API, or user data is accessed.
   `over-capacity connection closes: Os { code: 11, kind: WouldBlock, message:
   "Resource temporarily unavailable" }`. The separately requested serial IPC
   gate reproduced the same error. No IPC code or test was changed or skipped.
-  Hosted CI is pending, and P021 remains pending on the roadmap until hosted
-  qualification passes.
+  The hosted workspace and serial IPC gates passed in the P021 run, but this
+  does not resolve the intermittent IPC capacity race.
 - P020's supplied final qualification is [GitHub Actions run
   40505016060](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40505016060),
   which completed successfully for baseline commit
-  01b9f873a28caa913f8e29d90e8f3af915e4cf59. This existing result says nothing
-  about P021 and does not repair the historical IPC capacity race.
+  01b9f873a28caa913f8e29d90e8f3af915e4cf59. P021's separate hosted
+  qualification is [run 40527116968](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40527116968);
+  it passed all three jobs, including the full workspace test and C17 ABI
+  gates. Real `systemd --user` integration and Endfield gameplay validation
+  remain unverified.

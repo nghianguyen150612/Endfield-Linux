@@ -232,3 +232,19 @@ manifests P024, acquisition P025, installed integrity P026, pinning P027,
 prefix management P028–P029, and production launch/session ownership
 P034–P036. No real Wine/Proton discovery or Endfield compatibility has been
 performed.
+
+## Qualification
+
+P021 passed all three jobs in [hosted CI run 40527116968](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40527116968)
+on implementation commit `2fa599d7d4042fb2d72bbc2573045d8b9a9fbc5a`. The
+Rust job passed formatting, workspace check and Clippy, metadata assertions,
+diagnostics and CLI/display smoke checks, the focused runtime tests, the full
+workspace test gate, and the serialized IPC gate. Both independent C17 ABI
+jobs passed with GCC and Clang. The GTK smoke artifact is named
+`endfield-unix-gtk-smoke`.
+
+Two non-root local workspace runs and the local serial IPC gate reproduced
+the existing IPC capacity race documented in [TESTING.md](TESTING.md). The
+hosted IPC pass does not resolve or rule out that intermittent race. The
+optional real systemd user-manager integration and real Endfield gameplay or
+compatibility remain unverified.

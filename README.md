@@ -9,10 +9,11 @@ P015 adds the portable [`endfield-unix-telemetry` contract library](docs/TELEMET
 P021 adds the portable endfield-unix-runtime library with typed runtime
 families, Wine/Proton adapter contracts, provider capability negotiation,
 source and integrity metadata, compatibility evidence, ownership policy, and
-non-executable LaunchPlan previews. It performs no runtime discovery,
-download, installation, integrity scan, compatibility test, or game launch.
-The runtime contract tests use synthetic fixtures only. See
-[runtime provider contracts](docs/RUNTIME-PROVIDERS.md).
+non-executable LaunchPlan previews. Its three-job hosted qualification passed
+in [CI run 40527116968](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40527116968).
+It performs no runtime discovery, download, installation, integrity scan,
+compatibility test, or game launch. The runtime contract tests use synthetic
+fixtures only. See [runtime provider contracts](docs/RUNTIME-PROVIDERS.md).
 
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
