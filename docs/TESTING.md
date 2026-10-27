@@ -678,6 +678,15 @@ not real Endfield gameplay or game-process survival.
 
 ## P020 systemd user-service integration
 
+P020 hosted qualification passed in [GitHub Actions run
+40503553555](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40503553555).
+All three jobs passed: the Linux Rust/GTK job, the Clang C17 ABI job, and the
+GCC C17 ABI job. The initial workflow attempt, [run
+40503371645](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40503371645),
+failed before job creation because a colon in an inline YAML `run` scalar made
+the workflow invalid; [commit `d0facd4`](https://github.com/nghianguyen150612/Endfield-Linux/commit/d0facd4da08ee5f58b4ca1739f51c1b9c36d519f)
+fixed that syntax, and the complete rerun passed.
+
 Local Rust 1.85.0 validation passed formatting, full-workspace `cargo check`
 and Clippy with warnings denied using temporary pkg-config metadata for Rust
 type-checking. The metadata does not provide GTK/GLib native libraries and does
@@ -715,19 +724,19 @@ application linking, the application subprocess/IPC gate, the full native
 workspace test/build, and GTK smoke/screenshot were not run locally. The
 temporary pkg-config metadata is type-check-only. The real user-manager probe
 could not connect to a session bus, so the recorded result is exactly
-`Real systemd --user integration: UNVERIFIED`. The optional
+`Real systemd --user integration: UNVERIFIED`. Hosted CI also recorded that
+status because the optional isolated-manager gate was not enabled. The optional
 `scripts/systemd-user-integration.sh` is guarded by explicit opt-in and a
 disposable-account assertion; it was not run here. Arch Linux manual validation
 has not been performed.
 
 P020 leaves the existing IPC saturation test unchanged and does not add a
-second socket owner. Its local subprocess tests did not exercise the
+second socket owner. The local subprocess tests did not exercise the
 `ipc_e2e.rs:144` saturation path because that test links the GTK application.
-The historical `WouldBlock`-instead-of-EOF race therefore remains
-**UNVERIFIED in this P020 local run**; the full hosted workflow runs the
-unchanged gate and will record any recurrence. P020 stays
-**Implemented; hosted qualification pending** until the pushed workflow
-passes. The local GCC C17 ABI and sanitizer scripts passed; Clang is not
-installed in this container. Hosted Rust/GTK, IPC e2e, screenshot, GCC, and
-Clang regression results are pending that same hosted run. No Endfield game
-was launched, and no P021 behavior was added.
+The historical `WouldBlock`-instead-of-EOF race did not recur in the hosted
+P020 run: the unchanged Linux daemon and CLI IPC integration gate passed. This
+single pass does not resolve the historical intermittent race; track any
+future recurrence as a separate IPC reliability task. The local GCC C17 ABI
+and sanitizer scripts passed; Clang is not installed in this container. No
+Endfield game was launched, Arch Linux manual validation remains unverified,
+and no P021 behavior was added.

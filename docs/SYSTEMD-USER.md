@@ -178,8 +178,11 @@ assertion. It refuses existing service files, installation records, binaries,
 active units, and a live daemon. It does not run against a developer's login
 configuration by default.
 
-Hosted CI validates the unit syntax and notification/service contracts. If an
-isolated real user manager is not available, qualification must state exactly:
+Hosted CI run [40503553555](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40503553555)
+passed all three jobs: Rust workspace check/Clippy/tests, unit syntax validation,
+GTK smoke and screenshot upload, Linux daemon/IPC subprocess gates, Cargo
+metadata, and GCC/Clang C17 ABI tests. The optional real user-manager gate was
+not enabled, so its status remains exactly:
 
 `Real systemd --user integration: UNVERIFIED`
 
