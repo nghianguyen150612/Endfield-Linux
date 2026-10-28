@@ -928,7 +928,7 @@ P021 candidate/identity boundary is consumed by the P023 implementation below
 without treating discovery as authenticity, integrity, launch readiness, or
 compatibility evidence.
 
-## P023 local qualification status
+## P023 qualification record
 
 P023 adds isolated UMU discovery, environment, Proton mapping, launch-plan, and
 live smoke tests. On the local Rust 1.85.0 toolchain, formatting,
@@ -945,16 +945,16 @@ A full-workspace `cargo check --locked --workspace --all-targets` and
 throwaway type-check-only pkg-config metadata because this container has no
 GTK/GLib development packages. Full workspace test and build commands reached
 GTK linking and could not link because GTK shared libraries are absent. The
-workspace suite excluding the GTK application passed, including P019/P020 daemon
-lifecycle/systemd tests, storage/diagnostics/telemetry tests, and Rust C17 FFI
-contracts. The app `ipc_e2e` test was excluded with the GUI package; the
-`ipc_e2e.rs:144` saturation race was therefore not exercised locally and
+workspace suite excluding the GTK application passed, including P019/P020
+daemon lifecycle/systemd tests, storage/diagnostics/telemetry tests, and Rust
+C17 FFI contracts. The app `ipc_e2e` test was excluded with the GUI package;
+the `ipc_e2e.rs:144` saturation race was therefore not exercised locally and
 remains unresolved. `CC=gcc native/optimizer/tests/run-c-tests.sh` passed;
-Clang is not installed locally, so the Clang ABI check remains a hosted gate.
-Locked Cargo metadata confirmed exactly two application binaries and a
-library-only runtime Linux adapter with no dependency changes. The GUI
-build/screenshot and local CLI binary smoke were not run here. The
-workflow now runs `diagnose umu` beside the P022 smoke. Hosted P023
-qualification has not yet completed; this section must be updated with its
-Actions result before declaring P023 qualified. Real UMU, Proton, prefix, and
-Endfield validation remains unverified.
+Clang is not installed locally. Locked Cargo metadata confirmed exactly two
+application binaries and a library-only runtime Linux adapter with no
+dependency changes. The GUI build/screenshot and local CLI binary smoke were
+not run here.
+
+Hosted P023 qualification passed in [Rust CI run 40684639686](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40684639686): the Rust/GTK, GCC C17, and Clang C17 jobs all succeeded. The Rust job passed format, native workspace check and Clippy, app/daemon builds, the real `diagnose runtimes` and `diagnose umu` CLI smokes, P021/P022/P023 runtime contracts, full workspace tests, daemon/session/systemd tests, the dedicated IPC integration gate, GTK smoke and screenshot upload (`endfield-unix-gtk-smoke`), workspace build, and Cargo metadata assertions. The P023 CLI smoke passed its Linux UMU, unknown-version, and no-runtime/game-execution assertions; it did not require UMU installation. The hosted runner result does not establish that UMU or Proton was installed on the runner.
+
+The hosted full workspace and dedicated IPC gates passed without recurrence of the `ipc_e2e.rs:144` `WouldBlock` saturation failure. That race remains unresolved; this run does not claim a fix. Real UMU, Proton, prefix, and Endfield validation remains unverified.

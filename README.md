@@ -18,6 +18,7 @@ candidate, performs network access, or saves an inventory. Discovery does not
 verify authenticity, complete integrity, launch readiness, or game
 compatibility. P022A hosted qualification passed in [CI run 40648593964](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40648593964).
 P023 adds read-only UMU discovery and non-executable UMU-Proton plan preparation.
+P023 hosted qualification passed in [CI run 40684639686](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40684639686).
 UMU version, authenticity, artifact integrity, execution readiness, and Endfield
 compatibility remain unverified. See [UMU integration](docs/UMU-INTEGRATION.md),
 [Linux runtime discovery](docs/RUNTIME-DISCOVERY-LINUX.md), and

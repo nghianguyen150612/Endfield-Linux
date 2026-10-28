@@ -134,8 +134,7 @@ Synthetic tests cover absent and user-local discovery, PATH hints and
 symlinks, invalid file types, changed identity, bounded environment policy,
 literal ordered arguments, redaction, P022 Proton selection, and an incomplete
 preflight. The live Linux smoke is designed to pass when UMU is absent. Hosted
-qualification and CI links will be recorded in `docs/TESTING.md` after the
-workflow runs. No real device has been inspected as part of this change:
+qualification passed in [CI run 40684639686](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40684639686); its Rust/GTK job and both C17 ABI jobs succeeded. The workflow ran `diagnose umu` on Ubuntu without requiring UMU installation, and uploaded the existing GTK smoke screenshot artifact. These checks validate local discovery and plan contracts; they do not validate a real UMU or Proton installation. No real device has been inspected as part of this change:
 
 `Arch desktop UMU integration: UNVERIFIED`
 
