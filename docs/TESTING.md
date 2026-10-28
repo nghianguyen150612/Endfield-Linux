@@ -842,6 +842,24 @@ smoke` with `endfield-unix: all accessible runtime discovery sources failed.`
 The GCC and Clang C17 jobs passed. This failed smoke is retained as historical
 evidence; P022 is not qualified by that run.
 
+The first P022A push was [run
+40647230072](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40647230072).
+It passed the isolated empty-host test and the actual application smoke, which
+printed:
+
+```text
+Runtime discovery: Linux
+
+Discovered runtimes: 0
+Discovery result: complete
+```
+
+The overall Rust job then failed in an existing app CLI test: its diagnose
+help assertion still expected the pre-P022 command list and omitted
+`runtimes`. The P022A follow-up updates that expected string to include the
+implemented command. The initial runtime smoke and empty-host fixture both
+passed; the full hosted run remains unqualified until the follow-up completes.
+
 The confirmed code-path cause was twofold. The CLI fatal check required an
 `available && completed` root, which excluded a conventional root that had
 been checked and correctly found absent. Also, PATH Wine hints were counted
@@ -876,11 +894,11 @@ this container has no `glib-2.0` development package. Workspace test suites
 excluding the GTK app package passed. Local Cargo metadata checks confirmed
 exactly two application binaries and a library-only runtime Linux crate with
 only the portable runtime and libc dependencies. GCC passed locally; Clang is
-not installed. The corrected hosted qualification run, captured actual CLI
-output, GTK screenshot, app CLI tests, full workspace regressions,
-daemon/systemd/session gates, IPC race recurrence, hosted GCC/Clang C17 jobs,
-and final metadata checks are pending. The historical IPC capacity race and
-its test remain untouched. Real-device and compatibility status:
+not installed. The follow-up hosted run must still pass the GTK screenshot,
+app CLI tests, full workspace regressions, daemon/systemd/session gates, IPC
+race check, hosted GCC/Clang C17 jobs, and final metadata checks before P022
+can be qualified. The historical IPC capacity race and its test remain
+untouched. Real-device and compatibility status:
 
 `Arch desktop runtime discovery: UNVERIFIED`
 

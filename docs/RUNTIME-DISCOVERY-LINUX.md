@@ -179,10 +179,23 @@ PATH, multiple PATH directories without Wine, missing/empty/inaccessible and
 malformed explicit roots, mixed outcomes, the present-root budget, no false
 candidates, conservative trust, and no runtime execution or fixture writes.
 
-The corrected hosted qualification run and captured real CLI output will be
-recorded here after GitHub Actions completes. Source limits remain bounded to
-64 PATH directories, 32 existing scan roots, and the documented per-directory
-and metadata limits; exceeding a bound remains visible as partial discovery.
+The first P022A hosted attempt, [run
+40647230072](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40647230072),
+passed the isolated empty-host test and the real CLI smoke, which printed:
+
+```text
+Runtime discovery: Linux
+
+Discovered runtimes: 0
+Discovery result: complete
+```
+
+That overall run later failed an existing CLI help assertion because its
+expected subcommand list did not yet include `runtimes`; the assertion is
+updated in the follow-up. This successful empty report is not runtime or
+compatibility validation. Source limits remain bounded to 64 PATH directories,
+32 existing scan roots, and the documented per-directory and metadata limits;
+exceeding a bound remains visible as partial discovery.
 
 `Arch desktop runtime discovery: UNVERIFIED`
 
