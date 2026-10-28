@@ -83,6 +83,14 @@ jobs:
           grep -Eq "Discovered runtimes: [0-9]+" /tmp/endfield-runtime-discovery.txt
           grep -Eq "Discovery result: (complete|partial)" /tmp/endfield-runtime-discovery.txt
 
+      - name: Run read-only UMU discovery and integration smoke
+        run: |
+          ./target/debug/endfield-unix diagnose umu | tee /tmp/endfield-umu-discovery.txt
+          grep -Fq "UMU integration: Linux" /tmp/endfield-umu-discovery.txt
+          grep -Fq "UMU version: unknown" /tmp/endfield-umu-discovery.txt
+          grep -Fq "Runtime execution: not performed" /tmp/endfield-umu-discovery.txt
+          grep -Fq "Game execution: not performed" /tmp/endfield-umu-discovery.txt
+
       - name: Run the headless Linux platform CLI against this runner
         run: ./target/debug/endfield-unix diagnose platform
 

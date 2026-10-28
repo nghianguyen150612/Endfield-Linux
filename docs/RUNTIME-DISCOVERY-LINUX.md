@@ -233,5 +233,7 @@ replace it based on discovery output. P022 output alone is not a game
 compatibility result. The Dell Vostro runner inventory and renderer remain
 separate questions; no game is launched during validation.
 
-The P021 boundary is ready for a future P023 adapter to consume discovered
-candidate and identity facts. P022 does not add UMU support or launch plans.
+P023 consumes the discovered candidate and identity facts through the same
+P021 contracts. UMU integration and launch-plan preparation are documented in
+[UMU-INTEGRATION.md](UMU-INTEGRATION.md); P022 discovery itself still makes no
+trust, integrity, compatibility, or launch claim.

@@ -612,6 +612,87 @@ where
             }
             Ok(())
         }
+        Command::DiagnoseUmu => {
+            if !cfg!(target_os = "linux") {
+                return Err(CliError::RuntimeDiscoveryUnsupported);
+            }
+            let umu = endfield_unix_runtime_linux::UmuProvider::default().scan();
+            let runtimes = endfield_unix_runtime_linux::LinuxRuntimeProvider::new(
+                endfield_unix_runtime_linux::DiscoveryOptions::default(),
+            )
+            .map_err(CliError::RuntimeDiscovery)?
+            .scan();
+            let proton_count = runtimes
+                .runtimes
+                .iter()
+                .filter(|runtime| {
+                    runtime.candidate.family() == endfield_unix_runtime::RuntimeFamily::Proton
+                })
+                .count();
+            let validated = umu.discovery.validated().next().is_some();
+            writeln!(stdout, "UMU integration: Linux").map_err(CliError::Output)?;
+            let executable_status = if validated {
+                "candidate found"
+            } else if umu.discovery.outcome()
+                == endfield_unix_runtime_linux::RootOutcome::NotPresent
+            {
+                "not found"
+            } else if umu.discovery.outcome() == endfield_unix_runtime_linux::RootOutcome::Truncated
+            {
+                "discovery truncated before validation completed"
+            } else if umu.discovery.outcome() == endfield_unix_runtime_linux::RootOutcome::Failed {
+                "candidate inspection failed"
+            } else {
+                "candidate validation incomplete"
+            };
+            writeln!(stdout, "UMU executable: {executable_status}").map_err(CliError::Output)?;
+            writeln!(stdout, "UMU version: unknown").map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "UMU structural validation: {}",
+                if validated {
+                    "validated; execution readiness unverified"
+                } else {
+                    "unavailable"
+                }
+            )
+            .map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "  Availability: {}",
+                umu.discovery.availability().as_str()
+            )
+            .map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "  Discovery result: {}",
+                umu.discovery.outcome_label()
+            )
+            .map_err(CliError::Output)?;
+            writeln!(stdout, "\nProton discovery:").map_err(CliError::Output)?;
+            writeln!(stdout, "  Candidates: {proton_count}").map_err(CliError::Output)?;
+            writeln!(stdout, "  Selected runtime: none (identity not evaluated)")
+                .map_err(CliError::Output)?;
+            writeln!(stdout, "  Source verification: not performed").map_err(CliError::Output)?;
+            writeln!(stdout, "  Compatibility: not evaluated").map_err(CliError::Output)?;
+            writeln!(stdout, "\nAdapter:").map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "  UMU-Proton: {}",
+                if validated && proton_count > 0 {
+                    "candidate mapping possible; explicit selection required"
+                } else {
+                    "unavailable"
+                }
+            )
+            .map_err(CliError::Output)?;
+            writeln!(
+                stdout,
+                "  Launch preparation: requires UMU, Proton, prefix, and game selection"
+            )
+            .map_err(CliError::Output)?;
+            writeln!(stdout, "\nNetwork access: not performed\nRuntime execution: not performed\nGame execution: not performed\nPrefix mutation: not performed\n\nResult: partial").map_err(CliError::Output)
+        }
         Command::DiagnoseTelemetryGpu { interval_ms } => run_gpu_telemetry(interval_ms, stdout),
         Command::DiagnoseTelemetryCpuMemory { interval_ms } => {
             run_cpu_memory_telemetry(interval_ms, stdout)

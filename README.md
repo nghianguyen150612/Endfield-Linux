@@ -16,8 +16,12 @@ GE-Proton/DWProton claims, Heroic/Lutris runners, and explicit runtime
 directories through P021 provider contracts. `diagnose runtimes` never runs a
 candidate, performs network access, or saves an inventory. Discovery does not
 verify authenticity, complete integrity, launch readiness, or game
-compatibility. P022 hosted qualification is pending; see [runtime discovery](docs/RUNTIME-DISCOVERY-LINUX.md)
-and [runtime provider contracts](docs/RUNTIME-PROVIDERS.md).
+compatibility. P022A hosted qualification passed in [CI run 40648593964](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40648593964).
+P023 adds read-only UMU discovery and non-executable UMU-Proton plan preparation.
+UMU version, authenticity, artifact integrity, execution readiness, and Endfield
+compatibility remain unverified. See [UMU integration](docs/UMU-INTEGRATION.md),
+[Linux runtime discovery](docs/RUNTIME-DISCOVERY-LINUX.md), and
+[runtime provider contracts](docs/RUNTIME-PROVIDERS.md).
 
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
@@ -47,6 +51,7 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [P020 systemd user service](docs/SYSTEMD-USER.md)
 - [P021 runtime provider contracts](docs/RUNTIME-PROVIDERS.md)
 - [P022 Linux Wine and Proton discovery](docs/RUNTIME-DISCOVERY-LINUX.md)
+- [P023 UMU integration and safe launch-plan preparation](docs/UMU-INTEGRATION.md)
 - [Authenticated local IPC protocol and Linux transport](docs/IPC.md)
 - [Rust and C17 architecture decision](docs/adr/0001-rust-c17-architecture.md)
 - [Cross-platform boundary decision](docs/adr/0002-cross-platform-boundaries.md)
@@ -85,6 +90,7 @@ cargo +1.85.0 run --locked -p endfield-unix -- diagnose gpu
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose display
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose runtimes
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose runtimes --family proton --root /absolute/path/to/runners
+cargo +1.85.0 run --locked -p endfield-unix -- diagnose umu
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry cpu-memory
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry cpu-memory --interval-ms 500
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry frames --format frame-events-v1 --input ./frames.csv

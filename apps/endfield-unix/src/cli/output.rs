@@ -1645,6 +1645,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
+        "  diagnose umu  Inspect local UMU and Proton integration read-only"
+    )?;
+    writeln!(
+        output,
         "  diagnose telemetry frames --input PATH  Import selected frame data headlessly"
     )?;
     writeln!(output, "  service ping  Verify authenticated daemon IPC")?;

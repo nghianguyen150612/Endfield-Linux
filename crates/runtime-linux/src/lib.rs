@@ -7,6 +7,16 @@
 #![cfg(target_os = "linux")]
 #![forbid(unsafe_code)]
 
+pub mod umu;
+pub mod umu_discovery;
+pub mod umu_environment;
+pub mod umu_plan;
+
+pub use umu::{UmuProvider, UmuReport};
+pub use umu_discovery::{
+    UmuAvailability, UmuCandidate, UmuDiscoveryEnvironment, UmuDiscoveryReport,
+};
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fmt;
@@ -81,6 +91,14 @@ pub struct DiscoveredRuntime {
     path: PathBuf,
     ownership: RuntimeOwnership,
     observed_files: Vec<FileObservation>,
+}
+
+impl DiscoveredRuntime {
+    /// Returns the locally inspected runtime directory. The path is an observation,
+    /// not a permanent trust decision; callers must revalidate it before execution.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 }
 
 impl fmt::Debug for DiscoveredRuntime {

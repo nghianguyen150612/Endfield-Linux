@@ -87,6 +87,8 @@ enum DiagnoseArgs {
         #[arg(long = "root", value_name = "PATH", action = ArgAction::Append, value_parser = absolute_path)]
         roots: Vec<PathBuf>,
     },
+    /// Inspect installed UMU and local Proton integration without executing them.
+    Umu,
     /// Collect one bounded Linux CPU and memory telemetry sample.
     Telemetry {
         #[command(subcommand)]
@@ -268,6 +270,9 @@ where
             }),
             roots,
         },
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::Umu,
+        }) => Command::DiagnoseUmu,
         Some(SubcommandArgs::Diagnose {
             command:
                 DiagnoseArgs::Telemetry {
@@ -496,6 +501,7 @@ mod tests {
 
     #[test]
     fn diagnose_runtimes_parses_filter_and_absolute_roots() {
+        assert_command(&["diagnose", "umu"], Command::DiagnoseUmu);
         assert_command(
             &["diagnose", "runtimes"],
             Command::DiagnoseRuntimes {

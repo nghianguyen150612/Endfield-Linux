@@ -28,6 +28,7 @@ pub enum Command {
         family: Option<endfield_unix_runtime::RuntimeFamily>,
         roots: Vec<std::path::PathBuf>,
     },
+    DiagnoseUmu,
     DiagnoseTelemetryGpu {
         interval_ms: u64,
     },

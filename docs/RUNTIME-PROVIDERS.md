@@ -11,8 +11,8 @@ The library-only Cargo package is crates/runtime, named
 endfield-unix-runtime. It uses Rust 2024 and MSRV 1.85.0, forbids unsafe code,
 and depends only on serde_json 1.0.145 for deterministic JSON previews. It has
 no GTK, libadwaita, Relm4, Linux graphics, process, storage, IPC, C17, or
-privileged-helper dependency. P022's headless application command consumes
-these contracts through the separate Linux discovery adapter; the daemon does
+privileged-helper dependency. P022 and P023 headless application commands
+consume these contracts through the separate Linux adapter; the daemon does
 not consume the runtime provider.
 
 The crate contains only typed data, bounded validation, negotiation, and
@@ -260,3 +260,16 @@ Ownership remains external, manager-owned, distribution-managed, or unknown;
 the Linux adapter never creates an Endfield-managed runtime. Root policy,
 metadata rules, symlink handling, identity scope, tests, and device validation
 are documented in [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md).
+
+## P023 UMU adapter
+
+P023 adds bounded `umu-run` discovery and a UMU provider declaration in the
+Linux crate. It consumes an explicitly selected P022 Proton candidate and
+repeats P022 identity inspection before preparing a P021 plan.
+`RuntimeAdapterSelection::new(UmuProton, ...)` enforces that the selected
+runtime is Proton; Wine-only identities are rejected. UMU and Proton
+identities stay separate. A structurally valid UMU candidate yields
+`ImplementedByProvider` for local integration and plan preparation, never
+`VerifiedUsable`; runtime execution is not advertised. P023 does not claim
+source authenticity, artifact integrity, or compatibility. See
+[UMU-INTEGRATION.md](UMU-INTEGRATION.md).

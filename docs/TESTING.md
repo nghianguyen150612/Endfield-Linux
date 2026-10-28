@@ -923,6 +923,38 @@ compatibility. Real-device and compatibility status:
 
 `Actual Endfield runtime compatibility: UNVERIFIED`
 
-P023 UMU integration is not included. The P021 candidate/identity boundary is
-ready for P023 to consume without treating discovery as authenticity,
-integrity, launch readiness, or compatibility evidence.
+At the P022A qualification point, P023 UMU integration was not included. The
+P021 candidate/identity boundary is consumed by the P023 implementation below
+without treating discovery as authenticity, integrity, launch readiness, or
+compatibility evidence.
+
+## P023 local qualification status
+
+P023 adds isolated UMU discovery, environment, Proton mapping, launch-plan, and
+live smoke tests. On the local Rust 1.85.0 toolchain, formatting,
+`cargo clippy --locked -p endfield-unix-runtime-linux --all-targets -- -D warnings`,
+and `cargo test --locked -p endfield-unix-runtime-linux --all-targets` passed.
+The suite passed 32 existing P022 library tests, 11 absence semantics tests,
+the existing Linux live smoke, seven UMU discovery tests, two environment
+tests, two launch-plan tests, two UMU live/capability tests, and two P022
+mapping tests. Fixtures are local synthetic files; no runtime executable or
+game was invoked.
+
+A full-workspace `cargo check --locked --workspace --all-targets` and
+`cargo clippy --locked --workspace --all-targets -- -D warnings` passed using
+throwaway type-check-only pkg-config metadata because this container has no
+GTK/GLib development packages. Full workspace test and build commands reached
+GTK linking and could not link because GTK shared libraries are absent. The
+workspace suite excluding the GTK application passed, including P019/P020 daemon
+lifecycle/systemd tests, storage/diagnostics/telemetry tests, and Rust C17 FFI
+contracts. The app `ipc_e2e` test was excluded with the GUI package; the
+`ipc_e2e.rs:144` saturation race was therefore not exercised locally and
+remains unresolved. `CC=gcc native/optimizer/tests/run-c-tests.sh` passed;
+Clang is not installed locally, so the Clang ABI check remains a hosted gate.
+Locked Cargo metadata confirmed exactly two application binaries and a
+library-only runtime Linux adapter with no dependency changes. The GUI
+build/screenshot and local CLI binary smoke were not run here. The
+workflow now runs `diagnose umu` beside the P022 smoke. Hosted P023
+qualification has not yet completed; this section must be updated with its
+Actions result before declaring P023 qualified. Real UMU, Proton, prefix, and
+Endfield validation remains unverified.

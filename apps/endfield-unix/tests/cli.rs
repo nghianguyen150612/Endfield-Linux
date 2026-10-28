@@ -25,6 +25,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("diagnose hardware"));
     assert!(stdout.contains("diagnose display"));
     assert!(stdout.contains("diagnose runtimes"));
+    assert!(stdout.contains("diagnose umu"));
     assert!(stdout.contains("diagnose telemetry frames --input PATH"));
     assert!(stdout.contains("service ping"));
     assert!(stdout.contains("service status"));
@@ -52,6 +53,28 @@ fn runtime_diagnosis_is_headless_and_reports_no_fake_candidates() {
     assert!(stdout.contains("Discovery result:"));
     assert!(!stdout.contains("/home/"));
     assert!(!stdout.contains("Proton 10-26"));
+}
+
+#[test]
+fn umu_diagnosis_is_headless_truthful_and_redacts_runtime_paths() {
+    let output = invoke(&["diagnose", "umu"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("UMU integration: Linux"));
+    assert!(stdout.contains("UMU version: unknown"));
+    assert!(stdout.contains("Proton discovery:"));
+    assert!(stdout.contains("Selected runtime: none (identity not evaluated)"));
+    assert!(stdout.contains("Source verification: not performed"));
+    assert!(stdout.contains("Compatibility: not evaluated"));
+    assert!(stdout.contains("Network access: not performed"));
+    assert!(stdout.contains("Runtime execution: not performed"));
+    assert!(stdout.contains("Game execution: not performed"));
+    assert!(!stdout.contains("/home/"));
 }
 
 #[test]

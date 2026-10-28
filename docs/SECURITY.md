@@ -223,8 +223,9 @@ always reports executable_now as false. Structural validation does not grant
 authorization. External or unknown runtime ownership cannot be updated or
 removed through the runtime management policy.
 
-The portable runtime library has no platform dependencies. P022's separate
-Linux adapter is connected only to the headless `diagnose runtimes` CLI. It
+The portable runtime library has no platform dependencies. P022/P023's separate
+Linux adapter is connected only to the headless `diagnose runtimes` and
+`diagnose umu` CLI commands. It
 reads bounded local paths, reports sanitized labels without absolute paths,
 does not execute runtime files, and keeps its candidate path map in memory for
 identity inspection in the same provider session. It writes no inventory to
@@ -234,3 +235,20 @@ integrity, launch readiness, or compatibility. Source acquisition, trusted
 manifests, prefix management, and launch remain later milestones. See
 [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md) and
 [RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
+
+## P023 UMU boundary
+
+`diagnose umu` checks only bounded local filesystem metadata and reuses P022
+for Proton discovery. It does not invoke `umu-run`, Wine, Proton, games,
+package managers, or network clients. The UMU version remains unknown. A
+regular executable file is structural local evidence only and is not a
+verified UMU distribution or verified usable provider.
+
+The prepared plan uses an explicit absolute Proton directory and existing
+prefix path, and it removes selected inherited UMU behavior controls. Setting
+`UMU_RUNTIME_UPDATE=0` disables the documented Steam Linux Runtime automatic
+update path; it does not guarantee offline or read-only execution. Executing
+UMU in the future may acquire runtimes, update caches, initialize compatibility
+layers, apply protonfixes, and mutate a prefix. P023 performs none of these
+effects. P034 must revalidate observed files because read-only inspection does
+not close TOCTOU races. See [UMU-INTEGRATION.md](UMU-INTEGRATION.md).
