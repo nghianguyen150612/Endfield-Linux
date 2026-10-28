@@ -24,6 +24,10 @@ pub enum Command {
     DiagnoseHardware,
     DiagnoseGpu,
     DiagnoseDisplay,
+    DiagnoseRuntimes {
+        family: Option<endfield_unix_runtime::RuntimeFamily>,
+        roots: Vec<std::path::PathBuf>,
+    },
     DiagnoseTelemetryGpu {
         interval_ms: u64,
     },

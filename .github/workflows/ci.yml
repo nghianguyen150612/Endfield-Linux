@@ -76,6 +76,13 @@ jobs:
       - name: Build application binaries for the Linux IPC subprocess tests
         run: cargo build --locked -p endfield-unix -p endfield-unixd
 
+      - name: Run headless installed Wine and Proton discovery smoke
+        run: |
+          ./target/debug/endfield-unix diagnose runtimes | tee /tmp/endfield-runtime-discovery.txt
+          grep -Fq "Runtime discovery: Linux" /tmp/endfield-runtime-discovery.txt
+          grep -Eq "Discovered runtimes: [0-9]+" /tmp/endfield-runtime-discovery.txt
+          grep -Eq "Discovery result: (complete|partial)" /tmp/endfield-runtime-discovery.txt
+
       - name: Run the headless Linux platform CLI against this runner
         run: ./target/debug/endfield-unix diagnose platform
 
@@ -117,6 +124,9 @@ jobs:
 
       - name: Run P021 runtime provider contract tests
         run: cargo test --locked -p endfield-unix-runtime --all-targets
+
+      - name: Run P022 Linux runtime discovery contracts
+        run: cargo test --locked -p endfield-unix-runtime-linux --all-targets
 
       - name: Run workspace, CLI, FFI, storage, domain, and diagnostics contract tests
         run: cargo test --locked --workspace
@@ -200,6 +210,11 @@ jobs:
           assert {dependency["name"] for dependency in runtime["dependencies"]} == {"serde_json"}, runtime["dependencies"]
           assert not any(dependency["name"] in gui_dependencies for dependency in runtime["dependencies"]), runtime["dependencies"]
           assert not any(dependency["name"] in {"ash", "nix", "vulkan", "vulkano", "wayland-client", "wayland-protocols", "x11rb"} for dependency in runtime["dependencies"]), runtime["dependencies"]
+          runtime_linux = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-runtime-linux")
+          assert any("lib" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
+          assert not any("bin" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
+          assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc"}, runtime_linux["dependencies"]
+          assert not any(dependency["name"] in gui_dependencies | {"endfield-unixd", "ash", "nix", "vulkan", "vulkano", "wayland-client", "wayland-protocols", "x11rb"} for dependency in runtime_linux["dependencies"]), runtime_linux["dependencies"]
           ipc = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-ipc")
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]

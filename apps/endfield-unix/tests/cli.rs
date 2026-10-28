@@ -24,6 +24,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("diagnose platform"));
     assert!(stdout.contains("diagnose hardware"));
     assert!(stdout.contains("diagnose display"));
+    assert!(stdout.contains("diagnose runtimes"));
     assert!(stdout.contains("diagnose telemetry frames --input PATH"));
     assert!(stdout.contains("service ping"));
     assert!(stdout.contains("service status"));
@@ -34,6 +35,23 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     );
     assert!(!stdout.contains("  game "));
     assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn runtime_diagnosis_is_headless_and_reports_no_fake_candidates() {
+    let output = invoke(&["diagnose", "runtimes", "--family", "proton"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Runtime discovery: Linux"));
+    assert!(stdout.contains("Discovered runtimes:"));
+    assert!(stdout.contains("Discovery result:"));
+    assert!(!stdout.contains("/home/"));
+    assert!(!stdout.contains("Proton 10-26"));
 }
 
 #[test]

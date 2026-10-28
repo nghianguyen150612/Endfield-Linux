@@ -65,3 +65,6 @@ The persistence API does not include platform-specific paths in public service m
 ## Test evidence
 
 The storage contract tests use fresh temporary roots and cover default/load/save behavior, schema validation, XDG injection, file permissions, stale and concurrent writes, atomic pre-replacement failure, SQLite migration and metadata persistence, foreign-key configuration, rollback, future schemas, corrupt files, failed migrations, and bounded busy handling. They do not read or write real user configuration directories. The exact local and hosted validation outcomes are recorded in [TESTING.md](TESTING.md).
+
+P022 runtime discovery is ephemeral. It does not create or modify SQLite or
+TOML state, persist explicit roots, or attach runtime paths to support reports.

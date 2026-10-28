@@ -11,9 +11,9 @@ The library-only Cargo package is crates/runtime, named
 endfield-unix-runtime. It uses Rust 2024 and MSRV 1.85.0, forbids unsafe code,
 and depends only on serde_json 1.0.145 for deterministic JSON previews. It has
 no GTK, libadwaita, Relm4, Linux graphics, process, storage, IPC, C17, or
-privileged-helper dependency. The application and daemon do not consume this
-crate yet. P022 and later milestones will add implementations behind these
-interfaces.
+privileged-helper dependency. P022's headless application command consumes
+these contracts through the separate Linux discovery adapter; the daemon does
+not consume the runtime provider.
 
 The crate contains only typed data, bounded validation, negotiation, and
 provider trait contracts. Its test providers and identities are synthetic.
@@ -227,11 +227,10 @@ redaction; ownership; risk; and deterministic dry-run serialization.
 
 P021 does not change the daemon lifecycle, IPC v1.0, systemd user service, C17
 ABI 0x00010000, P007 capability ID 50, GTK runtime selection, or P006 SQLite
-schema. Runtime discovery remains P022, UMU integration P023, trusted source
-manifests P024, acquisition P025, installed integrity P026, pinning P027,
-prefix management P028–P029, and production launch/session ownership
-P034–P036. No real Wine/Proton discovery or Endfield compatibility has been
-performed.
+schema. UMU integration is P023, trusted source manifests P024, acquisition
+P025, installed integrity P026, pinning P027, prefix management P028–P029,
+and production launch/session ownership P034–P036. Physical Arch-device Wine
+and Proton inventory and Endfield compatibility remain unverified.
 
 ## Qualification
 
@@ -248,3 +247,16 @@ the existing IPC capacity race documented in [TESTING.md](TESTING.md). The
 hosted IPC pass does not resolve or rule out that intermittent race. The
 optional real systemd user-manager integration and real Endfield gameplay or
 compatibility remain unverified.
+
+## P022 Linux discovery adapter
+
+The portable crate still performs no local discovery. P022 implements a
+separate library-only `endfield-unix-runtime-linux` adapter and routes
+`endfield-unix diagnose runtimes` through its P021 `RuntimeProvider`,
+`DiscoveryReport`, candidate, and identity contracts. Discovery is bounded
+and read-only. Candidate structure and claimed lineage do not establish
+source authenticity, artifact integrity, launch readiness, or compatibility.
+Ownership remains external, manager-owned, distribution-managed, or unknown;
+the Linux adapter never creates an Endfield-managed runtime. Root policy,
+metadata rules, symlink handling, identity scope, tests, and device validation
+are documented in [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md).

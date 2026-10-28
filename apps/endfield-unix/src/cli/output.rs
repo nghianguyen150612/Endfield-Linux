@@ -1641,6 +1641,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
+        "  diagnose runtimes [--family wine|proton] [--root PATH]  Discover local Wine and Proton files read-only"
+    )?;
+    writeln!(
+        output,
         "  diagnose telemetry frames --input PATH  Import selected frame data headlessly"
     )?;
     writeln!(output, "  service ping  Verify authenticated daemon IPC")?;
@@ -1717,11 +1721,11 @@ fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|telemetry>\n"
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|runtimes|telemetry>\n"
     )?;
     writeln!(
         output,
-        "Platform, hardware, GPU, display, and live telemetry run without GTK or the daemon. Frame import reads only an explicitly selected file."
+        "Platform, hardware, GPU, display, runtime discovery, and live telemetry run without GTK or the daemon. Runtime discovery is read-only and never executes Wine or Proton."
     )?;
     writeln!(
         output,

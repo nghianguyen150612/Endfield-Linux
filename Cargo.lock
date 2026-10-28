@@ -176,6 +176,8 @@ dependencies = [
  "endfield-unix-domain",
  "endfield-unix-ipc",
  "endfield-unix-platform-linux",
+ "endfield-unix-runtime",
+ "endfield-unix-runtime-linux",
  "endfield-unix-telemetry",
  "fs2",
  "gtk4",
@@ -241,6 +243,14 @@ name = "endfield-unix-runtime"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "endfield-unix-runtime-linux"
+version = "0.1.0"
+dependencies = [
+ "endfield-unix-runtime",
+ "libc",
 ]
 
 [[package]]

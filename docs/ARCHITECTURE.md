@@ -2,12 +2,13 @@
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; P020 adds optional Linux user-service lifecycle management; and P021 defines portable runtime provider, source verification, compatibility, ownership, and non-executable launch-plan contracts. Runtime discovery, acquisition, installed-file verification, and production game launch remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; P020 adds optional Linux user-service lifecycle management; P021 defines portable runtime provider, source verification, compatibility, ownership, and non-executable launch-plan contracts; P022 adds bounded read-only Linux Wine and Proton discovery. Runtime acquisition, installed-file integrity audits, and production game launch remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
                                   │                             │
                                   ├──> platform adapters        └──> C17 planner
+                                  ├──> runtime-linux adapter ──> portable runtime contracts
                                   ├──> storage crate and shared IPC client
                                   └──> session daemon client
 ```
@@ -16,12 +17,12 @@ The GTK frontend and CLI use one Rust application core and one GUI/CLI executabl
 
 The desktop stack is fixed: Rust 2024, GTK4, libadwaita, Relm4, GTK CSS, and SVG resources. C optimizer code targets C17. Rust owns the application lifecycle, CLI argument handling, UI integration, game and runtime management, platform adapters, telemetry ingestion, daemon lifecycle and IPC, SQLite/TOML persistence, safe FFI wrappers, plan validation/execution, and recovery.
 
-P021 adds endfield-unix-runtime alongside the P007 domain and P015 telemetry
-libraries as a portable contract dependency for future application services.
-The runtime crate does not depend on the GUI, Linux adapters, storage, daemon,
-IPC, or process APIs. No application executable consumes the runtime contracts
-yet; P022 and later milestones add provider implementations behind this
-boundary.
+P021 adds endfield-unix-runtime as a portable contract library. P022 adds the
+library-only endfield-unix-runtime-linux adapter, consumed by the headless
+`diagnose runtimes` CLI. The Linux adapter depends on the portable runtime
+contracts and libc's bounded no-follow file-open flags. It is independent of
+GTK, Vulkan, Wayland/X11 discovery, storage, IPC, daemon, and process execution.
+The portable runtime crate itself remains Linux-independent.
 
 ## P002 workspace and entry point
 

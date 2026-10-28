@@ -1,0 +1,17 @@
+[package]
+name = "endfield-unix-runtime-linux"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Bounded read-only Linux discovery of installed Wine and Proton runtimes"
+
+[lib]
+name = "endfield_unix_runtime_linux"
+path = "src/lib.rs"
+
+[dependencies]
+endfield-unix-runtime = { path = "../runtime" }
+libc = "=0.2.191"

@@ -789,3 +789,61 @@ runtime, game, graphics API, or user data is accessed.
   it passed all three jobs, including the full workspace test and C17 ABI
   gates. Real `systemd --user` integration and Endfield gameplay validation
   remain unverified.
+
+## P022 Linux Wine and Proton discovery — hosted qualification pending
+
+P022 starts from P021 commit
+`64b0e5bacab7cb78c645aff17190b81db494d787` on `main`. The implementation adds
+the library-only `endfield-unix-runtime-linux` adapter, P021 provider and
+identity integration, headless `diagnose runtimes`, a hosted CLI smoke, and
+deterministic filesystem contracts. It does not change IPC, daemon behavior,
+the C17 ABI, or the two application executable targets.
+
+Local Rust 1.85.0 validation passed formatting, all 32 runtime-linux unit tests
+and its Linux live smoke test, and Clippy with warnings denied. Workspace
+`cargo check` and Clippy passed with temporary type-check-only pkg-config
+metadata for GTK/GLib. Those metadata stubs provide no native libraries and do
+not validate linking or GTK runtime behavior. A normal workspace check stopped
+at the missing host `glib-2.0 >= 2.72` development package. The complete
+workspace test suite excluding the GTK application package passed, including
+P021 runtime, storage, domain, diagnostics, telemetry, platform, IPC library,
+daemon lifecycle, sessions, and C17 FFI tests. The app CLI and IPC subprocess
+tests, full workspace link/build, and GTK runtime behavior remain hosted gates.
+
+The independent local GCC C17 ABI script passed. Clang is not installed on this
+host, so the Clang ABI gate remains pending hosted CI. The Ubuntu workflow
+installs real GTK4 and libadwaita development packages and remains the gate for
+workspace linking, app CLI execution, GTK smoke/screenshot, the full regression
+suite, and both compiler jobs.
+
+The new tests use isolated temporary directories for GE-Proton-shaped and
+custom Proton metadata, malformed VDF, conflicting local metadata, Wine
+Staging evidence, non-executable Wine files, custom-root symlink boundaries,
+symlink cycles, UTF-8 and metadata-size bounds, special-file rejection,
+Steam libraryfolders parsing, Steam common-folder filtering for unrelated game
+metadata while retaining custom-named Proton, denied-root handling, bounded
+non-recursion, ownership, distinct same-label installations, P021
+candidate/identity validation, no executable invocation, and no fixture
+mutation. The live Linux library smoke checks only
+the fixed system Wine paths and does not traverse the developer's Steam,
+Heroic, Lutris, or PATH directories. The hosted CLI smoke runs
+`./target/debug/endfield-unix diagnose runtimes` and accepts zero installed
+candidates.
+
+At this record, hosted CI has not yet run for P022. Therefore the hosted Linux
+smoke, GTK screenshot, app CLI integration suite, daemon/systemd/session gates,
+P011–P021 full workspace regressions, IPC capacity-race recurrence, GCC and
+Clang C17 ABI jobs, and final hosted Cargo metadata gates are pending. The IPC
+test and implementation remain untouched. P022 did not rerun the app IPC
+subprocess test locally; whether the documented race recurs in its P022 run is
+pending. Real-device and compatibility status:
+
+`Arch desktop runtime discovery: UNVERIFIED`
+
+`Dell Vostro runtime discovery: UNVERIFIED`
+
+`Actual Endfield runtime compatibility: UNVERIFIED`
+
+P023 UMU integration is not included. The P021 candidate/identity boundary is
+ready for P023 to consume without treating discovery as authenticity,
+integrity, launch readiness, or compatibility evidence.

@@ -45,6 +45,9 @@ pub enum CliError {
     TelemetryContract(TelemetryError),
     TelemetryConfig(LinuxTelemetryConfigError),
     FrameInput(FrameInputError),
+    RuntimeDiscovery(endfield_unix_runtime_linux::DiscoveryConfigError),
+    RuntimeDiscoveryFailed,
+    RuntimeDiscoveryUnsupported,
     Systemd(super::systemd::SystemdError),
 }
 
@@ -113,6 +116,9 @@ impl CliError {
                 FrameInputErrorKind::UnsupportedFormat => EXIT_PLATFORM_UNSUPPORTED,
                 FrameInputErrorKind::Malformed => EXIT_PLATFORM_PROBE_FAILED,
             },
+            Self::RuntimeDiscovery(_) => EXIT_INVALID_ARGUMENTS,
+            Self::RuntimeDiscoveryFailed => EXIT_PLATFORM_PROBE_FAILED,
+            Self::RuntimeDiscoveryUnsupported => EXIT_PLATFORM_UNSUPPORTED,
             Self::Systemd(_) => EXIT_SYSTEMD_ERROR,
         }
     }
@@ -151,6 +157,15 @@ impl fmt::Display for CliError {
                     "the selected frame recording is malformed or exceeds the input limits.",
                 ),
             },
+            Self::RuntimeDiscovery(_) => {
+                formatter.write_str("runtime discovery options are invalid.")
+            }
+            Self::RuntimeDiscoveryFailed => {
+                formatter.write_str("all accessible runtime discovery sources failed.")
+            }
+            Self::RuntimeDiscoveryUnsupported => {
+                formatter.write_str("Linux runtime discovery is not supported on this platform.")
+            }
             Self::Systemd(error) => fmt::Display::fmt(error, formatter),
         }
     }
@@ -172,6 +187,9 @@ impl Error for CliError {
             Self::TelemetryContract(error) => Some(error),
             Self::TelemetryConfig(_) => None,
             Self::FrameInput(_) => None,
+            Self::RuntimeDiscovery(_) => None,
+            Self::RuntimeDiscoveryFailed => None,
+            Self::RuntimeDiscoveryUnsupported => None,
             Self::Systemd(error) => Some(error),
         }
     }
@@ -462,6 +480,139 @@ where
                 .inspect()
                 .map_err(CliError::DisplayProbe)?;
             output::write_display_report(&report, stdout).map_err(CliError::Output)
+        }
+        Command::DiagnoseRuntimes { family, roots } => {
+            if !cfg!(target_os = "linux") {
+                return Err(CliError::RuntimeDiscoveryUnsupported);
+            }
+            if roots.len() > endfield_unix_runtime_linux::MAX_CUSTOM_ROOTS
+                || roots.iter().any(|path| !path.is_absolute())
+            {
+                return Err(CliError::RuntimeDiscovery(
+                    if roots.len() > endfield_unix_runtime_linux::MAX_CUSTOM_ROOTS {
+                        endfield_unix_runtime_linux::DiscoveryConfigError::TooManyCustomRoots
+                    } else {
+                        endfield_unix_runtime_linux::DiscoveryConfigError::InvalidCustomRoot
+                    },
+                ));
+            }
+            let provider = endfield_unix_runtime_linux::LinuxRuntimeProvider::new(
+                endfield_unix_runtime_linux::DiscoveryOptions {
+                    additional_roots: roots,
+                    include_path: true,
+                    include_conventional: true,
+                },
+            )
+            .map_err(CliError::RuntimeDiscovery)?;
+            let report = provider.scan();
+            if report.runtimes.is_empty()
+                && !report.issues.is_empty()
+                && !report
+                    .roots
+                    .iter()
+                    .any(|root| root.available && root.completed)
+            {
+                return Err(CliError::RuntimeDiscoveryFailed);
+            }
+            writeln!(stdout, "Runtime discovery: Linux").map_err(CliError::Output)?;
+            let runtimes: Vec<_> = report
+                .runtimes
+                .iter()
+                .filter(|runtime| family.is_none_or(|family| runtime.candidate.family() == family))
+                .collect();
+            for (index, runtime) in runtimes.iter().enumerate() {
+                writeln!(stdout, "\nRuntime {}:", index + 1).map_err(CliError::Output)?;
+                writeln!(stdout, "  Family: {}", runtime.candidate.family().as_str())
+                    .map_err(CliError::Output)?;
+                let lineage = match &runtime.lineage {
+                    endfield_unix_runtime::RuntimeLineage::UpstreamWine => "Upstream Wine",
+                    endfield_unix_runtime::RuntimeLineage::WineStaging => "Wine Staging",
+                    endfield_unix_runtime::RuntimeLineage::ValveProton => "Valve Proton",
+                    endfield_unix_runtime::RuntimeLineage::GeProton => "GE-Proton",
+                    endfield_unix_runtime::RuntimeLineage::DwProton => "DWProton",
+                    endfield_unix_runtime::RuntimeLineage::OtherVerifiedDerivative(_) => {
+                        "Other derivative"
+                    }
+                    endfield_unix_runtime::RuntimeLineage::Unknown => "unknown",
+                };
+                if runtime.lineage == endfield_unix_runtime::RuntimeLineage::Unknown {
+                    writeln!(stdout, "  Lineage: {lineage}").map_err(CliError::Output)?;
+                } else {
+                    writeln!(
+                        stdout,
+                        "  Lineage: {lineage} (claimed by {})",
+                        runtime.lineage_basis
+                    )
+                    .map_err(CliError::Output)?;
+                }
+                writeln!(
+                    stdout,
+                    "  Version: {}",
+                    runtime
+                        .version
+                        .as_ref()
+                        .map_or("unknown", |version| version.as_str())
+                )
+                .map_err(CliError::Output)?;
+                let architectures = runtime
+                    .architectures
+                    .iter()
+                    .map(|architecture| architecture.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                writeln!(
+                    stdout,
+                    "  Runtime architecture: {}",
+                    if architectures.is_empty() {
+                        "unknown"
+                    } else {
+                        &architectures
+                    }
+                )
+                .map_err(CliError::Output)?;
+                let sources = runtime
+                    .sources
+                    .iter()
+                    .map(|source| source.label)
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                writeln!(
+                    stdout,
+                    "  Source: {}",
+                    if sources.is_empty() {
+                        "unknown source"
+                    } else {
+                        &sources
+                    }
+                )
+                .map_err(CliError::Output)?;
+                writeln!(
+                    stdout,
+                    "  Ownership: {}",
+                    runtime.candidate.ownership().as_str()
+                )
+                .map_err(CliError::Output)?;
+                writeln!(stdout, "  Structure: {}", runtime.structure).map_err(CliError::Output)?;
+                writeln!(stdout, "  Local label: {}", runtime.display_label)
+                    .map_err(CliError::Output)?;
+                writeln!(stdout, "  Source authenticity: unverified\n  Artifact integrity: unverified\n  Compatibility: not evaluated\n  Launch readiness: unverified").map_err(CliError::Output)?;
+            }
+            writeln!(stdout, "\nDiscovered runtimes: {}", runtimes.len())
+                .map_err(CliError::Output)?;
+            let result = match report.contract.completeness() {
+                endfield_unix_runtime::DiscoveryCompleteness::Complete => "complete",
+                endfield_unix_runtime::DiscoveryCompleteness::Partial { .. } => "partial",
+            };
+            writeln!(stdout, "Discovery result: {result}").map_err(CliError::Output)?;
+            if !report.issues.is_empty() {
+                writeln!(
+                    stdout,
+                    "Sources with safe discovery issues: {}",
+                    report.issues.len()
+                )
+                .map_err(CliError::Output)?;
+            }
+            Ok(())
         }
         Command::DiagnoseTelemetryGpu { interval_ms } => run_gpu_telemetry(interval_ms, stdout),
         Command::DiagnoseTelemetryCpuMemory { interval_ms } => {

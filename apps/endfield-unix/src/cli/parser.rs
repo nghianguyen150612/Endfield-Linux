@@ -78,6 +78,15 @@ enum DiagnoseArgs {
     Gpu,
     /// Inspect local Linux display outputs, session protocols, and DRM connectors.
     Display,
+    /// Discover installed Wine and Proton files without executing them.
+    Runtimes {
+        /// Restrict the output to a runtime family.
+        #[arg(long, value_enum)]
+        family: Option<RuntimeFamilyArg>,
+        /// Add an absolute root for this invocation only; may be repeated.
+        #[arg(long = "root", value_name = "PATH", action = ArgAction::Append, value_parser = absolute_path)]
+        roots: Vec<PathBuf>,
+    },
     /// Collect one bounded Linux CPU and memory telemetry sample.
     Telemetry {
         #[command(subcommand)]
@@ -119,6 +128,21 @@ enum FrameFormatArg {
     FrameEventsV1,
     #[value(name = "mangohud-csv")]
     MangoHudCsv,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RuntimeFamilyArg {
+    Wine,
+    Proton,
+}
+
+fn absolute_path(value: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(value);
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Err("runtime roots must be absolute paths".into())
+    }
 }
 
 impl From<FrameFormatArg> for FrameSourceFormat {
@@ -235,6 +259,15 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Display,
         }) => Command::DiagnoseDisplay,
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::Runtimes { family, roots },
+        }) => Command::DiagnoseRuntimes {
+            family: family.map(|family| match family {
+                RuntimeFamilyArg::Wine => endfield_unix_runtime::RuntimeFamily::Wine,
+                RuntimeFamilyArg::Proton => endfield_unix_runtime::RuntimeFamily::Proton,
+            }),
+            roots,
+        },
         Some(SubcommandArgs::Diagnose {
             command:
                 DiagnoseArgs::Telemetry {
@@ -459,6 +492,33 @@ mod tests {
     #[test]
     fn diagnose_display_is_a_typed_local_command() {
         assert_command(&["diagnose", "display"], Command::DiagnoseDisplay);
+    }
+
+    #[test]
+    fn diagnose_runtimes_parses_filter_and_absolute_roots() {
+        assert_command(
+            &["diagnose", "runtimes"],
+            Command::DiagnoseRuntimes {
+                family: None,
+                roots: Vec::new(),
+            },
+        );
+        assert_command(
+            &[
+                "diagnose",
+                "runtimes",
+                "--family",
+                "proton",
+                "--root",
+                "/tmp/runners",
+            ],
+            Command::DiagnoseRuntimes {
+                family: Some(endfield_unix_runtime::RuntimeFamily::Proton),
+                roots: vec![PathBuf::from("/tmp/runners")],
+            },
+        );
+        assert!(parse(args(&["diagnose", "runtimes", "--root", "relative"])).is_err());
+        assert!(parse(args(&["diagnose", "runtimes", "--family", "unknown"])).is_err());
     }
 
     #[test]

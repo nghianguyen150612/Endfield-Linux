@@ -223,8 +223,14 @@ always reports executable_now as false. Structural validation does not grant
 authorization. External or unknown runtime ownership cannot be updated or
 removed through the runtime management policy.
 
-The runtime library is not connected to the GUI, daemon, IPC, systemd service,
-storage schema, C17 planner, graphics discovery, or session supervisor.
-Actual runtime discovery is P022; acquisition, trusted manifests, prefix
-management, and launch remain later milestones. See
+The portable runtime library has no platform dependencies. P022's separate
+Linux adapter is connected only to the headless `diagnose runtimes` CLI. It
+reads bounded local paths, reports sanitized labels without absolute paths,
+does not execute runtime files, and keeps its candidate path map in memory for
+identity inspection in the same provider session. It writes no inventory to
+storage or support reports. Explicit roots are opt-in, absolute, traversal
+free, bounded, and ephemeral. Familiar directory names do not verify origin,
+integrity, launch readiness, or compatibility. Source acquisition, trusted
+manifests, prefix management, and launch remain later milestones. See
+[RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md) and
 [RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
