@@ -11,15 +11,24 @@ Proton, a launcher, or a manifest.
 The adapter registers fixed source classes: system Wine executables, PATH Wine
 executables, native Steam, Flatpak Steam, Heroic, Lutris, and explicit roots.
 Each root attempt records its source, type, expected ownership, availability,
-attempt/completion state, and a safe issue category. Absent conventional
-locations are ordinary empty results. Permission errors,
+attempt/completion state, an explicit outcome, and a safe issue category.
+`NotPresent` is a successfully checked absence; `Inspected` and
+`PartiallyInspected` record completed reads; `Failed` is an unsafe or failed
+inspection; `Truncated` records a resource limit. Missing conventional
+locations and missing PATH executable hints are ordinary observations, not
+source failures. Permission errors,
 wrong root types, malformed Steam library metadata, unsafe aliases, and limit
 hits make the P021 report partial while preserving candidates from other roots.
 
 System Wine checks `/usr/bin/wine`, `/usr/bin/wine64`, `/usr/local/bin/wine`,
 and `/usr/local/bin/wine64`. PATH is only a hint: it is bounded to 16 KiB and
 64 entries; empty, relative, and current-directory entries are ignored. The
-scanner never uses a shell or runs `wine --version`.
+scanner never uses a shell or runs `wine --version`. It checks whether a PATH
+hint exists before spending the 32-root scan budget. Missing PATH hints do not
+consume that budget. Existing roots are ordered by source policy: system Wine,
+explicit roots, managed Steam/Heroic/Lutris locations, then PATH Wine. An
+existing-root overflow is reported as `Truncated` and makes discovery partial;
+it does not silently discard an explicit root in favor of PATH candidates.
 
 Native Steam checks the conventional `~/.steam/root`, `~/.steam/steam`, and
 `~/.local/share/Steam` compatibility-tools and `steamapps/common` locations.
@@ -128,15 +137,52 @@ reports, or uploaded.
 `--family proton`, and repeatable `--root /absolute/path` filters. Output omits
 absolute paths and labels lineage evidence, source authenticity, artifact
 integrity, compatibility, and launch readiness as unverified/not evaluated.
-Exit status is 0 for full or partial discovery, 2 for invalid options, 70 when
-all accessible sources fail, 74 for output errors, and 78 on unsupported
-platforms.
+Exit status is 0 for full or partial discovery, 2 for invalid options, 70 only
+when every applicable inspected source fails, 74 for output errors, and 78 on
+unsupported platforms. A successful absence observation, a completed empty
+directory, or a truncated source is not itself a fatal source failure. A
+zero-candidate complete report means only that the selected local locations
+contained no recognized runtimes; it says nothing about game compatibility.
+Partial CLI output prints only fixed source labels and safe issue codes, never
+root paths or raw metadata. If the provider's applicable roots all fail
+inspection, the provider returns the typed `ProviderUnavailable` error.
 
 The hosted Linux smoke runs the actual executable and accepts an empty result
-when no Wine or Proton is installed. A passing smoke validates safe command
-execution and report formatting; it does not validate any runtime. Synthetic
+when no Wine or Proton is installed. An isolated temporary HOME/PATH fixture
+independently verifies an empty-host result even if the test machine happens
+to have Wine installed. A passing smoke validates safe command execution and
+report formatting; it does not validate any runtime. Synthetic
 temporary-directory contracts cover VDF parsing, metadata, symlink boundaries,
-Wine structure, ownership, and P021 report construction.
+Wine structure, ownership, root absence/failure outcomes, and P021 report
+construction.
+
+## P022A hosted smoke repair
+
+The first hosted P022 qualification, [run
+40619500314](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40619500314),
+failed in the real CLI smoke with `all accessible runtime discovery sources
+failed`; its GCC and Clang C17 jobs passed. The CLI treated missing
+conventional roots as failures because the fatal check required an available
+root even when a location had been correctly checked and found absent. In
+addition, absent PATH `wine`/`wine64` hints were included in the root list
+before applying the 32-root limit. This made a normal PATH capable of
+truncating optional hints and turning an otherwise empty machine into an
+error.
+
+P022A classifies absence, completed inspection, partial inspection, failure,
+and resource truncation separately. It deduplicates same-source root aliases,
+checks candidate paths before applying the 32 existing-root budget, gives
+explicit roots priority over PATH candidates, and preserves a typed partial
+result when a limit is reached. Only a report where all applicable root
+inspections failed is fatal. The new isolated contracts cover empty HOME and
+PATH, multiple PATH directories without Wine, missing/empty/inaccessible and
+malformed explicit roots, mixed outcomes, the present-root budget, no false
+candidates, conservative trust, and no runtime execution or fixture writes.
+
+The corrected hosted qualification run and captured real CLI output will be
+recorded here after GitHub Actions completes. Source limits remain bounded to
+64 PATH directories, 32 existing scan roots, and the documented per-directory
+and metadata limits; exceeding a bound remains visible as partial discovery.
 
 `Arch desktop runtime discovery: UNVERIFIED`
 

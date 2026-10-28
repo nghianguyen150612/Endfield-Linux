@@ -505,13 +505,7 @@ where
             )
             .map_err(CliError::RuntimeDiscovery)?;
             let report = provider.scan();
-            if report.runtimes.is_empty()
-                && !report.issues.is_empty()
-                && !report
-                    .roots
-                    .iter()
-                    .any(|root| root.available && root.completed)
-            {
+            if report.all_sources_failed() {
                 return Err(CliError::RuntimeDiscoveryFailed);
             }
             writeln!(stdout, "Runtime discovery: Linux").map_err(CliError::Output)?;
@@ -611,6 +605,10 @@ where
                     report.issues.len()
                 )
                 .map_err(CliError::Output)?;
+                for issue in &report.issues {
+                    writeln!(stdout, "  {}: {}", issue.source.label(), issue.reason)
+                        .map_err(CliError::Output)?;
+                }
             }
             Ok(())
         }

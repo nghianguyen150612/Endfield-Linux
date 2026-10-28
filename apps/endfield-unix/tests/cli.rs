@@ -55,6 +55,30 @@ fn runtime_diagnosis_is_headless_and_reports_no_fake_candidates() {
 }
 
 #[test]
+fn runtime_diagnosis_preserves_partial_results_and_prints_safe_issue_categories() {
+    let directory = tempdir().unwrap();
+    let malformed_root = directory.path().join("not-a-directory");
+    fs::write(&malformed_root, b"regular file").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .args(["diagnose", "runtimes", "--root"])
+        .arg(&malformed_root)
+        .output()
+        .unwrap();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Discovery result: partial"));
+    assert!(stdout.contains("explicit runtime directory: root-not-directory"));
+    assert!(!stdout.contains(&directory.path().display().to_string()));
+}
+
+#[test]
 fn help_aliases_and_command_are_equivalent() {
     let long = invoke(&["--help"]);
     let short = invoke(&["-h"]);

@@ -125,6 +125,9 @@ jobs:
       - name: Run P021 runtime provider contract tests
         run: cargo test --locked -p endfield-unix-runtime --all-targets
 
+      - name: Verify isolated empty-host runtime discovery semantics
+        run: cargo test --locked -p endfield-unix-runtime-linux --test absence_semantics empty_home_and_missing_conventional_roots_are_a_complete_empty_inventory
+
       - name: Run P022 Linux runtime discovery contracts
         run: cargo test --locked -p endfield-unix-runtime-linux --all-targets
 

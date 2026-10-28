@@ -830,13 +830,57 @@ Heroic, Lutris, or PATH directories. The hosted CLI smoke runs
 `./target/debug/endfield-unix diagnose runtimes` and accepts zero installed
 candidates.
 
-At this record, hosted CI has not yet run for P022. Therefore the hosted Linux
-smoke, GTK screenshot, app CLI integration suite, daemon/systemd/session gates,
-P011–P021 full workspace regressions, IPC capacity-race recurrence, GCC and
-Clang C17 ABI jobs, and final hosted Cargo metadata gates are pending. The IPC
-test and implementation remain untouched. P022 did not rerun the app IPC
-subprocess test locally; whether the documented race recurs in its P022 run is
-pending. Real-device and compatibility status:
+P022A starts from verified `main` commit
+`a311b0e7d69442e358769a207125191dff3ff588`; it adds no branch, executable,
+dependency, IPC operation, or C17 ABI change.
+
+The first P022 hosted qualification is [run
+40619500314](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40619500314).
+Its Rust/GTK job passed formatting, workspace checking, Clippy, and application
+compilation, then failed at `Run headless installed Wine and Proton discovery
+smoke` with `endfield-unix: all accessible runtime discovery sources failed.`
+The GCC and Clang C17 jobs passed. This failed smoke is retained as historical
+evidence; P022 is not qualified by that run.
+
+The confirmed code-path cause was twofold. The CLI fatal check required an
+`available && completed` root, which excluded a conventional root that had
+been checked and correctly found absent. Also, PATH Wine hints were counted
+against the 32-root truncation budget before checking whether those candidate
+files existed. A typical PATH could therefore contribute enough nonexistent
+`wine`/`wine64` hints to emit a limit issue, while missing conventional roots
+were ignored as successful work. The CLI then reported all sources failed.
+
+P022A adds explicit root outcomes. Absence is recorded as `NotPresent` and
+completes the observation without an issue. Existing roots are preflighted
+before the 32-root scan budget; absent PATH executable hints do not consume
+that budget, and explicit roots precede PATH candidates. A real existing-root
+overflow remains `Truncated` and partial. CLI fatal status now depends on all
+applicable source inspections failing, without using candidate count or
+`available` as a proxy for successful discovery.
+
+The new `absence_semantics` integration target contains 11 isolated tests for
+empty HOME and PATH, multiple no-Wine PATH entries, empty/missing/inaccessible
+and malformed custom roots, more than 32 present PATH candidates, preservation
+of an explicit Proton installation, mixed failed/successful sources,
+conservative trust semantics, and no fixture writes or Wine/Proton execution.
+The existing actual hosted command remains
+`./target/debug/endfield-unix diagnose runtimes`; the separate empty-host
+fixture disables fixed system roots and inspects only its temporary HOME/PATH.
+An app CLI regression also confirms a failed custom root yields a successful
+partial report with its fixed safe issue code and no private path.
+Current local package tests passed 32 library unit tests, the 11 new isolated
+tests, and the live Linux smoke. Workspace `cargo check` and warning-free
+Clippy passed using temporary type-check-only pkg-config metadata; a normal
+workspace check and the full workspace tests/build could not start because
+this container has no `glib-2.0` development package. Workspace test suites
+excluding the GTK app package passed. Local Cargo metadata checks confirmed
+exactly two application binaries and a library-only runtime Linux crate with
+only the portable runtime and libc dependencies. GCC passed locally; Clang is
+not installed. The corrected hosted qualification run, captured actual CLI
+output, GTK screenshot, app CLI tests, full workspace regressions,
+daemon/systemd/session gates, IPC race recurrence, hosted GCC/Clang C17 jobs,
+and final metadata checks are pending. The historical IPC capacity race and
+its test remain untouched. Real-device and compatibility status:
 
 `Arch desktop runtime discovery: UNVERIFIED`
 

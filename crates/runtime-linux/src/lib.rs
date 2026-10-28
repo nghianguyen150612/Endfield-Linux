@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io::{self, Read};
@@ -113,6 +114,49 @@ pub struct LinuxDiscoveryReport {
     pub roots: Vec<RootAttempt>,
 }
 
+impl LinuxDiscoveryReport {
+    /// True only when every applicable selected source failed inspection.
+    /// Absence, partial inspection, and limit truncation are not source failures.
+    pub fn all_sources_failed(&self) -> bool {
+        let mut applicable = false;
+        for root in self
+            .roots
+            .iter()
+            .filter(|root| root.outcome != RootOutcome::Skipped)
+        {
+            applicable = true;
+            if root.outcome != RootOutcome::Failed {
+                return false;
+            }
+        }
+        if applicable {
+            true
+        } else {
+            // Collection can fail before a concrete root is registered (for
+            // example, an oversized PATH hint). With no successful root
+            // observations, that is a failed selected source rather than an
+            // empty inventory.
+            !self.issues.is_empty()
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RootOutcome {
+    /// The location was checked and does not exist; this is a successful absence observation.
+    NotPresent,
+    /// The location was fully inspected without source errors.
+    Inspected,
+    /// The location was inspected, with one or more item-level issues reported.
+    PartiallyInspected,
+    /// The location was intentionally omitted by a documented provider policy.
+    Skipped,
+    /// The location could not be safely inspected.
+    Failed,
+    /// The location was only partly considered because a discovery resource limit was reached.
+    Truncated,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RootAttempt {
     pub source: SourceKind,
@@ -121,6 +165,7 @@ pub struct RootAttempt {
     pub available: bool,
     pub attempted: bool,
     pub completed: bool,
+    pub outcome: RootOutcome,
     pub reason: Option<&'static str>,
 }
 
@@ -130,6 +175,75 @@ pub struct DiscoveryOptions {
     pub include_path: bool,
     /// Disable conventional user roots for deterministic isolated test scans.
     pub include_conventional: bool,
+}
+
+/// Environment hints used to select conventional runtime roots and PATH Wine.
+///
+/// `from_process` is used by the CLI. `isolated` lets tests supply synthetic
+/// HOME/PATH values without changing the process environment or inspecting the
+/// developer's real runtime directories.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DiscoveryEnvironment {
+    home: Option<PathBuf>,
+    path: Option<OsString>,
+    xdg_config_home: Option<PathBuf>,
+    xdg_data_home: Option<PathBuf>,
+    include_system_wine: bool,
+}
+
+impl fmt::Debug for DiscoveryEnvironment {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DiscoveryEnvironment")
+            .field("home_configured", &self.home.is_some())
+            .field("path_configured", &self.path.is_some())
+            .field(
+                "xdg_config_home_configured",
+                &self.xdg_config_home.is_some(),
+            )
+            .field("xdg_data_home_configured", &self.xdg_data_home.is_some())
+            .field("include_system_wine", &self.include_system_wine)
+            .finish()
+    }
+}
+
+impl DiscoveryEnvironment {
+    pub fn from_process() -> Self {
+        Self {
+            home: std::env::var_os("HOME")
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from),
+            path: std::env::var_os("PATH"),
+            xdg_config_home: std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from),
+            xdg_data_home: std::env::var_os("XDG_DATA_HOME").map(PathBuf::from),
+            include_system_wine: true,
+        }
+    }
+
+    pub fn isolated(home: Option<PathBuf>, path: Option<OsString>) -> Self {
+        Self {
+            home,
+            path,
+            xdg_config_home: None,
+            xdg_data_home: None,
+            include_system_wine: false,
+        }
+    }
+
+    pub fn with_xdg_homes(
+        mut self,
+        config_home: Option<PathBuf>,
+        data_home: Option<PathBuf>,
+    ) -> Self {
+        self.xdg_config_home = config_home;
+        self.xdg_data_home = data_home;
+        self
+    }
+
+    pub fn with_system_wine(mut self, include: bool) -> Self {
+        self.include_system_wine = include;
+        self
+    }
 }
 
 impl Default for DiscoveryOptions {
@@ -234,6 +348,7 @@ impl FileObservation {
 pub struct LinuxRuntimeProvider {
     declaration: ProviderDeclaration,
     options: DiscoveryOptions,
+    environment: Option<DiscoveryEnvironment>,
     last_paths: Mutex<BTreeMap<RuntimeId, CandidatePathInfo>>,
 }
 
@@ -250,6 +365,7 @@ impl fmt::Debug for LinuxRuntimeProvider {
             .field("custom_root_count", &self.options.additional_roots.len())
             .field("include_path", &self.options.include_path)
             .field("include_conventional", &self.options.include_conventional)
+            .field("environment_injected", &self.environment.is_some())
             .field("cached_identities", &cached_identities)
             .finish()
     }
@@ -257,6 +373,20 @@ impl fmt::Debug for LinuxRuntimeProvider {
 
 impl LinuxRuntimeProvider {
     pub fn new(options: DiscoveryOptions) -> Result<Self, DiscoveryConfigError> {
+        Self::new_inner(options, None)
+    }
+
+    pub fn new_with_environment(
+        options: DiscoveryOptions,
+        environment: DiscoveryEnvironment,
+    ) -> Result<Self, DiscoveryConfigError> {
+        Self::new_inner(options, Some(environment))
+    }
+
+    fn new_inner(
+        options: DiscoveryOptions,
+        environment: Option<DiscoveryEnvironment>,
+    ) -> Result<Self, DiscoveryConfigError> {
         if options.additional_roots.len() > MAX_CUSTOM_ROOTS
             || options.additional_roots.iter().any(|p| {
                 !p.is_absolute()
@@ -313,6 +443,7 @@ impl LinuxRuntimeProvider {
         Ok(Self {
             declaration,
             options,
+            environment,
             last_paths: Mutex::new(BTreeMap::new()),
         })
     }
@@ -321,53 +452,128 @@ impl LinuxRuntimeProvider {
         let mut issues = Vec::new();
         let mut found: BTreeMap<PathBuf, DiscoveredRuntime> = BTreeMap::new();
         let mut root_reports = Vec::new();
-        let mut roots = collect_roots(&self.options, &mut issues);
-        roots.extend(collect_path_roots(&self.options, &mut issues));
+        let environment = self
+            .environment
+            .clone()
+            .unwrap_or_else(DiscoveryEnvironment::from_process);
+        let mut roots = collect_roots(&self.options, &environment, &mut issues);
+        roots.extend(collect_path_roots(&self.options, &environment, &mut issues));
         roots.sort_by_key(|root| (root_priority(root), root.path.clone()));
-        if roots.len() > MAX_ROOTS {
-            roots.truncate(MAX_ROOTS);
+        let mut seen_roots = BTreeSet::new();
+        roots.retain(|root| seen_roots.insert((root.path.clone(), root.source, root.kind)));
+
+        // Absence probes do not consume the bounded directory-scan budget.
+        // This keeps ordinary missing XDG/Steam paths and missing PATH hints
+        // from displacing explicit roots or exhausting MAX_ROOTS.
+        let mut present_roots = Vec::new();
+        for root in roots {
+            if root.path.as_os_str().len() > MAX_PATH_BYTES {
+                issues.push(DiscoveryIssue {
+                    source: root.source,
+                    reason: "discovery-path-limit",
+                });
+                root_reports.push(root_attempt(
+                    &root,
+                    false,
+                    false,
+                    false,
+                    RootOutcome::Truncated,
+                    Some("discovery-path-limit"),
+                ));
+                continue;
+            }
+            match fs::symlink_metadata(&root.path) {
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    root_reports.push(root_attempt(
+                        &root,
+                        false,
+                        true,
+                        true,
+                        RootOutcome::NotPresent,
+                        None,
+                    ));
+                }
+                Err(error) => {
+                    let discovery_issue = issue(root.source, &error);
+                    root_reports.push(root_attempt(
+                        &root,
+                        false,
+                        true,
+                        false,
+                        RootOutcome::Failed,
+                        Some(discovery_issue.reason),
+                    ));
+                    issues.push(discovery_issue);
+                }
+                Ok(_) => present_roots.push(root),
+            }
+        }
+
+        present_roots.sort_by_key(|root| (root_priority(root), root.path.clone()));
+        if present_roots.len() > MAX_ROOTS {
+            let truncated = present_roots.split_off(MAX_ROOTS);
+            for root in truncated {
+                root_reports.push(root_attempt(
+                    &root,
+                    true,
+                    false,
+                    false,
+                    RootOutcome::Truncated,
+                    Some("discovery-root-limit"),
+                ));
+            }
             issues.push(DiscoveryIssue {
                 source: SourceKind::PathWine,
                 reason: "discovery-root-limit",
             });
         }
-        for root in roots {
+
+        for root in present_roots {
             let issue_start = issues.len();
-            let available = fs::symlink_metadata(&root.path).is_ok();
             if root.source == SourceKind::SystemWine || root.source == SourceKind::PathWine {
-                if let Some(runtime) = inspect_wine_executable(&root.path, root.source, &mut issues)
-                {
+                let runtime = inspect_wine_executable(&root.path, root.source, &mut issues);
+                let candidate_identified = runtime.is_some();
+                if let Some(runtime) = runtime {
                     merge_runtime(&mut found, runtime, &mut issues);
                 }
-                root_reports.push(RootAttempt {
-                    source: root.source,
-                    root_type: if root.source == SourceKind::PathWine {
-                        "PATH executable"
-                    } else {
-                        "system executable"
-                    },
-                    ownership_expectation: root.ownership_expectation(),
-                    available,
-                    attempted: true,
-                    completed: issues.len() == issue_start,
-                    reason: issues.get(issue_start).map(|issue| issue.reason),
-                });
+                let has_issues = issues.len() != issue_start;
+                let outcome = match (candidate_identified, has_issues) {
+                    (true, true) => RootOutcome::PartiallyInspected,
+                    (false, true) => RootOutcome::Failed,
+                    (_, false) => RootOutcome::Inspected,
+                };
+                root_reports.push(root_attempt(
+                    &root,
+                    true,
+                    true,
+                    matches!(
+                        outcome,
+                        RootOutcome::Inspected | RootOutcome::PartiallyInspected
+                    ),
+                    outcome,
+                    issues.get(issue_start).map(|issue| issue.reason),
+                ));
                 continue;
             }
-            inspect_root(&root, &mut found, &mut issues);
-            root_reports.push(RootAttempt {
-                source: root.source,
-                root_type: match root.kind {
-                    RootKind::WineExecutable => "system executable",
-                    RootKind::ProtonDirectory | RootKind::SteamLibraryProton => "proton-directory",
-                    RootKind::RuntimeDirectory => "runtime-directory",
-                },
-                ownership_expectation: root.ownership_expectation(),
-                available,
-                attempted: true,
-                completed: issues.len() == issue_start,
-                reason: issues.get(issue_start).map(|issue| issue.reason),
-            });
+            let outcome = inspect_root(&root, &mut found, &mut issues);
+            let reason = issues
+                .get(issue_start)
+                .map(|issue| issue.reason)
+                .or(match outcome {
+                    RootOutcome::Truncated => Some("discovery-root-limit"),
+                    _ => None,
+                });
+            root_reports.push(root_attempt(
+                &root,
+                true,
+                true,
+                matches!(
+                    outcome,
+                    RootOutcome::Inspected | RootOutcome::PartiallyInspected
+                ),
+                outcome,
+                reason,
+            ));
         }
         let runtimes: Vec<_> = found.into_values().collect();
         let mut stamps = BTreeMap::new();
@@ -467,6 +673,12 @@ impl RuntimeProvider for LinuxRuntimeProvider {
 
     fn discover_impl(&self, query: &DiscoveryQuery) -> Result<DiscoveryReport, ProviderError> {
         let report = self.scan();
+        if report.all_sources_failed() {
+            return Err(self.error(
+                ProviderOperation::Discover,
+                ProviderErrorKind::ProviderUnavailable,
+            ));
+        }
         if query.families().is_empty() {
             return Ok(report.contract);
         }
@@ -601,22 +813,28 @@ impl LinuxRuntimeProvider {
     }
 }
 
-fn collect_roots(options: &DiscoveryOptions, issues: &mut Vec<DiscoveryIssue>) -> Vec<Root> {
+fn collect_roots(
+    options: &DiscoveryOptions,
+    environment: &DiscoveryEnvironment,
+    issues: &mut Vec<DiscoveryIssue>,
+) -> Vec<Root> {
     let mut roots = Vec::new();
-    for p in [
-        "/usr/bin/wine",
-        "/usr/bin/wine64",
-        "/usr/local/bin/wine",
-        "/usr/local/bin/wine64",
-    ] {
-        roots.push(Root {
-            path: p.into(),
-            source: SourceKind::SystemWine,
-            kind: RootKind::WineExecutable,
-        });
+    if environment.include_system_wine {
+        for p in [
+            "/usr/bin/wine",
+            "/usr/bin/wine64",
+            "/usr/local/bin/wine",
+            "/usr/local/bin/wine64",
+        ] {
+            roots.push(Root {
+                path: p.into(),
+                source: SourceKind::SystemWine,
+                kind: RootKind::WineExecutable,
+            });
+        }
     }
     if options.include_conventional {
-        conventional_roots(&mut roots, issues);
+        conventional_roots(&mut roots, environment, issues);
     }
     for path in &options.additional_roots {
         roots.push(Root {
@@ -625,20 +843,6 @@ fn collect_roots(options: &DiscoveryOptions, issues: &mut Vec<DiscoveryIssue>) -
             kind: RootKind::RuntimeDirectory,
         });
     }
-    roots.sort_by_key(|root| (root_priority(root), root.path.clone()));
-    let mut seen = BTreeSet::new();
-    roots.retain(|root| seen.insert((root.path.clone(), root.source, root.kind)));
-    roots.retain(|root| {
-        if root.path.as_os_str().len() > MAX_PATH_BYTES {
-            issues.push(DiscoveryIssue {
-                source: root.source,
-                reason: "discovery-path-limit",
-            });
-            false
-        } else {
-            true
-        }
-    });
     roots
 }
 
@@ -656,11 +860,40 @@ fn root_priority(root: &Root) -> u8 {
     }
 }
 
-fn collect_path_roots(options: &DiscoveryOptions, issues: &mut Vec<DiscoveryIssue>) -> Vec<Root> {
+fn root_attempt(
+    root: &Root,
+    available: bool,
+    attempted: bool,
+    completed: bool,
+    outcome: RootOutcome,
+    reason: Option<&'static str>,
+) -> RootAttempt {
+    RootAttempt {
+        source: root.source,
+        root_type: match (root.source, root.kind) {
+            (SourceKind::SystemWine | SourceKind::PathWine, _) => "wine executable",
+            (_, RootKind::ProtonDirectory | RootKind::SteamLibraryProton) => "proton directory",
+            (_, RootKind::RuntimeDirectory) => "runtime directory",
+            (_, RootKind::WineExecutable) => "wine executable",
+        },
+        ownership_expectation: root.ownership_expectation(),
+        available,
+        attempted,
+        completed,
+        outcome,
+        reason,
+    }
+}
+
+fn collect_path_roots(
+    options: &DiscoveryOptions,
+    environment: &DiscoveryEnvironment,
+    issues: &mut Vec<DiscoveryIssue>,
+) -> Vec<Root> {
     if !options.include_path {
         return Vec::new();
     }
-    let Some(path) = std::env::var_os("PATH") else {
+    let Some(path) = environment.path.as_ref() else {
         return Vec::new();
     };
     if path.as_encoded_bytes().len() > 16 * 1024 {
@@ -704,11 +937,14 @@ fn collect_path_roots(options: &DiscoveryOptions, issues: &mut Vec<DiscoveryIssu
     roots
 }
 
-fn conventional_roots(roots: &mut Vec<Root>, issues: &mut Vec<DiscoveryIssue>) {
-    let Ok(home) = std::env::var("HOME") else {
+fn conventional_roots(
+    roots: &mut Vec<Root>,
+    environment: &DiscoveryEnvironment,
+    issues: &mut Vec<DiscoveryIssue>,
+) {
+    let Some(h) = environment.home.as_ref() else {
         return;
     };
-    let h = PathBuf::from(home);
     if !h.is_absolute()
         || h.as_os_str().len() > MAX_PATH_BYTES
         || h.components().any(|c| c == std::path::Component::ParentDir)
@@ -733,8 +969,8 @@ fn conventional_roots(roots: &mut Vec<Root>, issues: &mut Vec<DiscoveryIssue>) {
             Err(reason) => issues.push(DiscoveryIssue { source, reason }),
         }
     }
-    if let Some(config) = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from) {
-        if valid_xdg_root(&config) {
+    if let Some(config) = environment.xdg_config_home.as_ref() {
+        if valid_xdg_root(config) {
             for p in ["heroic/tools/wine", "heroic/tools/proton"] {
                 roots.push(Root {
                     path: config.join(p),
@@ -749,8 +985,8 @@ fn conventional_roots(roots: &mut Vec<Root>, issues: &mut Vec<DiscoveryIssue>) {
             });
         }
     }
-    if let Some(data) = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from) {
-        if valid_xdg_root(&data) {
+    if let Some(data) = environment.xdg_data_home.as_ref() {
+        if valid_xdg_root(data) {
             for p in ["Steam/compatibilitytools.d", "Steam/steamapps/common"] {
                 roots.push(Root {
                     path: data.join(p),
@@ -841,13 +1077,20 @@ fn inspect_root(
     root: &Root,
     found: &mut BTreeMap<PathBuf, DiscoveredRuntime>,
     issues: &mut Vec<DiscoveryIssue>,
-) {
+) -> RootOutcome {
+    let issue_start = issues.len();
     let metadata = match fs::symlink_metadata(&root.path) {
         Ok(m) => m,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            issues.push(DiscoveryIssue {
+                source: root.source,
+                reason: "runtime-changed-during-scan",
+            });
+            return RootOutcome::Failed;
+        }
         Err(e) => {
             issues.push(issue(root.source, &e));
-            return;
+            return RootOutcome::Failed;
         }
     };
     let scan_path = if metadata.file_type().is_symlink() {
@@ -856,7 +1099,7 @@ fn inspect_root(
                 source: root.source,
                 reason: "unsafe-symlink-root",
             });
-            return;
+            return RootOutcome::Failed;
         }
         match resolve_alias(&root.path, None) {
             Ok(path) => path,
@@ -865,7 +1108,7 @@ fn inspect_root(
                     source: root.source,
                     reason: "unsafe-symlink",
                 });
-                return;
+                return RootOutcome::Failed;
             }
         }
     } else {
@@ -875,7 +1118,7 @@ fn inspect_root(
         Ok(metadata) => metadata,
         Err(error) => {
             issues.push(issue(root.source, &error));
-            return;
+            return RootOutcome::Failed;
         }
     };
     if !resolved_metadata.is_dir() {
@@ -883,7 +1126,7 @@ fn inspect_root(
             source: root.source,
             reason: "root-not-directory",
         });
-        return;
+        return RootOutcome::Failed;
     }
     if root.source == SourceKind::Explicit {
         if let Some(runtime) = inspect_proton_directory_with_boundary(
@@ -907,7 +1150,11 @@ fn inspect_root(
                 source: root.source,
                 reason,
             });
-            return;
+            return if matches!(reason, "directory-entry-limit" | "discovery-path-limit") {
+                RootOutcome::Truncated
+            } else {
+                RootOutcome::Failed
+            };
         }
     };
     let steam_common =
@@ -934,6 +1181,11 @@ fn inspect_root(
                 merge_runtime(found, runtime, issues);
             }
         }
+    }
+    if issues.len() == issue_start {
+        RootOutcome::Inspected
+    } else {
+        RootOutcome::PartiallyInspected
     }
 }
 
@@ -1412,7 +1664,13 @@ fn inspect_wine_executable(
 ) -> Option<DiscoveredRuntime> {
     let md = match fs::symlink_metadata(path) {
         Ok(m) => m,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return None,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            issues.push(DiscoveryIssue {
+                source,
+                reason: "runtime-changed-during-scan",
+            });
+            return None;
+        }
         Err(e) => {
             issues.push(issue(source, &e));
             return None;
@@ -2795,7 +3053,7 @@ mod tests {
         let missing = fixture("missing-root");
         let mut found = BTreeMap::new();
         let mut issues = Vec::new();
-        inspect_root(
+        let outcome = inspect_root(
             &Root {
                 path: missing,
                 source: SourceKind::Explicit,
@@ -2804,7 +3062,12 @@ mod tests {
             &mut found,
             &mut issues,
         );
-        assert!(issues.is_empty());
+        assert_eq!(outcome, RootOutcome::Failed);
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.reason == "runtime-changed-during-scan")
+        );
         let file = fixture("file-root");
         fs::write(&file, b"not a directory").unwrap();
         inspect_root(
