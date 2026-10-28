@@ -858,7 +858,7 @@ The overall Rust job then failed in an existing app CLI test: its diagnose
 help assertion still expected the pre-P022 command list and omitted
 `runtimes`. The P022A follow-up updates that expected string to include the
 implemented command. The initial runtime smoke and empty-host fixture both
-passed; the full hosted run remains unqualified until the follow-up completes.
+passed. The full hosted result below records the corrected run.
 
 The confirmed code-path cause was twofold. The CLI fatal check required an
 `available && completed` root, which excluded a conventional root that had
@@ -894,11 +894,28 @@ this container has no `glib-2.0` development package. Workspace test suites
 excluding the GTK app package passed. Local Cargo metadata checks confirmed
 exactly two application binaries and a library-only runtime Linux crate with
 only the portable runtime and libc dependencies. GCC passed locally; Clang is
-not installed. The follow-up hosted run must still pass the GTK screenshot,
-app CLI tests, full workspace regressions, daemon/systemd/session gates, IPC
-race check, hosted GCC/Clang C17 jobs, and final metadata checks before P022
-can be qualified. The historical IPC capacity race and its test remain
-untouched. Real-device and compatibility status:
+not installed.
+
+The corrected hosted qualification is [run
+40648593964](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40648593964).
+All three jobs passed. The Rust/GTK job passed the actual CLI smoke, isolated
+empty-host regression, package and workspace tests, GTK smoke and screenshot,
+daemon/systemd/session gates, IPC integration, workspace build, and Cargo
+metadata checks. The GCC and Clang C17 ABI jobs also passed. The real CLI
+printed:
+
+```text
+Runtime discovery: Linux
+
+Discovered runtimes: 0
+Discovery result: complete
+```
+
+The `ipc_e2e.rs:144` capacity race did not recur in this hosted run; no IPC
+implementation or test was changed, so the historical intermittent race
+remains unresolved. Hosted smoke success validates truthful empty discovery,
+not runtime authenticity, integrity, launch readiness, or Endfield
+compatibility. Real-device and compatibility status:
 
 `Arch desktop runtime discovery: UNVERIFIED`
 

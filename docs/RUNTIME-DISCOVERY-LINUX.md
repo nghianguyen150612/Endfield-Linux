@@ -192,10 +192,26 @@ Discovery result: complete
 
 That overall run later failed an existing CLI help assertion because its
 expected subcommand list did not yet include `runtimes`; the assertion is
-updated in the follow-up. This successful empty report is not runtime or
-compatibility validation. Source limits remain bounded to 64 PATH directories,
-32 existing scan roots, and the documented per-directory and metadata limits;
-exceeding a bound remains visible as partial discovery.
+updated in the follow-up.
+
+The corrected hosted qualification, [run
+40648593964](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40648593964),
+passed all three jobs: Rust/GTK and both GCC and Clang C17 ABI tests. The real
+CLI smoke again printed:
+
+```text
+Runtime discovery: Linux
+
+Discovered runtimes: 0
+Discovery result: complete
+```
+
+The isolated empty-host fixture and runtime contracts passed as well. This is
+successful discovery behavior on a runner with no applicable installed
+runtime; it is not runtime, origin, integrity, launch, or compatibility
+validation. Source limits remain bounded to 64 PATH directories, 32 existing
+scan roots, and the documented per-directory and metadata limits; exceeding a
+bound remains visible as partial discovery.
 
 `Arch desktop runtime discovery: UNVERIFIED`
 
