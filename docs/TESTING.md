@@ -1052,3 +1052,18 @@ The valid user-pinned fixture exited 3; changed whitespace exited 4 and reported
 Valve Proton, GE-Proton or DWProton, validate physical Arch/Dell artifacts, or
 establish Endfield compatibility. All those real-world statuses remain UNVERIFIED.
 P025 acquisition/staging and P026 installed-file auditing are not implemented.
+
+### P024 documentation-run IPC recurrence
+
+The first final-documentation run,
+[40807374269](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40807374269),
+reproduced the historical P010 saturation race in the workspace suite:
+`apps/endfield-unix/tests/ipc_e2e.rs:144:14`,
+`over-capacity connection closes: Os { code: 11, kind: WouldBlock, message:
+"Resource temporarily unavailable" }`. Its P024 cryptographic contracts and
+signed/tampered actual-binary smoke passed before the unrelated IPC failure.
+The earlier implementation run 40806739283 passed both workspace and dedicated
+IPC gates. This recurrence does not invalidate that evidence, but the failed
+documentation attempt is not a complete hosted qualification. The historical
+race remains unresolved. No IPC code, test assertion, test selection or timeout
+was changed; subsequent qualification must run the original gate again.
