@@ -42,7 +42,7 @@ enum SubcommandArgs {
     /// Manage explicitly selected runtimes without executing them.
     Runtime {
         #[command(subcommand)]
-        command: RuntimeArgs,
+        command: Box<RuntimeArgs>,
     },
     /// Show command help.
     Help {
@@ -71,7 +71,7 @@ enum RuntimeArgs {
     /// Plan or apply a verified runtime installation.
     Install {
         #[command(subcommand)]
-        operation: super::runtime_install::Operation,
+        operation: Box<super::runtime_install::Operation>,
     },
 }
 
@@ -257,12 +257,12 @@ where
 
     Ok(match parsed.command {
         None => Command::LaunchGui,
-        Some(SubcommandArgs::Runtime {
-            command: RuntimeArgs::Install { operation },
-        }) => Command::RuntimeInstall(Box::new(operation)),
-        Some(SubcommandArgs::Runtime {
-            command: RuntimeArgs::ListManaged,
-        }) => Command::RuntimeInstall(Box::new(super::runtime_install::Operation::Status)),
+        Some(SubcommandArgs::Runtime { command }) => match *command {
+            RuntimeArgs::Install { operation } => Command::RuntimeInstall(operation),
+            RuntimeArgs::ListManaged => {
+                Command::RuntimeInstall(Box::new(super::runtime_install::Operation::Status))
+            }
+        },
         Some(SubcommandArgs::Gui) => Command::LaunchGui,
         Some(SubcommandArgs::Help { topic }) => Command::Help(topic.map(|topic| match topic {
             HelpTopicArg::Gui => HelpTopic::Gui,
