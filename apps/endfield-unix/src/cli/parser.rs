@@ -456,7 +456,7 @@ mod tests {
             &["runtime", "install", "plan", "--help"][..],
             &["runtime", "install", "apply", "--help"][..],
         ] {
-            match parse(args(&values)) {
+            match parse(args(values)) {
                 Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
                 other => panic!("expected nested help output for {values:?}, got {other:?}"),
             }
