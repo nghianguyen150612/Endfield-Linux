@@ -15,6 +15,7 @@ pub enum Command {
     Help(Option<HelpTopic>),
     Version,
     About,
+    HelpOutput(String),
     LaunchGui,
     RuntimeInstall(Box<super::runtime_install::Operation>),
     DiagnoseReport {

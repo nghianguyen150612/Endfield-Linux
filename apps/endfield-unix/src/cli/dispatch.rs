@@ -456,6 +456,7 @@ where
 {
     match command {
         Command::Help(topic) => output::write_help(topic, stdout).map_err(CliError::Output),
+        Command::HelpOutput(help) => stdout.write_all(help.as_bytes()).map_err(CliError::Output),
         Command::Version => output::write_version(stdout).map_err(CliError::Output),
         Command::About => output::write_about(stdout).map_err(CliError::Output),
         Command::LaunchGui => gui_start().map_err(CliError::GuiStartup),

@@ -139,7 +139,13 @@ fn command_specific_help_describes_gui_and_about() {
         &["runtime", "install", "apply", "--help"][..],
     ] {
         let output = invoke(args);
-        assert_eq!(output.status.code(), Some(0));
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "help args {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("Usage:"));
     }
 }
 

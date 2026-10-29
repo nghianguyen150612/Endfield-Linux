@@ -230,11 +230,17 @@ where
     T: Into<OsString> + Clone,
 {
     let arguments = arguments.into_iter().map(Into::into).collect::<Vec<_>>();
+    if let Some(help) = runtime_install_help(&arguments) {
+        return Ok(Command::HelpOutput(help));
+    }
     let mut parser = parser_command();
     let parser_arguments =
         iter::once(OsString::from(APPLICATION_NAME)).chain(arguments.iter().cloned());
     let matches = match parser.clone().try_get_matches_from(parser_arguments) {
         Ok(matches) => matches,
+        Err(error) if error.kind() == ErrorKind::DisplayHelp => {
+            return Ok(Command::HelpOutput(error.to_string()));
+        }
         Err(error) => {
             return Err(normalize_unrecognized_argument(error));
         }
@@ -401,6 +407,18 @@ fn parser_command() -> clap::Command {
     Arguments::command().name(APPLICATION_NAME).term_width(80)
 }
 
+fn runtime_install_help(arguments: &[OsString]) -> Option<String> {
+    let (help_flag, path) = arguments.split_last()?;
+    if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "runtime" {
+        return None;
+    }
+    let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
+    for component in path {
+        command = command.find_subcommand(component.to_str()?)?.clone();
+    }
+    Some(command.render_help().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,6 +447,20 @@ mod tests {
     #[test]
     fn long_help_flag_selects_general_help() {
         assert_command(&["--help"], Command::Help(None));
+    }
+
+    #[test]
+    fn nested_runtime_install_help_is_a_successful_output_command() {
+        for values in [
+            &["runtime", "install", "--help"][..],
+            &["runtime", "install", "plan", "--help"][..],
+            &["runtime", "install", "apply", "--help"][..],
+        ] {
+            match parse(args(&values)) {
+                Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
+                other => panic!("expected nested help output for {values:?}, got {other:?}"),
+            }
+        }
     }
 
     #[test]
