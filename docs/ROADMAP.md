@@ -36,7 +36,7 @@ This roadmap preserves the requested development order. P001 established the doc
 - **P022** — **Implemented; hosted qualification passed** — Add bounded read-only Linux discovery of system/PATH Wine, Steam and Flatpak Steam Proton, GE-Proton/DWProton claims, Heroic/Lutris runners, and explicit roots through P021 contracts. P022A corrects absence/failure semantics after the first hosted smoke failure and adds isolated regressions. The corrected [run 40648593964](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40648593964) passed all three hosted jobs. No trust, integrity, compatibility, install, or launch claim is made. See [Linux runtime discovery](RUNTIME-DISCOVERY-LINUX.md) and [validation record](TESTING.md).
 - **P023** — **Implemented; hosted qualification passed** — Add bounded read-only UMU discovery, explicit UMU-Proton mapping to selected P022 candidates, UMU environment contracts, and non-executable P021 launch plans. All three hosted jobs passed in [CI run 40684639686](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40684639686). UMU execution, trusted source verification, installed-file integrity, prefix management, and Endfield compatibility remain unverified. See [UMU integration](UMU-INTEGRATION.md) and [validation record](TESTING.md).
 - **P024** — **Implemented; hosted qualification passed** — Implement offline exact-byte Ed25519 manifests, scoped anchors, checkpoint/expiry checks, streaming SHA-256 and read-only CLI verification. All three jobs passed in [CI run 40806739283](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40806739283). Real publisher authenticity remains UNVERIFIED. See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) and [qualification](TESTING.md).
-- **P025** — Install verified user-managed runtime builds without automatic replacement of known-good versions.
+- **P025** — Implemented locally; hosted qualification pending — Install explicitly approved local runtime artifacts with limited-trust disclosure, secure extraction, no-overwrite publication and recovery. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md).
 - **P026** — Record runtime identity, verify installed files, and report integrity failures.
 - **P027** — Implement per-machine/profile known-good runtime pinning and explicit runtime selection.
 - **P028** — Create and manage isolated Wine prefixes with clear ownership and configuration.
@@ -124,3 +124,7 @@ headlessly, without Vulkan/display initialization or the daemon. Unsupported
 utilization windows and missing sensors remain explicit partial data. Suspended
 and unknown-power devices are skipped conservatively. No live samples are
 persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+
+## P025 runtime installation
+
+P025 now provides local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. It does not establish publisher authenticity or support HTTPS acquisition. Hosted qualification is pending. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md) for the workflow and current evidence.

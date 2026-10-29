@@ -618,6 +618,14 @@ where
             }
             Ok(())
         }
+        Command::RuntimeInstall(operation) => {
+            let code = super::runtime_install::run(*operation, stdout).map_err(CliError::Output)?;
+            if code == 0 {
+                Ok(())
+            } else {
+                Err(CliError::RuntimeVerification(code))
+            }
+        }
         Command::DiagnoseRuntimeIntegrity(options) => {
             let code = super::runtime_integrity::run(*options, stdout).map_err(CliError::Output)?;
             if code == 0 {

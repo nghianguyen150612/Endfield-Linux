@@ -39,6 +39,11 @@ struct Arguments {
 enum SubcommandArgs {
     /// Launch the native GTK4 desktop application.
     Gui,
+    /// Manage explicitly selected runtimes without executing them.
+    Runtime {
+        #[command(subcommand)]
+        command: RuntimeArgs,
+    },
     /// Show command help.
     Help {
         /// Command to describe.
@@ -56,6 +61,17 @@ enum SubcommandArgs {
     Service {
         #[command(subcommand)]
         command: ServiceArgs,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum RuntimeArgs {
+    /// Show only records inside the Endfield-Unix managed runtime root.
+    ListManaged,
+    /// Plan or apply a verified runtime installation.
+    Install {
+        #[command(subcommand)]
+        operation: super::runtime_install::Operation,
     },
 }
 
@@ -241,6 +257,12 @@ where
 
     Ok(match parsed.command {
         None => Command::LaunchGui,
+        Some(SubcommandArgs::Runtime {
+            command: RuntimeArgs::Install { operation },
+        }) => Command::RuntimeInstall(Box::new(operation)),
+        Some(SubcommandArgs::Runtime {
+            command: RuntimeArgs::ListManaged,
+        }) => Command::RuntimeInstall(Box::new(super::runtime_install::Operation::Status)),
         Some(SubcommandArgs::Gui) => Command::LaunchGui,
         Some(SubcommandArgs::Help { topic }) => Command::Help(topic.map(|topic| match topic {
             HelpTopicArg::Gui => HelpTopic::Gui,

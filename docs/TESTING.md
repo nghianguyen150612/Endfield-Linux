@@ -1051,7 +1051,12 @@ The valid user-pinned fixture exited 3; changed whitespace exited 4 and reported
 `Runtime artifact verification: Signature`. Synthetic success does not authenticate
 Valve Proton, GE-Proton or DWProton, validate physical Arch/Dell artifacts, or
 establish Endfield compatibility. All those real-world statuses remain UNVERIFIED.
-P025 acquisition/staging and P026 installed-file auditing are not implemented.
+At the time of P024 qualification, P025 acquisition/staging and P026
+installed-file auditing were not implemented. P025 was started later in a dirty
+worktree; its initial CLI could only produce user-pinned evidence while the
+installer required publisher-authenticated evidence, so every CLI apply failed
+closed. P025A records the completion of a separately acknowledged limited-trust
+path without changing the P024 provenance classification.
 
 ### P024 documentation-run IPC recurrence
 
@@ -1067,3 +1072,7 @@ IPC gates. This recurrence does not invalidate that evidence, but the failed
 documentation attempt is not a complete hosted qualification. The historical
 race remains unresolved. No IPC code, test assertion, test selection or timeout
 was changed; subsequent qualification must run the original gate again.
+
+## P025 runtime installation
+
+P025 now provides local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. It does not establish publisher authenticity or support HTTPS acquisition. Local installer tests pass; hosted qualification is pending. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md) for the workflow and current evidence.

@@ -10,7 +10,9 @@ description = "Native community launcher and goal-driven optimization applicatio
 default-run = "endfield-unix"
 
 [dependencies]
+endfield-unix-runtime-install = { path = "../../crates/runtime-install" }
 endfield-unix-runtime-verification = { path = "../../crates/runtime-verification" }
+endfield-unix-storage = { path = "../../crates/storage" }
 clap = { version = "=4.5.53", default-features = false, features = ["derive", "error-context", "help", "std", "usage"] }
 endfield-unix-diagnostics = { path = "../../crates/diagnostics" }
 endfield-unix-domain = { path = "../../crates/domain" }
@@ -25,8 +27,13 @@ relm4 = { version = "=0.9.1", features = ["libadwaita"] }
 nix = { version = "=0.29.0", features = ["user"] }
 fs2 = "=0.4.3"
 libc = "=0.2.191"
+serde_json = "=1.0.145"
 
 [dev-dependencies]
 nix = { version = "=0.29.0", features = ["signal"] }
-serde_json = "=1.0.145"
+ed25519-dalek = "=2.2.0"
+flate2 = "=1.1.5"
+tar = { version = "=0.4.46", default-features = false }
+sha2 = "=0.10.9"
+endfield-unix-runtime-verification = { path = "../../crates/runtime-verification" }
 tempfile = "=3.15.0"

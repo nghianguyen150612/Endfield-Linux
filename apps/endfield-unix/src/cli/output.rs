@@ -1729,7 +1729,7 @@ fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>\n"
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>\nUsage: {APPLICATION_NAME} runtime <install|list-managed>\n"
     )?;
     writeln!(
         output,

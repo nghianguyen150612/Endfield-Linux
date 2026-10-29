@@ -131,8 +131,16 @@ fn command_specific_help_describes_gui_and_about() {
     assert!(service_help.contains("never uses root privileges"));
     assert_eq!(diagnose.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&diagnose.stdout).contains(
-        "diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>"
+        "diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>\nUsage: endfield-unix runtime <install|list-managed>"
     ));
+    for args in [
+        &["runtime", "install", "--help"][..],
+        &["runtime", "install", "plan", "--help"][..],
+        &["runtime", "install", "apply", "--help"][..],
+    ] {
+        let output = invoke(args);
+        assert_eq!(output.status.code(), Some(0));
+    }
 }
 
 #[test]

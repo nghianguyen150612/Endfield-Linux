@@ -57,8 +57,11 @@ pub enum ExpirationStatus {
 pub struct VerifiedManifest {
     pub(crate) manifest: Manifest,
     pub(crate) content_sha256: String,
+    pub(crate) key_sha256: String,
     pub(crate) provenance: Provenance,
     pub(crate) time: Option<i64>,
+    pub(crate) key_valid_from: Option<i64>,
+    pub(crate) key_valid_until: Option<i64>,
     pub(crate) rollback: RollbackStatus,
 }
 impl VerifiedManifest {
@@ -67,6 +70,14 @@ impl VerifiedManifest {
     }
     pub fn provenance(&self) -> Provenance {
         self.provenance
+    }
+    /// SHA-256 of the exact signed manifest bytes.
+    pub fn content_sha256(&self) -> &str {
+        &self.content_sha256
+    }
+    /// SHA-256 of the exact Ed25519 trust-anchor public key used for this result.
+    pub fn key_sha256(&self) -> &str {
+        &self.key_sha256
     }
     pub fn rollback(&self) -> RollbackStatus {
         self.rollback
@@ -77,6 +88,22 @@ impl VerifiedManifest {
         } else {
             ExpirationStatus::TrustedTimeUnavailable
         }
+    }
+    /// Rechecks manifest expiry, anchor validity and evidence age at apply time.
+    pub fn is_fresh_at(&self, now: i64, maximum_age_seconds: i64) -> bool {
+        let Some(verified_at) = self.time else {
+            return false;
+        };
+        let Ok(expires_at) = timestamp(&self.manifest.expires_at) else {
+            return false;
+        };
+        now >= 0
+            && maximum_age_seconds >= 0
+            && now >= verified_at
+            && now.saturating_sub(verified_at) <= maximum_age_seconds
+            && now < expires_at
+            && self.key_valid_from.is_none_or(|start| now >= start)
+            && self.key_valid_until.is_none_or(|until| now < until)
     }
     pub fn checkpoint(&self) -> Result<TrustedCheckpoint, Error> {
         if self.provenance != Provenance::IndependentlyAuthenticatedPublisher || self.time.is_none()
@@ -177,8 +204,11 @@ pub fn verify_manifest(
     Ok(VerifiedManifest {
         manifest: m,
         content_sha256,
+        key_sha256: sha256(&a.public_key),
         provenance: a.provenance,
         time: now,
+        key_valid_from: a.valid_from,
+        key_valid_until: a.valid_until,
         rollback,
     })
 }

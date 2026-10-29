@@ -353,3 +353,7 @@ and actual local artifact size/SHA-256. User-pinned matches remain limited trust
 unverified; no download, extraction, installation or runtime execution is added.
 See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
 file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
+
+## P025 runtime installation
+
+P025 now provides local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. It does not establish publisher authenticity or support HTTPS acquisition. Hosted qualification is pending. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md) for the workflow and current evidence.

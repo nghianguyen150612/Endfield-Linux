@@ -68,3 +68,7 @@ The storage contract tests use fresh temporary roots and cover default/load/save
 
 P022 runtime discovery is ephemeral. It does not create or modify SQLite or
 TOML state, persist explicit roots, or attach runtime paths to support reports.
+
+## P025 runtime installation
+
+P025 now provides local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. It does not establish publisher authenticity or support HTTPS acquisition. Hosted qualification is pending. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md) for the workflow and current evidence.

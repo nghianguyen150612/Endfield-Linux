@@ -185,5 +185,8 @@ Dell Vostro artifact verification: UNVERIFIED
 
 Real Endfield compatibility: UNVERIFIED
 
-P025 may consume this evidence for explicitly authorized acquisition with controlled
-staging; downloading/installing remains unimplemented. P026 owns installed-file audits.
+P025 consumes P024 evidence for explicitly approved local artifact installation with controlled staging. User-pinned evidence remains limited trust and is labeled as such; authenticated publisher evidence requires an independently established caller policy and rollback checkpoint. HTTPS acquisition is unavailable because the signed v1 manifest has no authenticated URL. P026 owns installed-file audits.
+
+## P025 runtime installation
+
+P025 now provides local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. It does not establish publisher authenticity or support HTTPS acquisition. Hosted qualification is pending. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md) for the workflow and current evidence.

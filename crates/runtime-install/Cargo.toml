@@ -1,0 +1,21 @@
+[package]
+name = "endfield-unix-runtime-install"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+endfield-unix-runtime = { path = "../runtime" }
+endfield-unix-runtime-verification = { path = "../runtime-verification" }
+endfield-unix-storage = { path = "../storage" }
+libc = "=0.2.191"
+fs2 = "=0.4.3"
+flate2 = "=1.1.5"
+tar = { version = "=0.4.46", default-features = false }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.145"
+tempfile = "=3.15.0"
+
+[dev-dependencies]
+ed25519-dalek = "=2.2.0"

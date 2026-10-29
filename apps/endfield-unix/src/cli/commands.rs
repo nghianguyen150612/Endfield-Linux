@@ -16,6 +16,7 @@ pub enum Command {
     Version,
     About,
     LaunchGui,
+    RuntimeInstall(Box<super::runtime_install::Operation>),
     DiagnoseReport {
         output: std::path::PathBuf,
         overwrite: bool,
