@@ -343,3 +343,13 @@ does not imply child survival after a service stop. No production game launch,
 logout persistence, lingering, or restart recovery is provided. See
 [SYSTEMD-USER.md](SYSTEMD-USER.md) for installation, lifecycle, testing, and
 manual Arch validation.
+
+## P024 runtime manifest verification
+
+The library-only offline verifier and headless `diagnose runtime-integrity` command
+verify exact-byte Ed25519 signatures, scoped explicit anchors, version/expiry policy,
+and actual local artifact size/SHA-256. User-pinned matches remain limited trust
+(exit 3), without official publisher authentication. Discovery and UMU remain
+unverified; no download, extraction, installation or runtime execution is added.
+See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
+file-race and rollback limits, synthetic tests, and P025/P026 boundaries.

@@ -130,3 +130,13 @@ sampled frametime meaning and do not fabricate a recording-wide FPS window.
 The command is headless and does not instrument a game or persist data. See
 [FRAME-TELEMETRY-LINUX.md](docs/FRAME-TELEMETRY-LINUX.md) for upstream format
 evidence, statistics, limits, privacy, and validation status.
+
+## P024 runtime manifest verification
+
+The library-only offline verifier and headless `diagnose runtime-integrity` command
+verify exact-byte Ed25519 signatures, scoped explicit anchors, version/expiry policy,
+and actual local artifact size/SHA-256. User-pinned matches remain limited trust
+(exit 3), without official publisher authentication. Discovery and UMU remain
+unverified; no download, extraction, installation or runtime execution is added.
+See [runtime trust manifests](docs/RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
+file-race and rollback limits, synthetic tests, and P025/P026 boundaries.

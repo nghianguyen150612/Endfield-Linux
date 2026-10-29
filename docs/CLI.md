@@ -190,3 +190,13 @@ MangoHud rows preserve their latest frame-interval and instantaneous reciprocal
 FPS semantics. P018 does not infer `log_interval`, treat every row as a frame,
 or derive a recording-wide FPS window from the sampled FPS column. See
 [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md) for details.
+
+## P024 runtime manifest verification
+
+The library-only offline verifier and headless `diagnose runtime-integrity` command
+verify exact-byte Ed25519 signatures, scoped explicit anchors, version/expiry policy,
+and actual local artifact size/SHA-256. User-pinned matches remain limited trust
+(exit 3), without official publisher authentication. Discovery and UMU remain
+unverified; no download, extraction, installation or runtime execution is added.
+See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
+file-race and rollback limits, synthetic tests, and P025/P026 boundaries.

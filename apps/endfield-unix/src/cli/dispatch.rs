@@ -47,6 +47,7 @@ pub enum CliError {
     FrameInput(FrameInputError),
     RuntimeDiscovery(endfield_unix_runtime_linux::DiscoveryConfigError),
     RuntimeDiscoveryFailed,
+    RuntimeVerification(u8),
     RuntimeDiscoveryUnsupported,
     Systemd(super::systemd::SystemdError),
 }
@@ -54,6 +55,7 @@ pub enum CliError {
 impl CliError {
     pub fn exit_status(&self) -> u8 {
         match self {
+            Self::RuntimeVerification(code) => *code,
             Self::InvalidArguments(_) => EXIT_INVALID_ARGUMENTS,
             Self::Output(_) => EXIT_IO_ERROR,
             Self::GuiStartup(_) => EXIT_GUI_STARTUP_ERROR,
@@ -127,6 +129,9 @@ impl CliError {
 impl fmt::Display for CliError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::RuntimeVerification(_) => {
+                formatter.write_str("runtime verification completed; see report.")
+            }
             Self::InvalidArguments(error) => fmt::Display::fmt(error, formatter),
             Self::Output(_) => formatter.write_str("failed to write command output."),
             Self::GuiStartup(error) => error.fmt(formatter),
@@ -174,6 +179,7 @@ impl fmt::Display for CliError {
 impl Error for CliError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::RuntimeVerification(_) => None,
             Self::InvalidArguments(error) => Some(error),
             Self::Output(error) => Some(error),
             Self::GuiStartup(error) => Some(error),
@@ -611,6 +617,14 @@ where
                 }
             }
             Ok(())
+        }
+        Command::DiagnoseRuntimeIntegrity(options) => {
+            let code = super::runtime_integrity::run(*options, stdout).map_err(CliError::Output)?;
+            if code == 0 {
+                Ok(())
+            } else {
+                Err(CliError::RuntimeVerification(code))
+            }
         }
         Command::DiagnoseUmu => {
             if !cfg!(target_os = "linux") {

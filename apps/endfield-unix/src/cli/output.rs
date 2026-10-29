@@ -1725,7 +1725,11 @@ fn write_service_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|runtimes|telemetry>\n"
+        "Runtime verification: diagnose runtime-integrity --help (user-pinned matches exit 3)."
+    )?;
+    writeln!(
+        output,
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>\n"
     )?;
     writeln!(
         output,

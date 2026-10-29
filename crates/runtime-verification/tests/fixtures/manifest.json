@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "manifest_id": "synthetic-manifest",
+  "manifest_version": 1,
+  "provider_id": "synthetic-provider",
+  "project_id": "synthetic-project",
+  "channel": "test",
+  "runtime_family": "proton",
+  "runtime_lineage": "ge-proton",
+  "runtime_build": "synthetic-build",
+  "key_id": "synthetic-key",
+  "signature_algorithm": "ed25519",
+  "issued_at": "2026-01-01T00:00:00Z",
+  "expires_at": "2036-01-01T00:00:00Z",
+  "artifacts": [
+    {
+      "artifact_id": "synthetic-artifact",
+      "filename": "runtime.tar.gz",
+      "size_bytes": 56,
+      "sha256": "2d1a0a79daf813ba21f3dcdf12d329db863839211b2ceed375b4ff248ede5b5f"
+    }
+  ]
+}

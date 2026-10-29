@@ -237,3 +237,13 @@ P023 consumes the discovered candidate and identity facts through the same
 P021 contracts. UMU integration and launch-plan preparation are documented in
 [UMU-INTEGRATION.md](UMU-INTEGRATION.md); P022 discovery itself still makes no
 trust, integrity, compatibility, or launch claim.
+
+## P024 runtime manifest verification
+
+The library-only offline verifier and headless `diagnose runtime-integrity` command
+verify exact-byte Ed25519 signatures, scoped explicit anchors, version/expiry policy,
+and actual local artifact size/SHA-256. User-pinned matches remain limited trust
+(exit 3), without official publisher authentication. Discovery and UMU remain
+unverified; no download, extraction, installation or runtime execution is added.
+See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
+file-race and rollback limits, synthetic tests, and P025/P026 boundaries.

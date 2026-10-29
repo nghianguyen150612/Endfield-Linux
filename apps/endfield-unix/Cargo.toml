@@ -10,6 +10,7 @@ description = "Native community launcher and goal-driven optimization applicatio
 default-run = "endfield-unix"
 
 [dependencies]
+endfield-unix-runtime-verification = { path = "../../crates/runtime-verification" }
 clap = { version = "=4.5.53", default-features = false, features = ["derive", "error-context", "help", "std", "usage"] }
 endfield-unix-diagnostics = { path = "../../crates/diagnostics" }
 endfield-unix-domain = { path = "../../crates/domain" }

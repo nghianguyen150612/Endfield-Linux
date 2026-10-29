@@ -76,6 +76,12 @@ jobs:
       - name: Build application binaries for the Linux IPC subprocess tests
         run: cargo build --locked -p endfield-unix -p endfield-unixd
 
+      - name: Run P024 offline cryptographic CLI smoke
+        run: scripts/runtime-integrity-smoke.sh
+
+      - name: Run P024 verification contracts
+        run: cargo test --locked -p endfield-unix-runtime-verification
+
       - name: Run headless installed Wine and Proton discovery smoke
         run: |
           ./target/debug/endfield-unix diagnose runtimes | tee /tmp/endfield-runtime-discovery.txt
@@ -226,6 +232,9 @@ jobs:
           assert not any("bin" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
           assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc"}, runtime_linux["dependencies"]
           assert not any(dependency["name"] in gui_dependencies | {"endfield-unixd", "ash", "nix", "vulkan", "vulkano", "wayland-client", "wayland-protocols", "x11rb"} for dependency in runtime_linux["dependencies"]), runtime_linux["dependencies"]
+          verification = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-runtime-verification")
+          assert all("bin" not in t["kind"] for t in verification["targets"])
+          assert not ({d["name"] for d in verification["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           ipc = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-ipc")
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]

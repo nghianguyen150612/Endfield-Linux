@@ -89,6 +89,9 @@ enum DiagnoseArgs {
     },
     /// Inspect installed UMU and local Proton integration without executing them.
     Umu,
+    /// Verify an explicit signed manifest and local artifact; user-pinned trust only.
+    RuntimeIntegrity(Box<super::runtime_integrity::Options>),
+
     /// Collect one bounded Linux CPU and memory telemetry sample.
     Telemetry {
         #[command(subcommand)]
@@ -138,7 +141,7 @@ enum RuntimeFamilyArg {
     Proton,
 }
 
-fn absolute_path(value: &str) -> Result<PathBuf, String> {
+pub(super) fn absolute_path(value: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(value);
     if path.is_absolute() {
         Ok(path)
@@ -270,6 +273,9 @@ where
             }),
             roots,
         },
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::RuntimeIntegrity(options),
+        }) => Command::DiagnoseRuntimeIntegrity(options),
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Umu,
         }) => Command::DiagnoseUmu,

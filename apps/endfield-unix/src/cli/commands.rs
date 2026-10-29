@@ -29,6 +29,7 @@ pub enum Command {
         roots: Vec<std::path::PathBuf>,
     },
     DiagnoseUmu,
+    DiagnoseRuntimeIntegrity(Box<super::runtime_integrity::Options>),
     DiagnoseTelemetryGpu {
         interval_ms: u64,
     },

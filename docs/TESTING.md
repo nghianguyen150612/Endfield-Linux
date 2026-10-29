@@ -958,3 +958,52 @@ not run here.
 Hosted P023 qualification passed in [Rust CI run 40684639686](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40684639686): the Rust/GTK, GCC C17, and Clang C17 jobs all succeeded. The Rust job passed format, native workspace check and Clippy, app/daemon builds, the real `diagnose runtimes` and `diagnose umu` CLI smokes, P021/P022/P023 runtime contracts, full workspace tests, daemon/session/systemd tests, the dedicated IPC integration gate, GTK smoke and screenshot upload (`endfield-unix-gtk-smoke`), workspace build, and Cargo metadata assertions. The P023 CLI smoke passed its Linux UMU, unknown-version, and no-runtime/game-execution assertions; it did not require UMU installation. The hosted runner result does not establish that UMU or Proton was installed on the runner.
 
 The hosted full workspace and dedicated IPC gates passed without recurrence of the `ipc_e2e.rs:144` `WouldBlock` saturation failure. That race remains unresolved; this run does not claim a fix. Real UMU, Proton, prefix, and Endfield validation remains unverified.
+
+## P024 runtime manifest verification
+
+The library-only offline verifier and headless `diagnose runtime-integrity` command
+verify exact-byte Ed25519 signatures, scoped explicit anchors, version/expiry policy,
+and actual local artifact size/SHA-256. User-pinned matches remain limited trust
+(exit 3), without official publisher authentication. Discovery and UMU remain
+unverified; no download, extraction, installation or runtime execution is added.
+See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
+file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
+
+### P024 local qualification notes
+
+Baseline: `e74abfe3e8e245e90c770c29d103f9712b9af59b` on `main`.
+Rust 1.85.0 was installed for this milestone. Native Debian GTK development
+packages were downloaded and unpacked into a temporary sysroot without system
+installation; native workspace checks use that sysroot (not pkg-config stubs).
+The first workspace regression pass excluding the GTK app reproduced an existing
+P019 event-observation race in
+`crates/sessions/tests/process_contract.rs:68`: the state was already Exited,
+but the callback event vector was still empty instead of `[Registered, Exited]`.
+No session code, test assertion or timeout was modified. This is separate from
+P010 IPC saturation and is retained as failed-attempt evidence.
+
+Final local P024 gates passed on Rust 1.85.0: formatting, locked workspace
+all-target check, Clippy with warnings denied, workspace build and full workspace
+tests, locked Cargo metadata, and `git diff --check`. The verifier passes two
+file-safety unit tests and seven parameterized contract tests; the actual CLI
+integration test and signed/tampered shell smoke also pass. The local shell smoke
+reported a 56-byte size/SHA-256 match with user-pinned-only authenticity (exit 3),
+and rejected changed manifest whitespace with Signature (exit 4).
+
+The temporary native sysroot needed links to already installed runtime libraries
+and a local-only executable RPATH because existing subprocess tests clear their
+environment. No RPATH or sysroot settings were committed. One intermediate CLI
+pass saw an existing startup stderr timing difference: a late persistent-diagnostics
+notice appeared for only one of the default/explicit GUI invocations. Its assertion
+was preserved; the subsequent full workspace pass succeeded. The P019 test also
+passed its explicit rerun. These failed attempts are not P024 cryptographic failures.
+The full successful suite exercised P021–P023, daemon/session/systemd, IPC,
+storage/domain/diagnostics/telemetry and FFI contracts. The P010 saturation
+`WouldBlock` failure did not recur. Its underlying historical race remains unresolved.
+
+The real GTK smoke passed under temporary Xvfb/D-Bus and produced
+`/tmp/p024-gtk-smoke.png`. Independent GCC and Clang 19 C17 ABI scripts passed;
+the ABI remains `0x00010000`. Metadata confirms exactly `endfield-unix` and
+`endfield-unixd`; the verifier's normal dependency tree contains no GTK, daemon,
+systemd, graphics or runtime execution dependency. IPC and C17 source files are
+unchanged. Hosted qualification is recorded separately after CI completes.
