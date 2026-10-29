@@ -1007,3 +1007,48 @@ the ABI remains `0x00010000`. Metadata confirms exactly `endfield-unix` and
 `endfield-unixd`; the verifier's normal dependency tree contains no GTK, daemon,
 systemd, graphics or runtime execution dependency. IPC and C17 source files are
 unchanged. Hosted qualification is recorded separately after CI completes.
+
+### P024 hosted qualification
+
+Implementation commit `23892dcdb1afadb9895518fae229207661a4f865` passed all
+three mandatory jobs in [Rust CI run 40806739283](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40806739283): Rust/GTK, GCC C17 and Clang C17.
+The run passed format, locked workspace check/Clippy, application builds,
+P024 signed/tampered actual-binary smoke and verification contracts,
+P021/P022/P022A/P023 runtime regression gates, full workspace tests,
+session/daemon/systemd and dedicated authenticated IPC gates, GTK smoke,
+workspace build and metadata assertions. The `endfield-unix-gtk-smoke`
+screenshot artifact was uploaded successfully. The P010 `WouldBlock`
+saturation failure did not recur; no IPC implementation or assertions changed.
+The local P019 event-vector and startup stderr timing failures did not recur
+in this hosted run. Optional isolated real systemd user-manager integration
+remains UNVERIFIED when its runner gate is disabled.
+
+Hosted P024 smoke output included:
+
+```text
+Manifest: synthetic-manifest (schema v1, version 1)
+Provider: synthetic-provider
+Project: synthetic-project
+Build: synthetic-build
+Channel: test
+Key: synthetic-key
+Runtime artifact verification
+Signature: valid
+Key scope: matched
+Publisher authenticity: user-pinned only
+Manifest expiration: Checked
+Rollback checkpoint: NoCheckpoint
+Size: matches (56 bytes)
+SHA-256: matches
+Source-integrity status: local match
+Official publisher authenticity: UNVERIFIED
+Freshness: not fully established
+Game compatibility: not evaluated
+Installation performed: no
+```
+
+The valid user-pinned fixture exited 3; changed whitespace exited 4 and reported
+`Runtime artifact verification: Signature`. Synthetic success does not authenticate
+Valve Proton, GE-Proton or DWProton, validate physical Arch/Dell artifacts, or
+establish Endfield compatibility. All those real-world statuses remain UNVERIFIED.
+P025 acquisition/staging and P026 installed-file auditing are not implemented.
