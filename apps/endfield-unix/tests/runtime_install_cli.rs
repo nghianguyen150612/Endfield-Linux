@@ -409,6 +409,8 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     assert_eq!(prefix_list.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&prefix_list.stdout).contains("Prefix p028-managed"));
 
+    let managed_launcher = managed.join("proton");
+    let managed_launcher_mode = fs::metadata(&managed_launcher).unwrap().mode() & 0o777;
     fs::write(managed.join("proton"), b"modified synthetic inert launcher").unwrap();
     let stale_managed_prefix = run(root, &["prefix", "validate", "--id", "p028-managed"]);
     assert_eq!(stale_managed_prefix.status.code(), Some(4));
@@ -422,7 +424,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     assert!(prefix_path.is_dir());
     fs::write(managed.join("proton"), b"synthetic inert launcher").unwrap();
 
-    fs::remove_file(managed.join("proton")).unwrap();
+    fs::remove_file(&managed_launcher).unwrap();
     let removed_managed_runtime = run(root, &["prefix", "validate", "--id", "p028-managed"]);
     assert_eq!(removed_managed_runtime.status.code(), Some(4));
     assert!(
@@ -434,7 +436,12 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             .contains("Runtime validation: stale or unavailable; P025/P026 validation failed")
     );
     assert!(prefix_path.is_dir());
-    fs::write(managed.join("proton"), b"synthetic inert launcher").unwrap();
+    fs::write(&managed_launcher, b"synthetic inert launcher").unwrap();
+    fs::set_permissions(
+        &managed_launcher,
+        fs::Permissions::from_mode(managed_launcher_mode),
+    )
+    .unwrap();
 
     let prefix_validate = run(root, &["prefix", "validate", "--id", "p028-managed"]);
     println!(
