@@ -31,6 +31,23 @@ pub enum Operation {
         #[arg(long, value_enum)]
         adapter: Option<AdapterArg>,
     },
+    /// Pin one explicitly selected candidate reported by P022 discovery.
+    SetExternal {
+        #[arg(long)]
+        candidate_id: String,
+        #[arg(long, value_enum)]
+        scope: ScopeArg,
+        #[arg(long)]
+        profile: Option<String>,
+        #[arg(long = "root", value_name = "PATH", action = clap::ArgAction::Append)]
+        roots: Vec<std::path::PathBuf>,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long)]
+        replace: bool,
+        #[arg(long, value_enum)]
+        adapter: Option<AdapterArg>,
+    },
     /// Remove one pin record; runtime files are preserved.
     Remove {
         #[arg(long, value_enum)]
@@ -56,6 +73,7 @@ pub enum ScopeArg {
 pub enum AdapterArg {
     UmuProton,
     ManagedWine,
+    ExternalWine,
 }
 
 fn scope(
@@ -118,16 +136,15 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
                 };
                 writeln!(
                     out,
-                    "{kind}{}: {} / {} / {} [{}]",
+                    "{kind}{}: {} / {} / {}",
                     if profile.is_empty() {
                         String::new()
                     } else {
                         format!(" ({profile})")
                     },
-                    pin.runtime.family,
-                    pin.runtime.build,
-                    pin.runtime.installation_id,
-                    pin.pin_id
+                    pin.runtime.family(),
+                    pin.runtime.build().unwrap_or("unknown build"),
+                    runtime_label(&pin.runtime)
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -187,6 +204,7 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
             let adapter = adapter.map(|a| match a {
                 AdapterArg::UmuProton => pins::AdapterPreference::UmuProton,
                 AdapterArg::ManagedWine => pins::AdapterPreference::ManagedWine,
+                AdapterArg::ExternalWine => pins::AdapterPreference::ExternalWine,
             });
             let pin_id = pins::stable_pin_id(&target, &runtime);
             let pin = pins::RuntimePin::new(pin_id, target, runtime, adapter, now())
@@ -195,6 +213,53 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
                 .set(pin, expected_revision, replace)
                 .map_err(|e| e.to_string())?;
             writeln!(out, "Runtime pin saved\nRegistry revision: {}\nAutomatic updates: disabled by policy\nRuntime execution: not performed\nGame execution: not performed", saved.revision).map_err(|e| e.to_string())?;
+            Ok(0)
+        }
+        Operation::SetExternal {
+            candidate_id,
+            scope: kind,
+            profile,
+            roots,
+            expected_revision,
+            replace,
+            adapter,
+        } => {
+            if roots.len() > endfield_unix_runtime_linux::MAX_CUSTOM_ROOTS {
+                return Err("too many discovery roots were supplied".into());
+            }
+            let machine = pins::current_machine_id().map_err(|e| e.to_string())?;
+            let target = scope(kind, profile, machine)?;
+            let provider = endfield_unix_runtime_linux::LinuxRuntimeProvider::new(
+                endfield_unix_runtime_linux::DiscoveryOptions {
+                    additional_roots: roots,
+                    include_path: true,
+                    include_conventional: true,
+                },
+            )
+            .map_err(|_| "Linux runtime discovery options are invalid".to_owned())?;
+            let report = provider.scan();
+            let selected = report
+                .runtimes
+                .iter()
+                .find(|runtime| runtime.candidate.runtime_id().as_str() == candidate_id)
+                .ok_or_else(|| "candidate is no longer present in P022 discovery".to_owned())?;
+            let snapshot = selected
+                .external_snapshot()
+                .map_err(|_| "external candidate identity could not be revalidated".to_owned())?;
+            let runtime = external_reference(snapshot)?;
+            let adapter = adapter.map(|a| match a {
+                AdapterArg::UmuProton => pins::AdapterPreference::UmuProton,
+                AdapterArg::ManagedWine => pins::AdapterPreference::ManagedWine,
+                AdapterArg::ExternalWine => pins::AdapterPreference::ExternalWine,
+            });
+            let runtime = pins::PinnedRuntimeReference::External(runtime);
+            let pin_id = pins::stable_pin_id(&target, &runtime);
+            let pin = pins::RuntimePin::new(pin_id, target, runtime, adapter, now())
+                .map_err(|e| e.to_string())?;
+            let saved = store
+                .set(pin, expected_revision, replace)
+                .map_err(|e| e.to_string())?;
+            writeln!(out, "External runtime pin saved\nRegistry revision: {}\nSource authenticity: unverified\nRuntime integrity: not assessed\nCompatibility: not verified\nAutomatic updates: disabled by policy\nRuntime execution: not performed\nGame execution: not performed", saved.revision).map_err(|e| e.to_string())?;
             Ok(0)
         }
         Operation::Remove {
@@ -223,51 +288,45 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
                 .map_err(|_| "profile identifier is invalid")?;
             let registry = store.load().map_err(|e| e.to_string())?;
             let report = pins::resolve(&registry, &machine, profile.as_ref(), None, |reference| {
-                let paths = endfield_unix_storage::AppPaths::discover()
-                    .map_err(|_| "XDG paths unavailable".to_owned())?;
-                let identity = endfield_unix_runtime_install::pin_identity(
-                    &paths,
-                    &reference.installation_id,
-                )
-                .map_err(|_| {
-                    "managed installation unavailable, stale, or integrity audit not complete"
-                        .to_owned()
-                })?;
-                if identity.family != reference.family
-                    || identity.lineage != reference.lineage
-                    || identity.provider != reference.provider
-                    || identity.project != reference.project
-                    || identity.build != reference.build
-                    || identity.artifact_sha256 != reference.artifact_sha256
-                    || identity.manifest_sha256 != reference.manifest_sha256
-                    || identity.generation != reference.generation
-                    || identity.ownership_record_sha256 != reference.ownership_record_sha256
-                {
-                    return Err("managed installation identity changed".into());
-                }
-                use endfield_unix_runtime_audit::{Completeness, FindingKind};
-                match identity.audit.completeness {
-                    Completeness::Complete
-                        if identity
-                            .audit
-                            .findings
-                            .iter()
-                            .all(|finding| finding.kind == FindingKind::Match) => {}
-                    Completeness::Complete => {
-                        return Err("P026 detected a local baseline mismatch".into());
+                match reference {
+                    pins::PinnedRuntimeReference::Managed(reference) => {
+                        let paths = endfield_unix_storage::AppPaths::discover()
+                            .map_err(|_| "XDG paths unavailable".to_owned())?;
+                        let identity = endfield_unix_runtime_install::pin_identity(
+                            &paths,
+                            &reference.installation_id,
+                        )
+                        .map_err(|_| {
+                            "managed installation unavailable, stale, or integrity audit not complete"
+                                .to_owned()
+                        })?;
+                        if identity.family != reference.family
+                            || identity.lineage != reference.lineage
+                            || identity.provider != reference.provider
+                            || identity.project != reference.project
+                            || identity.build != reference.build
+                            || identity.artifact_sha256 != reference.artifact_sha256
+                            || identity.manifest_sha256 != reference.manifest_sha256
+                            || identity.generation != reference.generation
+                            || identity.ownership_record_sha256 != reference.ownership_record_sha256
+                        {
+                            return Err("managed installation identity changed".into());
+                        }
+                        use endfield_unix_runtime_audit::{Completeness, FindingKind};
+                        match identity.audit.completeness {
+                            Completeness::Complete
+                                if identity.audit.findings.iter().all(|finding| finding.kind == FindingKind::Match) => {}
+                            Completeness::Complete => return Err("P026 detected a local baseline mismatch".into()),
+                            Completeness::Unverifiable => return Err("P026 integrity is unverifiable because a baseline is missing or legacy".into()),
+                            Completeness::Partial => return Err("P026 audit was partial; integrity is not established".into()),
+                            Completeness::Failed => return Err("P026 audit failed; integrity is not established".into()),
+                        }
+                        Ok(())
                     }
-                    Completeness::Unverifiable => return Err(
-                        "P026 integrity is unverifiable because a baseline is missing or legacy"
-                            .into(),
-                    ),
-                    Completeness::Partial => {
-                        return Err("P026 audit was partial; integrity is not established".into());
-                    }
-                    Completeness::Failed => {
-                        return Err("P026 audit failed; integrity is not established".into());
+                    pins::PinnedRuntimeReference::External(reference) => {
+                        revalidate_external(reference)
                     }
                 }
-                Ok(())
             });
             match report.state {
                 pins::ResolutionState::NoPin => {
@@ -294,9 +353,24 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
                                 .availability()
                         ),
                         Some(pins::AdapterPreference::ManagedWine) => "not evaluated".to_owned(),
+                        Some(pins::AdapterPreference::ExternalWine) => "not evaluated".to_owned(),
                         None => "not selected".to_owned(),
                     };
-                    writeln!(out, "Runtime pin\n\nSelection source: {:?}\nRuntime family: {}\nBuild: {}\nInstallation: {}\nPin status: identity valid; P026 local baseline matches\nSource provenance: {:?}\nCompatibility: not verified\nAdapter availability: {}\nAutomatic fallback: not performed\nRuntime execution: not performed\nGame execution: not performed", report.source, runtime.family, runtime.build, runtime.installation_id, runtime.trust, adapter_availability).map_err(|e| e.to_string())?;
+                    let (pin_status, ownership, provenance, discovery_source) = match &runtime {
+                        pins::PinnedRuntimeReference::Managed(reference) => (
+                            "P025 identity valid; P026 local baseline matches",
+                            "Endfield-Unix managed",
+                            format!("{:?}", reference.trust),
+                            "managed installation".to_owned(),
+                        ),
+                        pins::PinnedRuntimeReference::External(reference) => (
+                            "P022 structural identity revalidated; integrity not assessed",
+                            reference.ownership.as_str(),
+                            "external source authenticity unverified".to_owned(),
+                            reference.sources.join(", "),
+                        ),
+                    };
+                    writeln!(out, "Runtime pin\n\nSelection source: {:?}\nRuntime family: {}\nBuild: {}\nInstallation: {}\nPin status: {pin_status}\nOwnership: {ownership}\nDiscovery source: {discovery_source}\nSource provenance: {provenance}\nCompatibility: not verified\nAdapter availability: {}\nAutomatic fallback: not performed\nRuntime execution: not performed\nGame execution: not performed", report.source, runtime.family(), runtime.build().unwrap_or("unknown"), runtime_label(&runtime), adapter_availability).map_err(|e| e.to_string())?;
                     Ok(0)
                 }
             }
@@ -309,13 +383,114 @@ fn print_pin(out: &mut impl Write, pin: &pins::RuntimePin, revision: u64) -> io:
         pins::RuntimePinScope::Machine { .. } => "machine".to_owned(),
         pins::RuntimePinScope::Profile { profile, .. } => format!("profile ({})", profile.as_str()),
     };
+    let (provenance, ownership, discovery_source) = match &pin.runtime {
+        pins::PinnedRuntimeReference::Managed(reference) => (
+            format!("{:?}", reference.trust),
+            "Endfield-Unix managed",
+            "managed installation".to_owned(),
+        ),
+        pins::PinnedRuntimeReference::External(reference) => (
+            "external source authenticity unverified".to_owned(),
+            reference.ownership.as_str(),
+            reference.sources.join(", "),
+        ),
+    };
     writeln!(
         out,
-        "Runtime pin\n\nScope: {scope}\nRuntime: {}\nBuild: {}\nInstallation: {}\nRegistry revision: {revision}\nPin status: stored; identity not revalidated\nSource provenance: {:?}\nCompatibility: not verified\nAdapter preference: {:?}\nIntegrity: not assessed by show\nRuntime execution: not performed\nGame execution: not performed",
-        pin.runtime.family,
-        pin.runtime.build,
-        pin.runtime.installation_id,
-        pin.runtime.trust,
+        "Runtime pin\n\nScope: {scope}\nRuntime: {}\nBuild: {}\nInstallation: {}\nOwnership: {ownership}\nDiscovery source: {discovery_source}\nRegistry revision: {revision}\nPin status: stored; identity not revalidated\nSource provenance: {provenance}\nCompatibility: not verified\nAdapter preference: {:?}\nIntegrity: not assessed by show\nRuntime execution: not performed\nGame execution: not performed",
+        pin.runtime.family(),
+        pin.runtime.build().unwrap_or("unknown"),
+        runtime_label(&pin.runtime),
         pin.adapter_preference
     )
+}
+
+fn runtime_label(runtime: &pins::PinnedRuntimeReference) -> &str {
+    match runtime {
+        pins::PinnedRuntimeReference::Managed(reference) => &reference.installation_id,
+        pins::PinnedRuntimeReference::External(_) => "external candidate",
+    }
+}
+
+fn external_reference(
+    snapshot: endfield_unix_runtime_linux::ExternalRuntimeSnapshot,
+) -> Result<pins::ExternalRuntimeReference, String> {
+    let location = snapshot
+        .location
+        .to_str()
+        .ok_or_else(|| "candidate location is not valid UTF-8".to_owned())?
+        .to_owned();
+    let mut sources = snapshot
+        .sources
+        .iter()
+        .map(|source| source.id().to_owned())
+        .collect::<Vec<_>>();
+    sources.sort();
+    let mut architectures = snapshot
+        .architectures
+        .iter()
+        .map(|architecture| architecture.as_str().to_owned())
+        .collect::<Vec<_>>();
+    architectures.sort();
+    architectures.dedup();
+    let reference = pins::ExternalRuntimeReference {
+        location,
+        family: snapshot.family.as_str().to_owned(),
+        lineage: snapshot.lineage,
+        lineage_basis: snapshot.lineage_basis,
+        provider: snapshot.provider,
+        sources,
+        build: snapshot.build,
+        architectures,
+        structure: snapshot.structure,
+        ownership: snapshot.ownership,
+        identity_sha256: snapshot.identity_sha256,
+        trust: pins::Provenance::UnknownExternalSource,
+    };
+    reference
+        .validate()
+        .map_err(|_| "external candidate identity is invalid".to_owned())?;
+    Ok(reference)
+}
+
+fn revalidate_external(reference: &pins::ExternalRuntimeReference) -> Result<(), String> {
+    let location = std::path::PathBuf::from(&reference.location);
+    let provider = endfield_unix_runtime_linux::LinuxRuntimeProvider::new(
+        endfield_unix_runtime_linux::DiscoveryOptions {
+            additional_roots: vec![location.clone()],
+            include_path: false,
+            include_conventional: false,
+        },
+    )
+    .map_err(|_| "external runtime discovery could not be configured".to_owned())?;
+    let report = provider.scan();
+    let candidate = report
+        .runtimes
+        .iter()
+        .find(|runtime| runtime.path() == location)
+        .ok_or_else(|| "selected external runtime is missing or no longer recognized".to_owned())?;
+    let current = candidate
+        .external_snapshot()
+        .map_err(|_| "selected external runtime changed during inspection".to_owned())?;
+    if current.identity_sha256 != reference.identity_sha256
+        || current.family.as_str() != reference.family
+        || current.lineage != reference.lineage
+        || current.lineage_basis != reference.lineage_basis
+        || current.provider != reference.provider
+        || current.build != reference.build
+        || current.structure != reference.structure
+        || current
+            .architectures
+            .iter()
+            .map(|architecture| architecture.as_str())
+            .collect::<Vec<_>>()
+            != reference
+                .architectures
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+    {
+        return Err("selected external runtime identity changed".into());
+    }
+    Ok(())
 }

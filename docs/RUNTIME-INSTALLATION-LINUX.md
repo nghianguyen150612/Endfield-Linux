@@ -102,4 +102,4 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 
 ## P027 side-by-side selection
 
-Installation publication does not modify P027 pin records. A pin stores exact installation ID, family, provider/project/build, artifact and manifest digests, generation, trust classification, and ownership-record digest. Adding an installation does not replace the selected runtime.
+Installation publication does not modify P027 pin records. A managed pin stores exact installation ID, family, provider/project/build, artifact and manifest digests, generation, trust classification, and ownership-record digest. Adding an installation does not replace the selected runtime or any external P022 pin.

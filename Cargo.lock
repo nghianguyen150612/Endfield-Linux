@@ -424,6 +424,7 @@ version = "0.1.0"
 dependencies = [
  "endfield-unix-runtime",
  "libc",
+ "sha2",
 ]
 
 [[package]]

@@ -17,6 +17,7 @@ pub use umu_discovery::{
     UmuAvailability, UmuCandidate, UmuDiscoveryEnvironment, UmuDiscoveryReport,
 };
 
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fmt;
@@ -58,6 +59,19 @@ pub enum SourceKind {
 }
 
 impl SourceKind {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::SystemWine => "system-wine",
+            Self::PathWine => "path-wine",
+            Self::NativeSteam => "native-steam",
+            Self::FlatpakSteam => "flatpak-steam",
+            Self::Heroic => "heroic",
+            Self::Lutris => "lutris",
+            Self::Explicit => "explicit-root",
+            Self::UnknownExternalManager => "unknown-external-manager",
+        }
+    }
+
     pub const fn label(self) -> &'static str {
         match self {
             Self::SystemWine => "system executable",
@@ -98,6 +112,140 @@ impl DiscoveredRuntime {
     /// not a permanent trust decision; callers must revalidate it before execution.
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Produce a bounded local identity observation for explicit external
+    /// selection. This binds the canonical location and the structural files
+    /// P022 observed; it is not a cryptographic integrity audit.
+    pub fn external_snapshot(&self) -> Result<ExternalRuntimeSnapshot, &'static str> {
+        let canonical =
+            fs::canonicalize(&self.path).map_err(|_| "external runtime location is unavailable")?;
+        let root_metadata = fs::symlink_metadata(&self.path)
+            .map_err(|_| "external runtime location is unavailable")?;
+        let root_observation = FileObservation::from_metadata(&self.path, &root_metadata);
+        if self.path.as_os_str().len() > MAX_PATH_BYTES
+            || canonical != self.path
+            || root_metadata.file_type().is_symlink()
+            || !(root_metadata.is_dir() || root_metadata.is_file())
+            || self.observed_files.len() > 64
+            || self.observed_files.iter().any(|file| !file.is_unchanged())
+            || !root_observation.is_unchanged()
+        {
+            return Err("external runtime identity changed during inspection");
+        }
+        let mut observations = self.observed_files.clone();
+        observations.push(root_observation.clone());
+        observations.sort_by(|left, right| left.path.cmp(&right.path));
+        observations.dedup_by(|left, right| left.path == right.path);
+        let mut architectures = self.architectures.clone();
+        architectures.sort();
+        architectures.dedup();
+        let mut hash = Sha256::new();
+        hash_field(&mut hash, b"endfield-unix:p022-external-identity:v1");
+        hash_field(&mut hash, self.path.as_os_str().as_encoded_bytes());
+        hash_field(&mut hash, self.candidate.family().as_str().as_bytes());
+        hash_field(&mut hash, lineage_identity(&self.lineage).as_bytes());
+        hash_field(&mut hash, self.lineage_basis.as_bytes());
+        hash_field(
+            &mut hash,
+            self.version
+                .as_ref()
+                .map_or(b"".as_slice(), |v| v.as_str().as_bytes()),
+        );
+        hash_field(&mut hash, self.structure.as_bytes());
+        for architecture in &architectures {
+            hash_field(&mut hash, architecture.as_str().as_bytes());
+        }
+        for observation in &observations {
+            hash_field(&mut hash, observation.path.as_os_str().as_encoded_bytes());
+            for number in [
+                observation.device,
+                observation.inode,
+                observation.length,
+                observation.modified_seconds as u64,
+                observation.modified_nanoseconds as u64,
+                observation.changed_seconds as u64,
+                observation.changed_nanoseconds as u64,
+                u64::from(observation.mode),
+                u64::from(observation.is_file),
+                u64::from(observation.is_directory),
+            ] {
+                hash_field(&mut hash, &number.to_le_bytes());
+            }
+        }
+        let mut sources = self
+            .sources
+            .iter()
+            .map(|source| source.source)
+            .collect::<Vec<_>>();
+        sources.sort_by_key(|source| source.id());
+        sources.dedup();
+        if !root_observation.is_unchanged()
+            || observations
+                .iter()
+                .any(|observation| !observation.is_unchanged())
+        {
+            return Err("external runtime changed during identity calculation");
+        }
+        Ok(ExternalRuntimeSnapshot {
+            candidate_id: self.candidate.runtime_id().as_str().to_owned(),
+            location: self.path.clone(),
+            provider: self.candidate.provider_id().as_str().to_owned(),
+            family: self.candidate.family(),
+            lineage: lineage_identity(&self.lineage),
+            lineage_basis: self.lineage_basis.to_owned(),
+            build: self
+                .version
+                .as_ref()
+                .map(|version| version.as_str().to_owned()),
+            architectures,
+            sources,
+            ownership: ownership_identity(&self.ownership),
+            structure: self.structure.to_owned(),
+            identity_sha256: format!("{:x}", hash.finalize()),
+        })
+    }
+}
+
+/// P022's stable, non-authenticating identity summary for an explicitly
+/// selected external candidate. Candidate IDs are discovery-local and are
+/// deliberately excluded from the structural digest.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalRuntimeSnapshot {
+    pub candidate_id: String,
+    pub location: PathBuf,
+    pub provider: String,
+    pub family: RuntimeFamily,
+    pub lineage: String,
+    pub lineage_basis: String,
+    pub build: Option<String>,
+    pub architectures: Vec<endfield_unix_runtime::ProcessArchitecture>,
+    pub sources: Vec<SourceKind>,
+    pub ownership: String,
+    pub structure: String,
+    pub identity_sha256: String,
+}
+
+fn hash_field(hash: &mut Sha256, value: &[u8]) {
+    hash.update((value.len() as u64).to_le_bytes());
+    hash.update(value);
+}
+
+fn lineage_identity(lineage: &RuntimeLineage) -> String {
+    match lineage {
+        RuntimeLineage::OtherVerifiedDerivative(id) => {
+            format!("other-verified-derivative:{}", id.as_str())
+        }
+        _ => lineage.as_str().to_owned(),
+    }
+}
+
+fn ownership_identity(ownership: &RuntimeOwnership) -> String {
+    match ownership {
+        RuntimeOwnership::OtherLauncherManaged(provider) => {
+            format!("other-launcher-managed:{}", provider.identifier().as_str())
+        }
+        _ => ownership.as_str().to_owned(),
     }
 }
 
@@ -337,6 +485,7 @@ struct FileObservation {
     modified_nanoseconds: i64,
     changed_seconds: i64,
     changed_nanoseconds: i64,
+    mode: u32,
     is_file: bool,
     is_directory: bool,
 }
@@ -353,6 +502,7 @@ impl FileObservation {
             modified_nanoseconds: metadata.mtime_nsec(),
             changed_seconds: metadata.ctime(),
             changed_nanoseconds: metadata.ctime_nsec(),
+            mode: metadata.mode(),
             is_file: metadata.is_file(),
             is_directory: metadata.is_dir(),
         }
@@ -1139,6 +1289,23 @@ fn inspect_root(
             return RootOutcome::Failed;
         }
     };
+    if root.source == SourceKind::Explicit
+        && resolved_metadata.is_file()
+        && executable_metadata(&scan_path).is_some()
+        && scan_path.file_name().is_some_and(|name| {
+            matches!(
+                name.to_str(),
+                Some("wine" | "wine64" | "wine-stable" | "wine64-stable")
+            )
+        })
+    {
+        let runtime = inspect_wine_executable(&scan_path, root.source, issues);
+        if let Some(runtime) = runtime {
+            merge_runtime(found, runtime, issues);
+            return RootOutcome::Inspected;
+        }
+        return RootOutcome::Failed;
+    }
     if !resolved_metadata.is_dir() {
         issues.push(DiscoveryIssue {
             source: root.source,
@@ -3003,6 +3170,49 @@ mod tests {
             provider.inspect_identity(&candidate).unwrap_err().kind(),
             ProviderErrorKind::ProviderUnavailable
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn external_snapshot_revalidates_location_structure_and_observed_files() {
+        let root = fixture("external-snapshot");
+        let build = root.join("GE-Proton-10-26");
+        fs::create_dir_all(&build).unwrap();
+        write_proton(&build.join("proton"));
+        fs::write(build.join("version"), "GE-Proton 10-26\n").unwrap();
+        let discover = |root: PathBuf| {
+            LinuxRuntimeProvider::new(DiscoveryOptions {
+                additional_roots: vec![root],
+                include_path: false,
+                include_conventional: false,
+            })
+            .unwrap()
+            .scan()
+        };
+        let initial = discover(root.clone());
+        let first = initial.runtimes[0].external_snapshot().unwrap();
+        let pinned_location = first.location.clone();
+        let reopened = discover(pinned_location.clone());
+        let second = reopened
+            .runtimes
+            .iter()
+            .find(|runtime| runtime.path() == pinned_location)
+            .unwrap()
+            .external_snapshot()
+            .unwrap();
+        assert_eq!(first.identity_sha256, second.identity_sha256);
+        assert_eq!(first.family, second.family);
+        fs::write(build.join("version"), "GE-Proton 10-27\n").unwrap();
+        let changed = discover(pinned_location.clone());
+        let changed_snapshot = changed
+            .runtimes
+            .iter()
+            .find(|runtime| runtime.path() == pinned_location)
+            .unwrap()
+            .external_snapshot()
+            .unwrap();
+        assert_ne!(first.identity_sha256, changed_snapshot.identity_sha256);
+        assert_eq!(changed_snapshot.build.as_deref(), Some("GE-Proton 10-27"));
         let _ = fs::remove_dir_all(root);
     }
 

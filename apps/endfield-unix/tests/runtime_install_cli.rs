@@ -335,6 +335,117 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         Some(0)
     );
 
+    // External candidates are selected from the actual P022 discovery output.
+    // The candidate ID is used only to make this explicit choice; the pin
+    // stores the canonical location and a separately revalidated structure.
+    let external_root = root.join("external-runtimes");
+    let external_build = external_root.join("GE-Proton-P027-fixture");
+    fs::create_dir_all(&external_build).unwrap();
+    fs::write(external_build.join("proton"), b"synthetic inert launcher").unwrap();
+    fs::set_permissions(
+        external_build.join("proton"),
+        fs::Permissions::from_mode(0o700),
+    )
+    .unwrap();
+    fs::write(external_build.join("version"), b"P027 external fixture\n").unwrap();
+    let external_scan = run(
+        root,
+        &[
+            "diagnose",
+            "runtimes",
+            "--root",
+            external_root.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(
+        external_scan.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&external_scan.stdout)
+    );
+    let scan_text = String::from_utf8_lossy(&external_scan.stdout);
+    let external_block = scan_text
+        .split("\nRuntime ")
+        .find(|block| block.contains("Local label: GE-Proton-P027-fixture"))
+        .expect("synthetic external candidate appears in P022 discovery");
+    let candidate_id = external_block
+        .lines()
+        .find_map(|line| {
+            line.trim()
+                .strip_prefix("Candidate ID: ")
+                .and_then(|value| value.split_whitespace().next())
+        })
+        .expect("discovery prints its transient candidate ID");
+    let external_set_args = vec![
+        "runtime",
+        "pin",
+        "set-external",
+        "--candidate-id",
+        candidate_id,
+        "--scope",
+        "profile",
+        "--profile",
+        "external-fixture",
+        "--root",
+        external_root.to_str().unwrap(),
+        "--expected-revision",
+        "3",
+    ];
+    let external_set = run(root, &external_set_args);
+    assert_eq!(
+        external_set.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&external_set.stdout)
+    );
+    let external_resolve = run(
+        root,
+        &["runtime", "pin", "resolve", "--profile", "external-fixture"],
+    );
+    assert_eq!(
+        external_resolve.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&external_resolve.stdout)
+    );
+    let external_resolution = String::from_utf8_lossy(&external_resolve.stdout);
+    assert!(external_resolution.contains("P022 structural identity revalidated"));
+    assert!(external_resolution.contains("external source authenticity unverified"));
+    assert!(external_resolution.contains("Compatibility: not verified"));
+    assert!(!external_resolution.contains(external_root.to_str().unwrap()));
+    fs::write(
+        external_build.join("version"),
+        b"P027 external replacement\n",
+    )
+    .unwrap();
+    let stale_external = run(
+        root,
+        &["runtime", "pin", "resolve", "--profile", "external-fixture"],
+    );
+    assert_eq!(stale_external.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&stale_external.stdout).contains("identity changed"));
+    assert!(String::from_utf8_lossy(&stale_external.stdout).contains("Stored pin: preserved"));
+    let removed_external = run(
+        root,
+        &[
+            "runtime",
+            "pin",
+            "remove",
+            "--scope",
+            "profile",
+            "--profile",
+            "external-fixture",
+            "--expected-revision",
+            "4",
+        ],
+    );
+    assert_eq!(removed_external.status.code(), Some(0));
+    assert!(external_build.join("proton").exists());
+    assert_eq!(
+        run(root, &["runtime", "pin", "resolve"]).status.code(),
+        Some(0)
+    );
+
     let mut source_audit_args = vec![
         "runtime".to_owned(),
         "audit-source".to_owned(),

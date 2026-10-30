@@ -363,4 +363,4 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 
 ## P027 runtime selection
 
-`crates/runtime-selection` is a portable library for strict versioned machine/profile pin records, XDG-backed atomic persistence, revision conflicts, and deterministic non-executable resolution. The headless `runtime pin` CLI uses P025 validated installation identities and P026 full audits on explicit set/resolve; list/show are metadata-only. Profile keys bind to a domain-separated machine-id digest. Stale profile pins block machine fallback. See [runtime pinning](RUNTIME-PINNING.md).
+`crates/runtime-selection` is a portable library for strict versioned machine/profile pin records, XDG-backed atomic persistence, revision conflicts, and deterministic non-executable resolution. The headless `runtime pin` CLI uses exact P025 managed identities and P026 full audits, or explicit P022 external candidates with a canonical location and bounded structural fingerprint. List/show are metadata-only. Profile keys bind to a domain-separated machine-id digest. Stale profile pins block machine fallback. See [runtime pinning](RUNTIME-PINNING.md).

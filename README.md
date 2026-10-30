@@ -25,11 +25,12 @@ compatibility remain unverified. See [UMU integration](docs/UMU-INTEGRATION.md),
 [runtime provider contracts](docs/RUNTIME-PROVIDERS.md).
 
 P027 adds persistent per-machine and machine-bound profile pins for exact
-Endfield-managed runtime installations. `endfield-unix runtime pin` supports
-explicit set, replace, inspect, resolve, and remove operations. Stale pins block
-fallback; resolution revalidates the P025 record and P026 baseline without
-launching a runtime. External candidates and real Endfield compatibility remain
-unverified. See [runtime pinning](docs/RUNTIME-PINNING.md).
+managed installations and explicitly selected external P022 candidates.
+`endfield-unix runtime pin` supports explicit set, replace, inspect, resolve,
+and remove operations. Stale pins block fallback; managed resolution uses the
+P025 record and P026 baseline, while external resolution revalidates P022
+structural identity. Neither path launches a runtime or proves compatibility.
+See [runtime pinning](docs/RUNTIME-PINNING.md).
 
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 

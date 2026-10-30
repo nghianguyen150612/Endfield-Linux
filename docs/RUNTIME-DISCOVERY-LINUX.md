@@ -254,4 +254,4 @@ P025 now provides local tar.gz installation with P024 artifact verification, a d
 
 ## P027 selection boundary
 
-P022 inventory remains read-only and never changes saved pins. P027 currently pins P025 managed installations only; a path-derived P022 candidate ID is not persisted as a cryptographic identity. External runtime pinning awaits validated stable structural references.
+P022 inventory remains read-only and never changes saved pins. `diagnose runtimes` prints an opaque candidate ID for an explicit follow-up `runtime pin set-external`. The ID is not persisted as the runtime identity. The pin stores the candidate's canonical location and P022 structural snapshot and rechecks that exact location at resolution. This snapshot is not a full payload hash or integrity audit, and discovery source labels do not authenticate a publisher. Missing or changed external candidates make the pin stale and block fallback.

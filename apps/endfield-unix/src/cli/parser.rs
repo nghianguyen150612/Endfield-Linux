@@ -499,6 +499,34 @@ mod tests {
             &[
                 "runtime",
                 "pin",
+                "set-external",
+                "--candidate-id",
+                "local-1234",
+                "--scope",
+                "machine",
+                "--root",
+                "/tmp/runtime-candidates",
+                "--expected-revision",
+                "0",
+                "--adapter",
+                "umu-proton",
+            ],
+            Command::RuntimePin(Box::new(
+                super::super::runtime_pin::Operation::SetExternal {
+                    candidate_id: "local-1234".into(),
+                    scope: super::super::runtime_pin::ScopeArg::Machine,
+                    profile: None,
+                    roots: vec![PathBuf::from("/tmp/runtime-candidates")],
+                    expected_revision: 0,
+                    replace: false,
+                    adapter: Some(super::super::runtime_pin::AdapterArg::UmuProton),
+                },
+            )),
+        );
+        assert_command(
+            &[
+                "runtime",
+                "pin",
                 "set",
                 "--scope",
                 "profile",

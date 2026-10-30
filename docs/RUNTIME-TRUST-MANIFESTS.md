@@ -196,4 +196,4 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 
 ## P027 pin provenance
 
-P027 copies the P025 trust classification into its machine/profile pin reference without upgrading it. P026 local baseline matches establish only local consistency. A user pin remains limited trust; a pin and an installed runtime do not establish known-good Endfield compatibility. Pin resolution rechecks the P025 record digest and P026 audit before reporting selected identity.
+P027 copies the P025 trust classification into managed machine/profile pin references without upgrading it. External P022 references retain discovery-source and ownership observations with explicitly unknown source authenticity; their structural snapshot is not a publisher signature or full payload integrity audit. P026 local baseline matches establish only local consistency. A user pin and an installed runtime do not establish known-good Endfield compatibility. Managed pin resolution rechecks the P025 record digest and P026 audit before reporting selected identity.

@@ -293,4 +293,4 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 
 ## P027 persistent selection
 
-P027 persists explicit preferences over exact managed installation identity, preserving provider/build/artifact/manifest/generation/provenance and P025 ownership-record digest. Selection does not create a LaunchPlan or authorize execution. Adapter preference is separate from provider availability; unknown compatibility remains unverified. External P022 candidates are not yet persistable.
+P027 persists explicit preferences over exact P025 managed identity or a conservatively bound P022 external candidate. Managed pins preserve provider/build/artifact/manifest/generation/provenance and P025 ownership-record digest. External pins preserve canonical location, source category, ownership observation, lineage and its evidence basis, optional build, structural identity fingerprint, and unknown source trust; the transient candidate ID is not the persistent identity. Selection does not create a LaunchPlan or authorize execution. Adapter preference is separate from provider availability; unknown compatibility remains unverified.

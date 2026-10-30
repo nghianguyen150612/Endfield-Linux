@@ -173,4 +173,4 @@ file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
 
 ## P027 adapter preference
 
-A stored UMU-Proton preference requires a Proton runtime identity. `runtime pin resolve` reports UMU availability separately and preserves the pin if UMU is absent; it does not select direct Proton or Wine as fallback and never executes UMU.
+A stored UMU-Proton preference requires a managed or external Proton runtime identity. `runtime pin resolve` reports UMU availability separately and preserves the pin if UMU is absent; it does not select direct Proton or Wine as fallback and never executes UMU. `ExternalWine` is a distinct metadata preference for an external Wine reference; its availability is not inferred from UMU discovery.

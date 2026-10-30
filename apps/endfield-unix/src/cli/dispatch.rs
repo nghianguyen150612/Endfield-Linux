@@ -579,6 +579,12 @@ where
                 .collect();
             for (index, runtime) in runtimes.iter().enumerate() {
                 writeln!(stdout, "\nRuntime {}:", index + 1).map_err(CliError::Output)?;
+                writeln!(
+                    stdout,
+                    "  Candidate ID: {} (discovery-local; revalidated before pinning)",
+                    runtime.candidate.runtime_id().as_str()
+                )
+                .map_err(CliError::Output)?;
                 writeln!(stdout, "  Family: {}", runtime.candidate.family().as_str())
                     .map_err(CliError::Output)?;
                 let lineage = match &runtime.lineage {

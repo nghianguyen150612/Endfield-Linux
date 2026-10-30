@@ -14,7 +14,8 @@ use std::{
 };
 use thiserror::Error;
 
-pub const REGISTRY_SCHEMA_VERSION: u32 = 1;
+pub const REGISTRY_SCHEMA_VERSION: u32 = 2;
+const LEGACY_REGISTRY_SCHEMA_VERSION: u32 = 1;
 pub const MAX_PINS: usize = 256;
 const MAX_REGISTRY_BYTES: u64 = 256 * 1024;
 const MACHINE_DOMAIN: &[u8] = b"endfield-unix:machine-identity:v1\0";
@@ -180,6 +181,7 @@ impl ManagedRuntimeReference {
             || !digest(&self.artifact_sha256)
             || !digest(&self.manifest_sha256)
             || !digest(&self.ownership_record_sha256)
+            || self.trust == Provenance::UnknownExternalSource
         {
             return Err(SelectionError::InvalidRuntimeIdentity);
         }
@@ -187,9 +189,172 @@ impl ManagedRuntimeReference {
     }
 }
 
-/// Create a deterministic opaque ID bound to both exact scope and runtime
-/// identity. The resulting ID reveals neither the machine-id input nor a path.
-pub fn stable_pin_id(scope: &RuntimePinScope, runtime: &ManagedRuntimeReference) -> String {
+/// Conservative binding to a P022-discovered runtime outside P025 ownership.
+/// `location` is a canonical selected location, while `identity_sha256` binds
+/// P022 structural metadata and observed filesystem identities. It is not an
+/// artifact digest or an integrity assessment.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalRuntimeReference {
+    pub location: String,
+    pub family: String,
+    pub lineage: String,
+    pub lineage_basis: String,
+    pub provider: String,
+    pub sources: Vec<String>,
+    pub build: Option<String>,
+    pub architectures: Vec<String>,
+    pub structure: String,
+    pub ownership: String,
+    pub identity_sha256: String,
+    pub trust: Provenance,
+}
+impl ExternalRuntimeReference {
+    pub fn validate(&self) -> Result<(), SelectionError> {
+        use std::path::{Component, Path};
+        let path = Path::new(&self.location);
+        let valid_lineage = match (self.family.as_str(), self.lineage.as_str()) {
+            ("wine", "upstream-wine" | "wine-staging" | "unknown")
+            | ("proton", "valve-proton" | "ge-proton" | "dw-proton" | "unknown") => true,
+            ("wine" | "proton", lineage) => lineage
+                .strip_prefix("other-verified-derivative:")
+                .is_some_and(|id| endfield_unix_runtime::Identifier::new(id).is_ok()),
+            _ => false,
+        };
+        let safe_text = |value: &str, max: usize| {
+            !value.is_empty() && value.len() <= max && !value.chars().any(char::is_control)
+        };
+        let digest = |value: &str| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        };
+        let source_ids = [
+            "system-wine",
+            "path-wine",
+            "native-steam",
+            "flatpak-steam",
+            "heroic",
+            "lutris",
+            "explicit-root",
+            "unknown-external-manager",
+        ];
+        if !path.is_absolute()
+            || self.location.len() > 4096
+            || path.components().any(|part| part == Component::ParentDir)
+            || !safe_text(&self.location, 4096)
+            || !matches!(self.family.as_str(), "wine" | "proton")
+            || !valid_lineage
+            || !matches!(
+                self.lineage_basis.as_str(),
+                "unknown"
+                    | "local metadata"
+                    | "directory label hint"
+                    | "local version metadata"
+                    | "conflicting local metadata"
+                    | "conflicting directory label"
+                    | "conflicting local metadata and directory label"
+            )
+            || !safe_text(&self.provider, 128)
+            || self.provider != "linux-runtime-discovery"
+            || ProviderId::new(self.provider.clone()).is_err()
+            || self.sources.is_empty()
+            || self.sources.len() > 8
+            || self
+                .sources
+                .iter()
+                .any(|source| !source_ids.contains(&source.as_str()))
+            || self.sources.windows(2).any(|pair| pair[0] >= pair[1])
+            || self.build.as_ref().is_some_and(|build| {
+                !safe_text(build, 160) || RuntimeVersion::new(build.clone()).is_err()
+            })
+            || self.architectures.len() > 16
+            || self.architectures.iter().any(|architecture| {
+                !matches!(
+                    architecture.as_str(),
+                    "x86" | "x86_64" | "aarch64" | "arm" | "riscv64" | "unknown"
+                )
+            })
+            || self.architectures.windows(2).any(|pair| pair[0] >= pair[1])
+            || !matches!(
+                self.structure.as_str(),
+                "recognized" | "partially recognized"
+            )
+            || !safe_text(&self.ownership, 128)
+            || !valid_external_ownership(&self.ownership)
+            || !digest(&self.identity_sha256)
+            || self.trust != Provenance::UnknownExternalSource
+        {
+            return Err(SelectionError::InvalidRuntimeIdentity);
+        }
+        Ok(())
+    }
+}
+
+fn valid_external_ownership(ownership: &str) -> bool {
+    matches!(
+        ownership,
+        "external-user-managed" | "distribution-managed" | "unknown"
+    ) || ownership
+        .strip_prefix("other-launcher-managed:")
+        .is_some_and(|provider| ProviderId::new(provider.to_owned()).is_ok())
+}
+fn explicitly_external(ownership: &str) -> bool {
+    ownership != "unknown" && valid_external_ownership(ownership)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    content = "identity",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
+pub enum PinnedRuntimeReference {
+    Managed(ManagedRuntimeReference),
+    External(ExternalRuntimeReference),
+}
+impl PinnedRuntimeReference {
+    pub fn validate(&self) -> Result<(), SelectionError> {
+        match self {
+            Self::Managed(reference) => reference.validate(),
+            Self::External(reference) => reference.validate(),
+        }
+    }
+    pub fn family(&self) -> &str {
+        match self {
+            Self::Managed(reference) => &reference.family,
+            Self::External(reference) => &reference.family,
+        }
+    }
+    pub fn build(&self) -> Option<&str> {
+        match self {
+            Self::Managed(reference) => Some(&reference.build),
+            Self::External(reference) => reference.build.as_deref(),
+        }
+    }
+    pub fn provenance(&self) -> Provenance {
+        match self {
+            Self::Managed(reference) => reference.trust,
+            Self::External(reference) => reference.trust,
+        }
+    }
+}
+impl From<ManagedRuntimeReference> for PinnedRuntimeReference {
+    fn from(value: ManagedRuntimeReference) -> Self {
+        Self::Managed(value)
+    }
+}
+impl From<ExternalRuntimeReference> for PinnedRuntimeReference {
+    fn from(value: ExternalRuntimeReference) -> Self {
+        Self::External(value)
+    }
+}
+
+/// Create a deterministic registry ID bound to exact scope and runtime
+/// identity. This unkeyed token is not a privacy or integrity mechanism.
+pub fn stable_pin_id(scope: &RuntimePinScope, runtime: &impl Serialize) -> String {
     let encoded = serde_json::to_vec(&(scope, runtime)).expect("validated pin values serialize");
     let digest = Sha256::digest(encoded);
     format!("pin-{:x}", digest)
@@ -200,6 +365,7 @@ pub fn stable_pin_id(scope: &RuntimePinScope, runtime: &ManagedRuntimeReference)
 pub enum Provenance {
     IndependentlyAuthenticatedPublisher,
     UserPinnedLimitedTrust,
+    UnknownExternalSource,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,7 +373,7 @@ pub enum Provenance {
 pub struct RuntimePin {
     pub pin_id: String,
     pub scope: RuntimePinScope,
-    pub runtime: ManagedRuntimeReference,
+    pub runtime: PinnedRuntimeReference,
     pub adapter_preference: Option<AdapterPreference>,
     pub compatibility: CompatibilityStatus,
     pub created_at_unix_seconds: u64,
@@ -217,7 +383,7 @@ impl RuntimePin {
     pub fn new(
         pin_id: impl Into<String>,
         scope: RuntimePinScope,
-        runtime: ManagedRuntimeReference,
+        runtime: impl Into<PinnedRuntimeReference>,
         adapter_preference: Option<AdapterPreference>,
         now: u64,
     ) -> Result<Self, SelectionError> {
@@ -230,8 +396,20 @@ impl RuntimePin {
         {
             return Err(SelectionError::InvalidRuntimeIdentity);
         }
+        let runtime = runtime.into();
         runtime.validate()?;
-        if adapter_preference.is_some_and(|a| a.family() != runtime.family) {
+        let adapter_valid = match (adapter_preference, &runtime) {
+            (None, _) => true,
+            (Some(AdapterPreference::UmuProton), runtime) => runtime.family() == "proton",
+            (Some(AdapterPreference::ManagedWine), PinnedRuntimeReference::Managed(runtime)) => {
+                runtime.family == "wine"
+            }
+            (Some(AdapterPreference::ExternalWine), PinnedRuntimeReference::External(runtime)) => {
+                runtime.family == "wine" && explicitly_external(&runtime.ownership)
+            }
+            _ => false,
+        };
+        if !adapter_valid {
             return Err(SelectionError::InvalidRuntimeIdentity);
         }
         Ok(Self {
@@ -251,16 +429,8 @@ impl RuntimePin {
 pub enum AdapterPreference {
     UmuProton,
     ManagedWine,
+    ExternalWine,
 }
-impl AdapterPreference {
-    fn family(self) -> &'static str {
-        match self {
-            Self::UmuProton => "proton",
-            Self::ManagedWine => "wine",
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompatibilityStatus {
@@ -280,6 +450,42 @@ struct RegistryPayload<'a> {
     schema_version: u32,
     revision: u64,
     pins: &'a [RuntimePin],
+}
+#[derive(Serialize)]
+struct LegacyRegistryPayloadV1<'a> {
+    schema_version: u32,
+    revision: u64,
+    pins: &'a [LegacyRuntimePinV1],
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyRuntimePinV1 {
+    pin_id: String,
+    scope: RuntimePinScope,
+    runtime: ManagedRuntimeReference,
+    adapter_preference: Option<AdapterPreference>,
+    compatibility: CompatibilityStatus,
+    created_at_unix_seconds: u64,
+    updated_at_unix_seconds: u64,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyPinRegistryV1 {
+    schema_version: u32,
+    revision: u64,
+    pins: Vec<LegacyRuntimePinV1>,
+    checksum_sha256: String,
+}
+fn legacy_registry_checksum_v1(revision: u64, pins: &[LegacyRuntimePinV1]) -> String {
+    let payload = LegacyRegistryPayloadV1 {
+        schema_version: LEGACY_REGISTRY_SCHEMA_VERSION,
+        revision,
+        pins,
+    };
+    format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&payload).expect("legacy payload serializes"))
+    )
 }
 fn registry_checksum(schema_version: u32, revision: u64, pins: &[RuntimePin]) -> String {
     let payload = RegistryPayload {
@@ -325,10 +531,25 @@ impl PinRegistry {
                 || !valid_profile
                 || pin.pin_id.is_empty()
                 || pin.pin_id.len() > 96
+                || !pin
+                    .pin_id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
                 || pin.updated_at_unix_seconds < pin.created_at_unix_seconds
                 || pin
                     .adapter_preference
-                    .is_some_and(|a| a.family() != pin.runtime.family)
+                    .is_some_and(|a| match (a, &pin.runtime) {
+                        (AdapterPreference::UmuProton, runtime) => runtime.family() != "proton",
+                        (
+                            AdapterPreference::ManagedWine,
+                            PinnedRuntimeReference::Managed(runtime),
+                        ) => runtime.family != "wine",
+                        (
+                            AdapterPreference::ExternalWine,
+                            PinnedRuntimeReference::External(runtime),
+                        ) => runtime.family != "wine" || !explicitly_external(&runtime.ownership),
+                        _ => true,
+                    })
             {
                 return Err(SelectionError::RegistryCorrupt);
             }
@@ -528,15 +749,59 @@ impl PinStore {
         if bytes.len() as u64 > MAX_REGISTRY_BYTES {
             return Err(SelectionError::RegistryLimit);
         }
-        let registry: PinRegistry =
+        let json: serde_json::Value =
             serde_json::from_slice(&bytes).map_err(|_| SelectionError::RegistryCorrupt)?;
-        registry.validate()?;
-        if registry.checksum_sha256
-            != registry_checksum(registry.schema_version, registry.revision, &registry.pins)
+        match json
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
         {
-            return Err(SelectionError::RegistryCorrupt);
+            Some(schema_version) if schema_version == REGISTRY_SCHEMA_VERSION as u64 => {
+                let registry: PinRegistry =
+                    serde_json::from_value(json).map_err(|_| SelectionError::RegistryCorrupt)?;
+                registry.validate()?;
+                if registry.checksum_sha256
+                    != registry_checksum(registry.schema_version, registry.revision, &registry.pins)
+                {
+                    return Err(SelectionError::RegistryCorrupt);
+                }
+                Ok(registry)
+            }
+            Some(schema_version) if schema_version == LEGACY_REGISTRY_SCHEMA_VERSION as u64 => {
+                let legacy: LegacyPinRegistryV1 =
+                    serde_json::from_value(json).map_err(|_| SelectionError::RegistryCorrupt)?;
+                if legacy.schema_version != LEGACY_REGISTRY_SCHEMA_VERSION
+                    || legacy.pins.len() > MAX_PINS
+                    || legacy.checksum_sha256
+                        != legacy_registry_checksum_v1(legacy.revision, &legacy.pins)
+                {
+                    return Err(SelectionError::RegistryCorrupt);
+                }
+                let pins = legacy
+                    .pins
+                    .into_iter()
+                    .map(|pin| RuntimePin {
+                        pin_id: pin.pin_id,
+                        scope: pin.scope,
+                        runtime: PinnedRuntimeReference::Managed(pin.runtime),
+                        adapter_preference: pin.adapter_preference,
+                        compatibility: pin.compatibility,
+                        created_at_unix_seconds: pin.created_at_unix_seconds,
+                        updated_at_unix_seconds: pin.updated_at_unix_seconds,
+                    })
+                    .collect();
+                let mut registry = PinRegistry {
+                    schema_version: REGISTRY_SCHEMA_VERSION,
+                    revision: legacy.revision,
+                    pins,
+                    checksum_sha256: String::new(),
+                };
+                registry.checksum_sha256 =
+                    registry_checksum(registry.schema_version, registry.revision, &registry.pins);
+                registry.validate()?;
+                Ok(registry)
+            }
+            _ => Err(SelectionError::RegistryCorrupt),
         }
-        Ok(registry)
     }
     fn write(&self, registry: &PinRegistry) -> Result<(), SelectionError> {
         let mut registry = registry.clone();
@@ -589,7 +854,7 @@ pub struct SelectionReport {
     pub source: SelectionSource,
     pub state: ResolutionState,
     pub pin_id: Option<String>,
-    pub runtime: Option<ManagedRuntimeReference>,
+    pub runtime: Option<PinnedRuntimeReference>,
     pub registry_revision: u64,
     pub automatic_fallback: bool,
     pub compatibility: CompatibilityStatus,
@@ -600,8 +865,8 @@ pub fn resolve(
     registry: &PinRegistry,
     machine: &MachineId,
     profile: Option<&ProfileKey>,
-    explicit: Option<ManagedRuntimeReference>,
-    mut validate: impl FnMut(&ManagedRuntimeReference) -> Result<(), String>,
+    explicit: Option<PinnedRuntimeReference>,
+    mut validate: impl FnMut(&PinnedRuntimeReference) -> Result<(), String>,
 ) -> SelectionReport {
     let candidate = if let Some(runtime) = explicit {
         Some((SelectionSource::ExplicitOverride, None, runtime))
@@ -666,6 +931,22 @@ mod tests {
             trust: Provenance::UserPinnedLimitedTrust,
         }
     }
+    fn external(location: &str) -> ExternalRuntimeReference {
+        ExternalRuntimeReference {
+            location: location.into(),
+            family: "proton".into(),
+            lineage: "ge-proton".into(),
+            lineage_basis: "directory label hint".into(),
+            provider: "linux-runtime-discovery".into(),
+            sources: vec!["native-steam".into()],
+            build: Some("GE-Proton-10-26".into()),
+            architectures: vec!["x86_64".into()],
+            structure: "recognized".into(),
+            ownership: "external-user-managed".into(),
+            identity_sha256: "d".repeat(64),
+            trust: Provenance::UnknownExternalSource,
+        }
+    }
     fn machine() -> MachineId {
         machine_id_from_bytes(b"00112233445566778899aabbccddeeff\n").unwrap()
     }
@@ -713,7 +994,7 @@ mod tests {
             10,
         )
         .unwrap();
-        assert_eq!(pin.runtime.trust, Provenance::UserPinnedLimitedTrust);
+        assert_eq!(pin.runtime.provenance(), Provenance::UserPinnedLimitedTrust);
         assert_eq!(pin.compatibility, CompatibilityStatus::NotVerified);
         let encoded = serde_json::to_vec(&pin).unwrap();
         let decoded: RuntimePin = serde_json::from_slice(&encoded).unwrap();
@@ -734,6 +1015,37 @@ mod tests {
                 runtime("proton-a"),
                 Some(AdapterPreference::ManagedWine),
                 1
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn external_pin_keeps_unknown_provenance_and_validates_exact_reference() {
+        let external_ref = external("/home/user/.steam/steam/compatibilitytools.d/GE-Proton");
+        let pin = RuntimePin::new(
+            "external",
+            RuntimePinScope::Machine { machine: machine() },
+            external_ref.clone(),
+            Some(AdapterPreference::UmuProton),
+            1,
+        )
+        .unwrap();
+        assert_eq!(pin.runtime.provenance(), Provenance::UnknownExternalSource);
+        assert!(external_ref.validate().is_ok());
+        let mut invalid = external_ref;
+        invalid.location = "/tmp/../replacement".into();
+        assert!(invalid.validate().is_err());
+        let mut unknown_wine = external("/opt/wine-custom");
+        unknown_wine.family = "wine".into();
+        unknown_wine.lineage = "unknown".into();
+        unknown_wine.ownership = "unknown".into();
+        assert!(
+            RuntimePin::new(
+                "external-wine",
+                RuntimePinScope::Machine { machine: machine() },
+                unknown_wine,
+                Some(AdapterPreference::ExternalWine),
+                1,
             )
             .is_err()
         );
@@ -771,7 +1083,10 @@ mod tests {
         assert_eq!(resolved.state, ResolutionState::Stale("missing".into()));
         assert!(!resolved.automatic_fallback);
         let resolved = resolve(&r, &m, None, None, |_| Ok(()));
-        assert_eq!(resolved.runtime.unwrap().installation_id, "proton-a");
+        assert!(matches!(
+            resolved.runtime.unwrap(),
+            PinnedRuntimeReference::Managed(runtime) if runtime.installation_id == "proton-a"
+        ));
     }
     #[test]
     fn stale_machine_pin_reports_no_automatic_version_switch() {
@@ -788,7 +1103,9 @@ mod tests {
             .unwrap(),
         );
         let report = resolve(&registry, &m, None, None, |identity| {
-            assert_eq!(identity.installation_id, "proton-a");
+            assert!(
+                matches!(identity, PinnedRuntimeReference::Managed(runtime) if runtime.installation_id == "proton-a")
+            );
             Err("selected installation missing".into())
         });
         assert_eq!(
@@ -796,7 +1113,10 @@ mod tests {
             ResolutionState::Stale("selected installation missing".into())
         );
         assert!(!report.automatic_fallback);
-        assert_eq!(registry.pins[0].runtime.installation_id, "proton-a");
+        assert!(matches!(
+            &registry.pins[0].runtime,
+            PinnedRuntimeReference::Managed(runtime) if runtime.installation_id == "proton-a"
+        ));
     }
     #[test]
     fn persistence_revision_replace_remove_and_corruption() {
@@ -963,8 +1283,46 @@ mod tests {
     #[test]
     fn explicit_override_does_not_require_or_mutate_pin() {
         let r = PinRegistry::default();
-        let selected = resolve(&r, &machine(), None, Some(runtime("proton-x")), |_| Ok(()));
+        let selected = resolve(
+            &r,
+            &machine(),
+            None,
+            Some(PinnedRuntimeReference::Managed(runtime("proton-x"))),
+            |_| Ok(()),
+        );
         assert_eq!(selected.source, SelectionSource::ExplicitOverride);
         assert_eq!(r.revision, 0);
+    }
+
+    #[test]
+    fn legacy_managed_registry_migrates_on_read_without_mutating_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pins.json");
+        let scope = RuntimePinScope::Machine { machine: machine() };
+        let pin = LegacyRuntimePinV1 {
+            pin_id: "legacy-pin".into(),
+            scope,
+            runtime: runtime("proton-old"),
+            adapter_preference: Some(AdapterPreference::UmuProton),
+            compatibility: CompatibilityStatus::NotVerified,
+            created_at_unix_seconds: 10,
+            updated_at_unix_seconds: 10,
+        };
+        let legacy = LegacyPinRegistryV1 {
+            schema_version: LEGACY_REGISTRY_SCHEMA_VERSION,
+            revision: 7,
+            checksum_sha256: legacy_registry_checksum_v1(7, std::slice::from_ref(&pin)),
+            pins: vec![pin],
+        };
+        let original = serde_json::to_vec(&legacy).unwrap();
+        fs::write(&path, &original).unwrap();
+        let migrated = PinStore::new(&path).load().unwrap();
+        assert_eq!(migrated.schema_version, REGISTRY_SCHEMA_VERSION);
+        assert_eq!(migrated.revision, 7);
+        assert!(matches!(
+            &migrated.pins[0].runtime,
+            PinnedRuntimeReference::Managed(reference) if reference.installation_id == "proton-old"
+        ));
+        assert_eq!(fs::read(path).unwrap(), original);
     }
 }

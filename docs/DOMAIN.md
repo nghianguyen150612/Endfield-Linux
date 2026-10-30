@@ -316,4 +316,4 @@ mapping rules are documented in [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md).
 
 ## P027 runtime selection contracts
 
-The library-only `endfield-unix-runtime-selection` crate models machine and machine-bound profile scopes, managed installation references, adapter preferences, and compatibility-not-verified status. It returns a selection preview and delegates runtime identity validation to callers. It does not create an execution authorization or claim known-good status.
+The library-only `endfield-unix-runtime-selection` crate models machine and machine-bound profile scopes, exact P025 managed references, conservative P022 external references, adapter preferences, and compatibility-not-verified status. It returns a selection preview and delegates runtime identity validation to callers. External structural identity does not imply source authenticity or full file integrity. It does not create an execution authorization or claim known-good status.

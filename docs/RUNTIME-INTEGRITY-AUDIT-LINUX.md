@@ -34,4 +34,4 @@ The runtime-audit and runtime-install crates have deterministic baseline, mutati
 
 ## P027 use of audit evidence
 
-Pin set and resolve invoke P025 ownership validation and the P026 bounded baseline audit. List/show do not hash payload files. Resolution requires a complete matching local baseline and exact stored identity; mismatch, unavailable installation, incomplete audit, or changed ownership digest reports stale and blocks fallback. A baseline match is local integrity evidence, not publisher authentication or game compatibility.
+Managed pin set and resolve invoke P025 ownership validation and the P026 bounded baseline audit. List/show do not hash payload files. Resolution requires a complete matching local baseline and exact stored identity; mismatch, unavailable installation, incomplete audit, or changed ownership digest reports stale and blocks fallback. External P022 pins receive exact-location structural revalidation but no P026 baseline claim. A baseline match is local integrity evidence, not publisher authentication or game compatibility.
