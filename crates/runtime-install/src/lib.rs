@@ -888,7 +888,15 @@ pub fn audit_installation(
             trust: Some(expected_trust),
         });
     }
-    Ok(endfield_unix_runtime_audit::audit(&tree_path, &baseline))
+    let mut report = endfield_unix_runtime_audit::audit(&tree_path, &baseline);
+    let baseline_still_matches = endfield_unix_runtime_audit::load_baseline(&tree_path)
+        .is_ok_and(|current| current == baseline);
+    if !baseline_still_matches
+        || !revalidate_audit_identity(paths, family_name, installation_id, &install, &bytes)
+    {
+        mark_audit_changed(&mut report);
+    }
+    Ok(report)
 }
 
 /// Compare an installation with payload contents reconstructed from an archive
@@ -997,8 +1005,76 @@ pub fn audit_against_verified_artifact(
     let installed_path = PathBuf::from(format!("/proc/self/fd/{}", install.as_raw_fd()));
     let mut result = endfield_unix_runtime_audit::audit(&installed_path, &expected);
     result.trust = Some(trust_class);
+    if !revalidate_audit_identity(paths, family_name, installation_id, &install, &bytes) {
+        mark_audit_changed(&mut result);
+    }
     let _ = local;
     Ok(result)
+}
+
+fn revalidate_audit_identity(
+    paths: &AppPaths,
+    family_name: &str,
+    installation_id: &str,
+    install: &std::fs::File,
+    expected_record: &[u8],
+) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(expected_metadata) = install.metadata() else {
+        return false;
+    };
+    let runtime_root = paths.data_dir().join("runtimes");
+    let Ok(root) = fs::root(&runtime_root, false) else {
+        return false;
+    };
+    let Ok(family) = fs::dir(&root, family_name, false) else {
+        return false;
+    };
+    if fs::private(&family).is_err() {
+        return false;
+    }
+    let Ok(current) = fs::dir(&family, installation_id, false) else {
+        return false;
+    };
+    let Ok(current_metadata) = current.metadata() else {
+        return false;
+    };
+    if current_metadata.dev() != expected_metadata.dev()
+        || current_metadata.ino() != expected_metadata.ino()
+    {
+        return false;
+    }
+    let Ok(record) = fs::open(&current, ".endfield-installation.json", libc::O_RDONLY, 0) else {
+        return false;
+    };
+    if fs::private_lock(&record).is_err() {
+        return false;
+    }
+    read_stable_control(&record, 65536)
+        .is_ok_and(|current_record| current_record == expected_record)
+}
+
+fn mark_audit_changed(report: &mut endfield_unix_runtime_audit::AuditReport) {
+    use endfield_unix_runtime_audit::{Completeness, Finding, FindingKind, MAX_FINDINGS};
+
+    report.completeness = Completeness::Partial;
+    if report.findings.len() < MAX_FINDINGS {
+        report.findings.push(Finding {
+            kind: FindingKind::ChangedDuringAudit,
+            path: None,
+        });
+    } else if report.findings.last().map(|finding| finding.kind) != Some(FindingKind::LimitExceeded)
+    {
+        report.findings.pop();
+        report.findings.push(Finding {
+            kind: FindingKind::LimitExceeded,
+            path: None,
+        });
+        report.omitted_findings = report.omitted_findings.saturating_add(2);
+    } else {
+        report.omitted_findings = report.omitted_findings.saturating_add(1);
+    }
 }
 
 fn read_stable_control(file: &std::fs::File, maximum: u64) -> Result<Vec<u8>> {

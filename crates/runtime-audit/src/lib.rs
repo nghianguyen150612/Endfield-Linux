@@ -153,6 +153,16 @@ fn valid_path(s: &str) -> bool {
 fn inventory_digest(entries: &[Entry]) -> String {
     digest(&serde_json::to_vec(entries).expect("entry serialization"))
 }
+fn same_stat(left: &libc::stat, right: &libc::stat) -> bool {
+    left.st_dev == right.st_dev
+        && left.st_ino == right.st_ino
+        && left.st_mode == right.st_mode
+        && left.st_uid == right.st_uid
+        && left.st_gid == right.st_gid
+        && left.st_size == right.st_size
+        && left.st_ctime == right.st_ctime
+        && left.st_ctime_nsec == right.st_ctime_nsec
+}
 impl Baseline {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema_version != 1
@@ -213,6 +223,9 @@ pub fn create_baseline(
     trust: TrustClassification,
 ) -> Result<Baseline, String> {
     let root_file = File::open(root).map_err(|_| "installation root unavailable")?;
+    let root_before = root_file
+        .metadata()
+        .map_err(|_| "installation root unavailable")?;
     let mut entries = Vec::new();
     let mut total = 0u64;
     let mut path_bytes = 0;
@@ -224,6 +237,16 @@ pub fn create_baseline(
         &mut total,
         &mut path_bytes,
     )?;
+    let root_after = root_file
+        .metadata()
+        .map_err(|_| "installation root unavailable")?;
+    if root_before.dev() != root_after.dev()
+        || root_before.ino() != root_after.ino()
+        || root_before.ctime() != root_after.ctime()
+        || root_before.ctime_nsec() != root_after.ctime_nsec()
+    {
+        return Err("installation tree changed during baseline creation".into());
+    }
     entries.sort_by(|a, b| a.path.cmp(&b.path));
     let mut b = Baseline {
         schema_version: 1,
@@ -325,11 +348,7 @@ fn walk_fd(
                 return Err("symlink changed during audit".into());
             }
             let after = unsafe { after.assume_init() };
-            if after.st_dev != st.st_dev
-                || after.st_ino != st.st_ino
-                || after.st_ctime != st.st_ctime
-                || after.st_ctime_nsec != st.st_ctime_nsec
-            {
+            if !same_stat(&st, &after) {
                 return Err("symlink changed during audit".into());
             }
             if target.starts_with('/') || target.split('/').any(|x| x == "..") {
@@ -362,6 +381,22 @@ fn walk_fd(
             }
             let f = unsafe { File::from_raw_fd(fd) };
             let (size, sha256) = hash_file(f, st.st_dev, st.st_ino, st.st_size as u64)?;
+            let mut after = std::mem::MaybeUninit::<libc::stat>::uninit();
+            if unsafe {
+                libc::fstatat(
+                    dir.as_raw_fd(),
+                    c.as_ptr(),
+                    after.as_mut_ptr(),
+                    libc::AT_SYMLINK_NOFOLLOW,
+                )
+            } != 0
+            {
+                return Err("file changed during audit".into());
+            }
+            let after = unsafe { after.assume_init() };
+            if !same_stat(&st, &after) {
+                return Err("file changed during audit".into());
+            }
             EntryKind::File {
                 size,
                 sha256,
@@ -392,6 +427,22 @@ fn walk_fd(
                 return Err("directory changed during audit".into());
             }
             walk_fd(&child, rel, depth + 1, out, total, path_bytes)?;
+            let mut after = std::mem::MaybeUninit::<libc::stat>::uninit();
+            if unsafe {
+                libc::fstatat(
+                    dir.as_raw_fd(),
+                    c.as_ptr(),
+                    after.as_mut_ptr(),
+                    libc::AT_SYMLINK_NOFOLLOW,
+                )
+            } != 0
+            {
+                return Err("directory changed during audit".into());
+            }
+            let after = unsafe { after.assume_init() };
+            if !same_stat(&st, &after) {
+                return Err("directory changed during audit".into());
+            }
         }
     }
     Ok(())
