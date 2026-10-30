@@ -972,12 +972,85 @@ mod tests {
         fs,
         os::unix::fs::{MetadataExt, PermissionsExt, symlink},
         path::Path,
-        process::Command,
         sync::{Arc, Barrier},
         thread,
-        time::Duration,
     };
     use tempfile::TempDir;
+
+    struct FixedUsageFilesystem {
+        inner: LinuxPrefixFilesystem,
+        in_use: Option<bool>,
+    }
+
+    impl PrefixFilesystem for FixedUsageFilesystem {
+        fn root_path(&self) -> &Path {
+            self.inner.root_path()
+        }
+
+        fn prepare(&self, create: bool) -> Result<(), PrefixError> {
+            self.inner.prepare(create)
+        }
+
+        fn preflight_destination(&self, id: &PrefixId) -> Result<(), PrefixError> {
+            self.inner.preflight_destination(id)
+        }
+
+        fn lock_registry(&self) -> Result<Box<dyn PrefixGuard>, PrefixError> {
+            self.inner.lock_registry()
+        }
+
+        fn lock_prefix(&self, id: &PrefixId) -> Result<Box<dyn PrefixGuard>, PrefixError> {
+            self.inner.lock_prefix(id)
+        }
+
+        fn load_registry_bytes(&self) -> Result<Option<Vec<u8>>, PrefixError> {
+            self.inner.load_registry_bytes()
+        }
+
+        fn save_registry_bytes(
+            &self,
+            expected_current: Option<&[u8]>,
+            replacement: &[u8],
+        ) -> Result<(), PrefixError> {
+            self.inner
+                .save_registry_bytes(expected_current, replacement)
+        }
+
+        fn inspect_directory(
+            &self,
+            id: &PrefixId,
+        ) -> Result<Option<FilesystemIdentity>, PrefixError> {
+            self.inner.inspect_directory(id)
+        }
+
+        fn directory_is_empty(&self, id: &PrefixId) -> Result<bool, PrefixError> {
+            self.inner.directory_is_empty(id)
+        }
+
+        fn create_directory(&self, id: &PrefixId) -> Result<FilesystemIdentity, PrefixError> {
+            self.inner.create_directory(id)
+        }
+
+        fn remove_directory(
+            &self,
+            id: &PrefixId,
+            expected: FilesystemIdentity,
+        ) -> Result<(), PrefixError> {
+            self.inner.remove_directory(id, expected)
+        }
+
+        fn prefix_in_use(&self, _id: &PrefixId) -> Result<Option<bool>, PrefixError> {
+            Ok(self.in_use)
+        }
+
+        fn target_path(&self, id: &PrefixId) -> PathBuf {
+            self.inner.target_path(id)
+        }
+
+        fn free_bytes(&self) -> Option<u64> {
+            self.inner.free_bytes()
+        }
+    }
 
     fn fixture() -> (TempDir, PrefixStore, PrefixScope, PrefixRuntimeAssociation) {
         let temporary = tempfile::tempdir().unwrap();
@@ -1241,7 +1314,17 @@ mod tests {
 
     #[test]
     fn removal_never_follows_prefix_symlinks_to_external_data() {
-        let (temporary, store, scope, runtime) = fixture();
+        let (temporary, original_store, scope, runtime) = fixture();
+        let data_dir = original_store
+            .fs
+            .root_path()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(&data_dir),
+            in_use: Some(false),
+        }));
         let id = PrefixId::new("delete-me").unwrap();
         store.create(id.clone(), scope, runtime, 0).unwrap();
         let external = temporary.path().join("external-prefix");
@@ -1262,26 +1345,39 @@ mod tests {
     }
 
     #[test]
-    fn destructive_removal_refuses_a_visible_process_using_the_prefix() {
-        let (_temporary, store, scope, runtime) = fixture();
+    fn destructive_removal_refuses_active_or_unverifiable_use() {
+        let (_temporary, original_store, scope, runtime) = fixture();
+        let data_dir = original_store
+            .fs
+            .root_path()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(&data_dir),
+            in_use: Some(true),
+        }));
         let id = PrefixId::new("active").unwrap();
         store.create(id.clone(), scope, runtime, 0).unwrap();
         let target = store.target_path(&id);
-        let mut process = Command::new("/bin/sleep")
-            .arg("10")
-            .env("WINEPREFIX", &target)
-            .spawn()
-            .unwrap();
-        thread::sleep(Duration::from_millis(25));
         assert_eq!(store.fs.prefix_in_use(&id).unwrap(), Some(true));
         assert!(matches!(
             store.delete_data(&id, 2, &target),
             Err(PrefixError::ActiveUse)
         ));
-        process.kill().unwrap();
-        process.wait().unwrap();
-        assert_eq!(store.fs.prefix_in_use(&id).unwrap(), Some(false));
-        assert_eq!(store.delete_data(&id, 2, &target).unwrap(), 4);
+        let unknown_store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(&data_dir),
+            in_use: None,
+        }));
+        assert!(matches!(
+            unknown_store.delete_data(&id, 2, &target),
+            Err(PrefixError::UsageUnknown)
+        ));
+        let inactive_store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(&data_dir),
+            in_use: Some(false),
+        }));
+        assert_eq!(inactive_store.delete_data(&id, 2, &target).unwrap(), 4);
     }
 
     #[test]

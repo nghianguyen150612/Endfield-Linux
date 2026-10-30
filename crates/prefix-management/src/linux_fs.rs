@@ -402,15 +402,8 @@ impl PrefixFilesystem for LinuxPrefixFilesystem {
                 Ok(environment) => environment,
                 Err(_) => return Ok(None),
             };
-            for variable in environment.split(|byte| *byte == 0) {
-                let Some(separator) = variable.iter().position(|byte| *byte == b'=') else {
-                    continue;
-                };
-                if &variable[..separator] == b"WINEPREFIX"
-                    && &variable[separator + 1..] == target_bytes
-                {
-                    return Ok(Some(true));
-                }
+            if environment_has_prefix(&environment, target_bytes) {
+                return Ok(Some(true));
             }
         }
         Ok(Some(false))
@@ -647,6 +640,15 @@ fn cstring_os(value: &OsStr) -> Result<CString, PrefixError> {
     CString::new(value.as_bytes()).map_err(|_| PrefixError::Blocked)
 }
 
+fn environment_has_prefix(environment: &[u8], target: &[u8]) -> bool {
+    environment.split(|byte| *byte == 0).any(|variable| {
+        let Some(separator) = variable.iter().position(|byte| *byte == b'=') else {
+            return false;
+        };
+        &variable[..separator] == b"WINEPREFIX" && &variable[separator + 1..] == target
+    })
+}
+
 fn unlink_at(parent: &File, name: &str, flags: i32) -> Result<(), PrefixError> {
     let name = cstring(name)?;
     if unsafe { libc::unlinkat(parent.as_raw_fd(), name.as_ptr(), flags) } != 0 {
@@ -748,4 +750,26 @@ fn remove_entry(parent: &File, name: &str, expected_mount: u64) -> Result<(), Pr
         return Err(PrefixError::Io(std::io::Error::last_os_error()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::environment_has_prefix;
+
+    #[test]
+    fn process_use_matching_requires_the_exact_wineprefix_variable_and_value() {
+        let target = b"/home/test/.local/share/endfield-unix/prefixes/data/game";
+        assert!(environment_has_prefix(
+            b"LANG=C\0WINEPREFIX=/home/test/.local/share/endfield-unix/prefixes/data/game\0PATH=/usr/bin\0",
+            target
+        ));
+        assert!(!environment_has_prefix(
+            b"NOT_WINEPREFIX=/home/test/.local/share/endfield-unix/prefixes/data/game\0",
+            target
+        ));
+        assert!(!environment_has_prefix(
+            b"WINEPREFIX=/home/test/.local/share/endfield-unix/prefixes/data/game/child\0",
+            target
+        ));
+    }
 }

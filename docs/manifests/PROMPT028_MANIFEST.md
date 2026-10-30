@@ -33,7 +33,7 @@
 
 - [x] `cargo +1.85.0 fmt --all -- --check`
 - [ ] Full workspace test, Clippy, and build — local runs stop at missing GLib development files; hosted qualification pending.
-- [x] Focused prefix-management tests (19 passed) and warning-denied Clippy.
+- [x] Focused prefix-management tests (20 passed) and warning-denied Clippy.
 - [ ] Actual P027/P028 process-level CLI integration — included in CI; hosted run pending.
 - [x] Non-GTK workspace tests, build, and warning-denied Clippy passed; full GTK/daemon/IPC regression run pending hosted CI.
 - [x] Cargo metadata assertions: exactly two executable names; prefix crate is library-only and has no GTK/daemon dependency.
