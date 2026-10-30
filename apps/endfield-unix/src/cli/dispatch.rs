@@ -30,6 +30,62 @@ pub const EXIT_PLATFORM_PROBE_FAILED: u8 = 70;
 pub const EXIT_PLATFORM_UNSUPPORTED: u8 = 78;
 pub const EXIT_SYSTEMD_ERROR: u8 = 79;
 
+fn write_audit_findings<W: Write>(
+    output: &mut W,
+    report: &endfield_unix_runtime_audit::AuditReport,
+) -> io::Result<()> {
+    use endfield_unix_runtime_audit::FindingKind as Kind;
+
+    let count = |kind| {
+        report
+            .findings
+            .iter()
+            .filter(|finding| finding.kind == kind)
+            .count()
+    };
+    writeln!(
+        output,
+        "Modified: {}\nMissing: {}\nUnexpected: {}\nType changes: {}\nPermission changes: {}\nSymlink issues: {}\nUnreadable: {}",
+        count(Kind::Modified),
+        count(Kind::Missing),
+        count(Kind::Unexpected),
+        count(Kind::TypeChanged),
+        count(Kind::PermissionsChanged),
+        count(Kind::SymlinkChanged),
+        count(Kind::Unreadable),
+    )?;
+    let mut printed = 0;
+    for finding in report
+        .findings
+        .iter()
+        .filter(|finding| finding.kind != Kind::Match)
+        .take(100)
+    {
+        writeln!(
+            output,
+            "{:?}: {}",
+            finding.kind,
+            finding
+                .path
+                .as_deref()
+                .unwrap_or("(installation metadata or traversal)")
+        )?;
+        printed += 1;
+    }
+    let details = report
+        .findings
+        .iter()
+        .filter(|finding| finding.kind != Kind::Match)
+        .count();
+    let omitted = report
+        .omitted_findings
+        .saturating_add(details.saturating_sub(printed));
+    if omitted > 0 {
+        writeln!(output, "Additional finding details omitted: {omitted}")?;
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 pub enum CliError {
     InvalidArguments(clap::Error),
@@ -647,22 +703,49 @@ where
                 Err(e) => return Err(CliError::Output(io::Error::other(e.to_string()))),
             };
             writeln!(stdout, "Installed runtime audit\n\nInstallation: {id}\nOwnership: Endfield-Unix managed\nFiles inspected: {}\nMatching: {}", report.inspected, report.matching).map_err(CliError::Output)?;
-            for finding in report
-                .findings
-                .iter()
-                .filter(|f| f.kind != endfield_unix_runtime_audit::FindingKind::Match)
-                .take(100)
-            {
-                writeln!(
-                    stdout,
-                    "{:?}: {}",
-                    finding.kind,
-                    finding.path.as_deref().unwrap_or("(control metadata)")
-                )
-                .map_err(CliError::Output)?;
+            write_audit_findings(stdout, &report).map_err(CliError::Output)?;
+            match report.completeness {
+                endfield_unix_runtime_audit::Completeness::Unverifiable => {
+                    writeln!(
+                        stdout,
+                        "\nFile integrity: UNVERIFIABLE\nAudit completeness: unverifiable"
+                    )
+                    .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(3))
+                }
+                endfield_unix_runtime_audit::Completeness::Complete
+                    if report.findings.iter().all(|finding| {
+                        finding.kind == endfield_unix_runtime_audit::FindingKind::Match
+                    }) =>
+                {
+                    writeln!(stdout, "\nAudit completeness: complete\nLocal baseline: matches\nOfficial publisher authenticity: UNVERIFIED\nRuntime execution: not performed\nGame compatibility: not evaluated").map_err(CliError::Output)?;
+                    Ok(())
+                }
+                endfield_unix_runtime_audit::Completeness::Complete => {
+                    writeln!(
+                        stdout,
+                        "\nAudit completeness: complete\nLocal baseline: mismatch"
+                    )
+                    .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(4))
+                }
+                endfield_unix_runtime_audit::Completeness::Partial => {
+                    writeln!(
+                        stdout,
+                        "\nAudit completeness: partial\nIntegrity: NOT ESTABLISHED"
+                    )
+                    .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(4))
+                }
+                endfield_unix_runtime_audit::Completeness::Failed => {
+                    writeln!(
+                        stdout,
+                        "\nAudit completeness: failed\nIntegrity: NOT ESTABLISHED"
+                    )
+                    .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(4))
+                }
             }
-            match report.completeness { endfield_unix_runtime_audit::Completeness::Complete if report.findings.iter().all(|f|f.kind==endfield_unix_runtime_audit::FindingKind::Match) => writeln!(stdout, "\nAudit completeness: complete\nLocal baseline: matches\nOfficial publisher authenticity: UNVERIFIED\nRuntime execution: not performed\nGame compatibility: not evaluated").map_err(CliError::Output)?, endfield_unix_runtime_audit::Completeness::Unverifiable => { writeln!(stdout, "\nFile integrity: UNVERIFIABLE\nAudit completeness: unverifiable").map_err(CliError::Output)?; return Err(CliError::RuntimeVerification(3)); }, _ => return Err(CliError::RuntimeVerification(4)) }
-            Ok(())
         }
         Command::RuntimeAuditSource {
             installation_id,
@@ -671,38 +754,45 @@ where
             let report = super::runtime_install::audit_source(&installation_id, &inputs)
                 .map_err(|e| CliError::Output(io::Error::other(e)))?;
             writeln!(stdout,"Installed runtime source comparison\n\nInstallation: {installation_id}\nFiles inspected: {}\nMatching: {}\nSource provenance: user-pinned (limited trust)\nOfficial publisher authenticity: UNVERIFIED",report.inspected,report.matching).map_err(CliError::Output)?;
-            for finding in report
-                .findings
-                .iter()
-                .filter(|f| f.kind != endfield_unix_runtime_audit::FindingKind::Match)
-                .take(100)
-            {
-                writeln!(
-                    stdout,
-                    "{:?}: {}",
-                    finding.kind,
-                    finding.path.as_deref().unwrap_or("(control metadata)")
-                )
-                .map_err(CliError::Output)?;
-            }
-            if report.completeness == endfield_unix_runtime_audit::Completeness::Complete
-                && report
-                    .findings
-                    .iter()
-                    .all(|f| f.kind == endfield_unix_runtime_audit::FindingKind::Match)
-            {
-                writeln!(stdout,"\nSource comparison: MATCH\nRuntime execution: not performed\nGame compatibility: not evaluated").map_err(CliError::Output)?;
-                Ok(())
-            } else {
-                Err(CliError::RuntimeVerification(
-                    if report.completeness
-                        == endfield_unix_runtime_audit::Completeness::Unverifiable
-                    {
-                        3
-                    } else {
-                        4
-                    },
-                ))
+            write_audit_findings(stdout, &report).map_err(CliError::Output)?;
+            match report.completeness {
+                endfield_unix_runtime_audit::Completeness::Complete
+                    if report.findings.iter().all(|finding| {
+                        finding.kind == endfield_unix_runtime_audit::FindingKind::Match
+                    }) =>
+                {
+                    writeln!(stdout,"\nAudit completeness: complete\nSource comparison: MATCH\nRuntime execution: not performed\nGame compatibility: not evaluated").map_err(CliError::Output)?;
+                    Ok(())
+                }
+                endfield_unix_runtime_audit::Completeness::Unverifiable => {
+                    writeln!(stdout, "\nSource comparison: UNVERIFIABLE")
+                        .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(3))
+                }
+                endfield_unix_runtime_audit::Completeness::Complete => {
+                    writeln!(
+                        stdout,
+                        "\nAudit completeness: complete\nSource comparison: MISMATCH"
+                    )
+                    .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(4))
+                }
+                endfield_unix_runtime_audit::Completeness::Partial => {
+                    writeln!(
+                        stdout,
+                        "\nAudit completeness: partial\nSource comparison: NOT ESTABLISHED"
+                    )
+                    .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(4))
+                }
+                endfield_unix_runtime_audit::Completeness::Failed => {
+                    writeln!(
+                        stdout,
+                        "\nAudit completeness: failed\nSource comparison: NOT ESTABLISHED"
+                    )
+                    .map_err(CliError::Output)?;
+                    Err(CliError::RuntimeVerification(4))
+                }
             }
         }
         Command::DiagnoseRuntimeIntegrity(options) => {

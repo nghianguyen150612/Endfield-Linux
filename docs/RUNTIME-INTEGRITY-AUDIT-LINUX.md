@@ -12,7 +12,7 @@ Baseline provenance is a local installation snapshot. User-pinned evidence remai
 
 ## Audit behavior and limits
 
-Traversal uses Linux directory descriptors, `fstatat(AT_SYMLINK_NOFOLLOW)`, `openat(O_NOFOLLOW)`, and `readlinkat`; it does not recurse through symlinks. Regular files are hashed in 64 KiB chunks and checked for identity, size, and change-time changes. Findings distinguish mismatch, missing, unexpected, type, permission, symlink, unreadable, baseline, and race states. Partial scans do not declare unobserved entries missing or pass integrity.
+Traversal uses Linux directory descriptors, `fstatat(AT_SYMLINK_NOFOLLOW)`, `openat(O_NOFOLLOW)`, and `readlinkat`; it does not recurse through symlinks. Regular files are hashed in 64 KiB chunks and checked for identity, size, and change-time changes. The bounded inventories are compared with a sorted merge. Findings distinguish mismatch, missing, unexpected, type, permission, symlink, unreadable, baseline, and race states. A report retains at most 4,096 finding details; reaching that cap marks the result partial and records the number omitted. The CLI prints at most 100 changed paths and reports further omitted details. Partial scans do not declare unobserved entries missing or pass integrity.
 
 Limits follow P025: 200,000 entries, 4 GiB per file, 16 GiB hashed payload, 4,096 bytes per path, 32 components, 4,096 bytes per link target, 16 MiB aggregate path metadata, and 64 MiB baseline JSON. Same-user writers can still race an audit; no filesystem snapshot isolation is claimed.
 

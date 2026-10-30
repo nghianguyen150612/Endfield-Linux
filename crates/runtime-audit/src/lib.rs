@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{
-    collections::BTreeMap,
     fs::File,
     io::Read,
     os::{
@@ -109,8 +108,30 @@ pub struct AuditReport {
     pub completeness: Completeness,
     pub inspected: usize,
     pub matching: usize,
+    /// Number of per-entry findings omitted after the report limit was reached.
+    pub omitted_findings: usize,
     pub findings: Vec<Finding>,
     pub trust: Option<TrustClassification>,
+}
+
+fn record_finding(report: &mut AuditReport, kind: FindingKind, path: Option<String>) {
+    if report.findings.len() < MAX_FINDINGS {
+        report.findings.push(Finding { kind, path });
+        return;
+    }
+
+    report.completeness = Completeness::Partial;
+    if report.findings.last().map(|finding| finding.kind) != Some(FindingKind::LimitExceeded) {
+        // Reserve the final slot for an explicit report-limit marker.
+        report.findings.pop();
+        report.findings.push(Finding {
+            kind: FindingKind::LimitExceeded,
+            path: None,
+        });
+        report.omitted_findings = 2;
+    } else {
+        report.omitted_findings = report.omitted_findings.saturating_add(1);
+    }
 }
 
 fn digest(s: &[u8]) -> String {
@@ -473,15 +494,13 @@ pub fn audit(root: &Path, b: &Baseline) -> AuditReport {
         completeness: Completeness::Complete,
         inspected: 0,
         matching: 0,
+        omitted_findings: 0,
         findings: Vec::new(),
         trust: Some(b.trust),
     };
     if b.validate().is_err() {
         report.completeness = Completeness::Failed;
-        report.findings.push(Finding {
-            kind: FindingKind::BaselineInvalid,
-            path: None,
-        });
+        record_finding(&mut report, FindingKind::BaselineInvalid, None);
         return report;
     }
     let mut actual = Vec::new();
@@ -497,39 +516,62 @@ pub fn audit(root: &Path, b: &Baseline) -> AuditReport {
             &mut path_bytes,
         ) {
             report.completeness = Completeness::Partial;
-            report.findings.push(Finding {
-                kind: if e.contains("changed") {
+            record_finding(
+                &mut report,
+                if e.contains("changed") {
                     FindingKind::ChangedDuringAudit
+                } else if e.contains("unsafe symlink") {
+                    FindingKind::SymlinkChanged
                 } else if e.contains("limit") {
                     FindingKind::LimitExceeded
                 } else {
                     FindingKind::Unreadable
                 },
-                path: None,
-            });
+                None,
+            );
         }
     } else {
         report.completeness = Completeness::Failed;
-        report.findings.push(Finding {
-            kind: FindingKind::Unreadable,
-            path: None,
-        });
+        record_finding(&mut report, FindingKind::Unreadable, None);
     }
-    let expected: BTreeMap<_, _> = b.entries.iter().map(|e| (e.path.as_str(), e)).collect();
-    for e in &b.entries {
-        report.inspected += 1;
-        let Some(a) = actual.iter().find(|a| a.path == e.path) else {
-            report.findings.push(Finding {
-                kind: if report.completeness == Completeness::Complete {
-                    FindingKind::Missing
-                } else {
-                    FindingKind::Unreadable
-                },
-                path: Some(e.path.clone()),
-            });
-            continue;
+    // The baseline is strictly sorted. Sort the bounded actual inventory once,
+    // then merge in O(n log n) instead of repeatedly searching the full tree.
+    actual.sort_by(|left, right| left.path.cmp(&right.path));
+    let mut expected_index = 0;
+    let mut actual_index = 0;
+    while expected_index < b.entries.len() || actual_index < actual.len() {
+        let ordering = match (b.entries.get(expected_index), actual.get(actual_index)) {
+            (Some(expected), Some(observed)) => expected.path.cmp(&observed.path),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => break,
         };
-        let kind = match (&e.kind, &a.kind) {
+        if ordering == std::cmp::Ordering::Greater {
+            let observed = &actual[actual_index];
+            record_finding(
+                &mut report,
+                FindingKind::Unexpected,
+                Some(observed.path.clone()),
+            );
+            actual_index += 1;
+            continue;
+        }
+
+        let expected = &b.entries[expected_index];
+        report.inspected += 1;
+        if ordering == std::cmp::Ordering::Less {
+            let kind = if report.completeness == Completeness::Complete {
+                FindingKind::Missing
+            } else {
+                FindingKind::Unreadable
+            };
+            record_finding(&mut report, kind, Some(expected.path.clone()));
+            expected_index += 1;
+            continue;
+        }
+
+        let observed = &actual[actual_index];
+        let kind = match (&expected.kind, &observed.kind) {
             (
                 EntryKind::File {
                     size,
@@ -569,33 +611,12 @@ pub fn audit(root: &Path, b: &Baseline) -> AuditReport {
             _ => Some(FindingKind::TypeChanged),
         };
         if let Some(kind) = kind {
-            report.findings.push(Finding {
-                kind,
-                path: Some(e.path.clone()),
-            });
+            record_finding(&mut report, kind, Some(expected.path.clone()));
         } else {
             report.matching += 1;
-            report.findings.push(Finding {
-                kind: FindingKind::Match,
-                path: Some(e.path.clone()),
-            });
         }
-    }
-    for e in actual {
-        if !expected.contains_key(e.path.as_str()) {
-            report.findings.push(Finding {
-                kind: FindingKind::Unexpected,
-                path: Some(e.path),
-            });
-        }
-    }
-    if report.findings.len() > MAX_FINDINGS {
-        report.findings.truncate(MAX_FINDINGS - 1);
-        report.findings.push(Finding {
-            kind: FindingKind::LimitExceeded,
-            path: None,
-        });
-        report.completeness = Completeness::Partial;
+        expected_index += 1;
+        actual_index += 1;
     }
     report
 }
@@ -641,6 +662,34 @@ mod tests {
         .unwrap();
         b.entries[0].path = "../escape".into();
         assert!(b.validate().is_err());
+    }
+
+    #[test]
+    fn finding_limit_is_enforced_during_comparison() {
+        let d = tempfile::tempdir().unwrap();
+        let baseline = create_baseline(
+            d.path(),
+            "id",
+            1,
+            "proton",
+            "build",
+            &"a".repeat(64),
+            &"b".repeat(64),
+            TrustClassification::UserPinnedLimitedTrust,
+        )
+        .unwrap();
+        for index in 0..(MAX_FINDINGS + 32) {
+            std::fs::write(d.path().join(format!("unexpected-{index:05}")), b"x").unwrap();
+        }
+
+        let report = audit(d.path(), &baseline);
+        assert_eq!(report.findings.len(), MAX_FINDINGS);
+        assert!(report.omitted_findings > 0);
+        assert_eq!(report.completeness, Completeness::Partial);
+        assert_eq!(
+            report.findings.last().map(|finding| finding.kind),
+            Some(FindingKind::LimitExceeded)
+        );
     }
 
     #[test]
@@ -694,6 +743,30 @@ mod tests {
                 .findings
                 .iter()
                 .any(|f| f.kind == FindingKind::PermissionsChanged)
+        );
+
+        let unsafe_root = tempfile::tempdir().unwrap();
+        symlink("target", unsafe_root.path().join("link")).unwrap();
+        let unsafe_baseline = create_baseline(
+            unsafe_root.path(),
+            "id",
+            1,
+            "proton",
+            "b",
+            &"a".repeat(64),
+            &"b".repeat(64),
+            TrustClassification::UserPinnedLimitedTrust,
+        )
+        .unwrap();
+        std::fs::remove_file(unsafe_root.path().join("link")).unwrap();
+        symlink("../outside", unsafe_root.path().join("link")).unwrap();
+        let unsafe_report = audit(unsafe_root.path(), &unsafe_baseline);
+        assert_eq!(unsafe_report.completeness, Completeness::Partial);
+        assert!(
+            unsafe_report
+                .findings
+                .iter()
+                .any(|finding| finding.kind == FindingKind::SymlinkChanged)
         );
     }
 }

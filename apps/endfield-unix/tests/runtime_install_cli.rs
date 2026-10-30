@@ -234,6 +234,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         String::from_utf8_lossy(&clean_audit.stdout)
     );
     assert!(String::from_utf8_lossy(&clean_audit.stdout).contains("Local baseline: matches"));
+    assert!(String::from_utf8_lossy(&clean_audit.stdout).contains("Audit completeness: complete"));
     let mut source_audit_args = vec![
         "runtime".to_owned(),
         "audit-source".to_owned(),
@@ -270,9 +271,28 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     );
     assert_eq!(changed_audit.status.code(), Some(4));
     assert!(String::from_utf8_lossy(&changed_audit.stdout).contains("Modified"));
+    assert!(String::from_utf8_lossy(&changed_audit.stdout).contains("Local baseline: mismatch"));
+    assert!(
+        String::from_utf8_lossy(&changed_audit.stdout).contains("Audit completeness: complete")
+    );
     assert_eq!(
         fs::read(managed.join("version")).unwrap(),
         b"changed locally"
+    );
+    let source_changed = run(
+        root,
+        &source_audit_args
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+    );
+    assert_eq!(source_changed.status.code(), Some(4));
+    assert!(
+        String::from_utf8_lossy(&source_changed.stdout).contains("Source comparison: MISMATCH")
+    );
+    assert!(
+        String::from_utf8_lossy(&source_changed.stdout)
+            .contains("Source provenance: user-pinned (limited trust)")
     );
     fs::remove_file(managed.join("files/lib/nested")).unwrap();
     let missing_audit = run(
