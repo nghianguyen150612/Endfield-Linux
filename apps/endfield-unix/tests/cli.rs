@@ -262,8 +262,24 @@ fn compiled_executable_default_reports_missing_graphical_session() {
 
 #[test]
 fn default_and_explicit_gui_use_the_same_startup_behavior() {
-    let default = invoke(&[]);
-    let explicit = invoke(&["gui"]);
+    let directory = tempdir().expect("isolated GUI startup state");
+    let home = directory.path().join("home");
+    fs::create_dir(&home).expect("isolated home");
+    let launch = |arguments: &[&str], name: &str| {
+        let root = directory.path().join(name);
+        fs::create_dir(&root).expect("isolated application paths");
+        Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+            .env_clear()
+            .env("HOME", &home)
+            .env("XDG_STATE_HOME", root.join("state"))
+            .env("XDG_CONFIG_HOME", root.join("config"))
+            .env("XDG_DATA_HOME", root.join("data"))
+            .args(arguments)
+            .output()
+            .expect("launch GUI command")
+    };
+    let default = launch(&[], "default");
+    let explicit = launch(&["gui"], "explicit");
 
     assert_eq!(default.status.code(), Some(69));
     assert_eq!(explicit.status.code(), default.status.code());
@@ -272,6 +288,7 @@ fn default_and_explicit_gui_use_the_same_startup_behavior() {
     let default_stderr = String::from_utf8_lossy(&default.stderr);
     let explicit_stderr = String::from_utf8_lossy(&explicit.stderr);
     assert!(default_stderr.contains("could not initialize GTK display"));
+    assert!(!default_stderr.contains("persistent diagnostics unavailable"));
     assert_eq!(explicit_stderr, default_stderr);
 }
 
