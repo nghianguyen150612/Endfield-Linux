@@ -78,7 +78,7 @@ enum RuntimeArgs {
         #[arg(long)]
         installation_id: String,
         #[command(flatten)]
-        inputs: super::runtime_integrity::Options,
+        inputs: Box<super::runtime_integrity::Options>,
     },
     /// Plan or apply a verified runtime installation.
     Install {
@@ -286,7 +286,7 @@ where
                 inputs,
             } => Command::RuntimeAuditSource {
                 installation_id,
-                inputs: Box::new(inputs),
+                inputs,
             },
         },
         Some(SubcommandArgs::Gui) => Command::LaunchGui,
