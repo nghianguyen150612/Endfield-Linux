@@ -205,6 +205,12 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             .join(".endfield-installation.json")
             .is_file()
     );
+    assert!(
+        root.join("data/endfield-unix/runtimes/proton")
+            .join(plan_json["installation_id"].as_str().unwrap())
+            .join("files/lib/nested")
+            .is_file()
+    );
     assert_eq!(fs::read(&archive_path).unwrap(), bytes);
     let inventory = run(root, &["runtime", "list-managed"]);
     println!(
@@ -311,10 +317,12 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         Some(0)
     );
     assert!(
-        root.join("data/endfield-unix/runtimes/proton")
+        !root
+            .join("data/endfield-unix/runtimes/proton")
             .join(plan_json["installation_id"].as_str().unwrap())
             .join("files/lib/nested")
-            .is_file()
+            .exists(),
+        "audit must not restore a deleted runtime file"
     );
 
     let evil_bytes = archive(true);
