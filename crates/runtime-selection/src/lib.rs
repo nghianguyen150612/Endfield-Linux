@@ -3,6 +3,8 @@
 //! This crate never discovers, installs, audits, or executes a runtime. Callers supply
 //! identity revalidation when resolving a stored reference.
 use endfield_unix_runtime::{ProjectId, ProviderId, RuntimeVersion};
+pub mod evidence;
+pub use evidence::{CompatibilityEvidenceEvaluation, evaluate_pinned_compatibility};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
