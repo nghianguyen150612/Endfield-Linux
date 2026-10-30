@@ -242,7 +242,7 @@ jobs:
           runtime_linux = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-runtime-linux")
           assert any("lib" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
           assert not any("bin" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
-          assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc"}, runtime_linux["dependencies"]
+          assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc", "sha2"}, runtime_linux["dependencies"]
           assert not any(dependency["name"] in gui_dependencies | {"endfield-unixd", "ash", "nix", "vulkan", "vulkano", "wayland-client", "wayland-protocols", "x11rb"} for dependency in runtime_linux["dependencies"]), runtime_linux["dependencies"]
           verification = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-runtime-verification")
           assert all("bin" not in t["kind"] for t in verification["targets"])
