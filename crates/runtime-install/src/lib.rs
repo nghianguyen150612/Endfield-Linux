@@ -856,9 +856,34 @@ pub fn audit_installation(
         return Err(Error::Record);
     }
     let tree_path = PathBuf::from(format!("/proc/self/fd/{}", install.as_raw_fd()));
-    let baseline=match endfield_unix_runtime_audit::load_baseline(&tree_path) {
-        Ok(b)=>b,
-        Err(error) => return Ok(endfield_unix_runtime_audit::AuditReport{completeness:if error.contains("missing"){endfield_unix_runtime_audit::Completeness::Unverifiable}else{endfield_unix_runtime_audit::Completeness::Failed},inspected:0,matching:0,omitted_findings:0,findings:vec![endfield_unix_runtime_audit::Finding{kind:if error.contains("missing"){endfield_unix_runtime_audit::FindingKind::BaselineMissing}else{endfield_unix_runtime_audit::FindingKind::BaselineInvalid},path:None}],trust:Some(match record.trust {TrustClassification::IndependentlyAuthenticatedPublisher=>endfield_unix_runtime_audit::TrustClassification::IndependentlyAuthenticatedPublisher,TrustClassification::UserPinnedLimitedTrust=>endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust})}),
+    let baseline = match endfield_unix_runtime_audit::load_baseline(&tree_path) {
+        Ok(baseline) => baseline,
+        Err(error) => {
+            let trust = match record.trust {
+                TrustClassification::IndependentlyAuthenticatedPublisher => {
+                    endfield_unix_runtime_audit::TrustClassification::IndependentlyAuthenticatedPublisher
+                }
+                TrustClassification::UserPinnedLimitedTrust => {
+                    endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust
+                }
+            };
+            if error.contains("missing") {
+                return Ok(endfield_unix_runtime_audit::inspect_without_baseline(
+                    &tree_path, trust,
+                ));
+            }
+            return Ok(endfield_unix_runtime_audit::AuditReport {
+                completeness: endfield_unix_runtime_audit::Completeness::Failed,
+                inspected: 0,
+                matching: 0,
+                omitted_findings: 0,
+                findings: vec![endfield_unix_runtime_audit::Finding {
+                    kind: endfield_unix_runtime_audit::FindingKind::BaselineInvalid,
+                    path: None,
+                }],
+                trust: Some(trust),
+            });
+        }
     };
     let expected_trust = match record.trust {
         TrustClassification::IndependentlyAuthenticatedPublisher => {

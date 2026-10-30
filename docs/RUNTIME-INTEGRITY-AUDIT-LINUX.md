@@ -4,7 +4,7 @@ The Linux runtime audit crate records and compares a bounded inventory of files 
 
 ## Baseline and compatibility
 
-P025 installation records remain schema v1 and retain their original strict JSON parser and plan identity. Existing v1 records without `.endfield-runtime-baseline.json` remain valid ownership records. Their file integrity is reported as **UNVERIFIABLE**; the auditor does not create a baseline from their current contents.
+P025 installation records remain schema v1 and retain their original strict JSON parser and plan identity. Existing v1 records without `.endfield-runtime-baseline.json` remain valid ownership records. The auditor performs bounded read-only structural inspection, but reports file integrity as **UNVERIFIABLE**; it does not create a baseline from their current contents.
 
 New installs create a schema-v1 baseline in private staging after archive verification, extraction, and structural validation, and before writing the ownership marker or publishing the tree. The baseline binds installation ID, generation, family, build, archive SHA-256, manifest SHA-256, and the P025 trust classification. Sorted entries contain relative paths, types, file sizes, streaming SHA-256 digests, executable and set-ID classifications, and symlink targets. Its canonical entries digest detects malformed or inconsistent inventories. The baseline excludes itself to avoid recursion; `.endfield-installation.json` is separately parsed and validated as a control file. Baselines are written with mode 0600 and no-overwrite creation.
 

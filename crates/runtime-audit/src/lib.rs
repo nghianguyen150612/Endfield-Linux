@@ -540,6 +540,67 @@ pub fn load_baseline(root: &Path) -> Result<Baseline, String> {
     Ok(b)
 }
 
+/// Inspect a managed tree without treating its current contents as an expected
+/// baseline. This supports legacy installations while preserving the
+/// Unverifiable integrity result.
+pub fn inspect_without_baseline(root: &Path, trust: TrustClassification) -> AuditReport {
+    let mut report = AuditReport {
+        completeness: Completeness::Unverifiable,
+        inspected: 0,
+        matching: 0,
+        omitted_findings: 0,
+        findings: Vec::new(),
+        trust: Some(trust),
+    };
+    record_finding(&mut report, FindingKind::BaselineMissing, None);
+    record_finding(&mut report, FindingKind::Unverifiable, None);
+
+    let mut actual = Vec::new();
+    let mut total = 0;
+    let Ok(root_file) = File::open(root) else {
+        report.completeness = Completeness::Partial;
+        record_finding(&mut report, FindingKind::Unreadable, None);
+        return report;
+    };
+    let mut path_bytes = 0;
+    if let Err(error) = walk_fd(
+        &root_file,
+        String::new(),
+        0,
+        &mut actual,
+        &mut total,
+        &mut path_bytes,
+    ) {
+        report.completeness = Completeness::Partial;
+        let kind = if error.contains("changed") {
+            FindingKind::ChangedDuringAudit
+        } else if error.contains("unsafe symlink") {
+            FindingKind::SymlinkChanged
+        } else if error.contains("limit") {
+            FindingKind::LimitExceeded
+        } else {
+            FindingKind::Unreadable
+        };
+        record_finding(&mut report, kind, None);
+    }
+    report.inspected = actual.len();
+    for entry in actual {
+        let has_setid = match entry.kind {
+            EntryKind::File { setid, .. } => setid,
+            EntryKind::Directory { mode } => mode & 0o6000 != 0,
+            EntryKind::Symlink { .. } => false,
+        };
+        if has_setid {
+            record_finding(
+                &mut report,
+                FindingKind::PermissionsChanged,
+                Some(entry.path),
+            );
+        }
+    }
+    report
+}
+
 pub fn audit(root: &Path, b: &Baseline) -> AuditReport {
     let mut report = AuditReport {
         completeness: Completeness::Complete,

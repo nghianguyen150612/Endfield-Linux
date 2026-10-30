@@ -353,6 +353,8 @@ fn explicit_user_pin_remains_limited_and_requires_two_bound_acknowledgements() {
         legacy.completeness,
         endfield_unix_runtime_audit::Completeness::Unverifiable
     );
+    assert!(legacy.inspected > 0);
+    assert_eq!(legacy.matching, 0);
     assert_eq!(
         legacy.findings[0].kind,
         endfield_unix_runtime_audit::FindingKind::BaselineMissing
