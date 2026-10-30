@@ -5,6 +5,8 @@
 - Repository: `https://github.com/nghianguyen150612/Endfield-Linux`
 - Qualified base: `223bcd404a422a54c56c06e7bc5afe273e85320b` (P027)
 - Branch: `feat/p028-isolated-prefix-management`
+- Draft PR: [#1](https://github.com/nghianguyen150612/Endfield-Linux/pull/1), open and unmerged
+- Qualified implementation head: `f24af7ba2b139db5f03adb9a58180e7ea9fa0d6e`
 - Scope: P028 isolated, directory-only Wine prefix management
 - Executables: unchanged; `endfield-unix` and `endfield-unixd` only
 - C17 optimizer ABI: unchanged (`0x00010000`)
@@ -32,14 +34,14 @@
 ## Acceptance gates
 
 - [x] `cargo +1.85.0 fmt --all -- --check`
-- [ ] Full workspace test, Clippy, and build — local runs stop at missing GLib development files; hosted qualification pending.
+- [x] Full workspace test, Clippy, and build passed in hosted CI; local GTK-dependent commands are blocked by missing GLib development files.
 - [x] Focused prefix-management tests (20 passed) and warning-denied Clippy.
-- [ ] Actual P027/P028 process-level CLI integration — included in CI; hosted run pending.
-- [x] Non-GTK workspace tests, build, and warning-denied Clippy passed; full GTK/daemon/IPC regression run pending hosted CI.
+- [x] Actual P027/P028 process-level CLI integration passed in the isolated-XDG hosted run. On this runner, deletion returned `prefix_use_unknown`; the test verified refusal and preserved data.
+- [x] Non-GTK workspace tests, build, and warning-denied Clippy passed locally; hosted P006/P021/P022/P025/P026/P027, daemon/IPC, and GTK regressions passed.
 - [x] Cargo metadata assertions: exactly two executable names; prefix crate is library-only and has no GTK/daemon dependency.
-- [x] GCC C17 ABI validation; Clang is unavailable locally and remains pending hosted CI.
+- [x] GCC and Clang C17 ABI validation passed in hosted CI; GCC also passed locally.
 - [x] `git diff --check`
-- [ ] Final-head GitHub Actions qualification.
+- [x] All three GitHub Actions jobs passed in [run 41082558186](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41082558186) for implementation head `f24af7ba2b139db5f03adb9a58180e7ea9fa0d6e`.
 
 ## Known blockers and evidence status
 
@@ -47,5 +49,6 @@
 - No game or Endfield launch was performed. Compatibility remains unverified.
 - Physical Arch and Dell Vostro device checks remain unverified.
 - Local full workspace build/test/clippy are blocked by missing GLib/GTK4/libadwaita development files. The local prefix library tests and clippy are runnable independently. No fake pkg-config metadata was used.
-- The local shell has GCC but not Clang. Hosted GCC/Clang C17 validation is pending.
-- Draft PR and hosted final-head CI evidence will be recorded here after push. Do not merge while required gates are pending.
+- The local shell has GCC but not Clang; both C17 compilers passed hosted CI. Optional real systemd user-manager integration was unavailable and skipped.
+- Prefix deletion checks exact `WINEPREFIX` values in visible same-UID `/proc` environments. An unreadable scan returns `prefix_use_unknown` and blocks deletion; no process visibility is inferred.
+- Earlier hosted runs exposed and fixed a runner-dependent `/proc` test assumption, a synthetic runtime mode restoration issue, and a missing test import. The final run above passed.
