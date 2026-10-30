@@ -44,6 +44,8 @@ Use `--replace` with `set` to replace an existing scope after inspecting its cur
 
 ## Limits and qualification
 
-The registry is user-owned and cannot defend against hostile processes running as the same user. The selection crate's resolver accepts a validation callback so callers must revalidate; a successful report is not a P034 execution authorization. Full external candidate pinning, broad cross-platform machine identity, compatibility evidence matching to future imported profiles, and richer audit outcome display remain future work. P028 can consume pin records as preferences but must perform its own identity and integrity checks.
+The registry is user-owned and cannot defend against hostile processes running as the same user. The selection crate's resolver accepts a validation callback so callers must revalidate; a successful report is not a P034 execution authorization. Persistent external candidate pinning remains unimplemented, which leaves P027's full acceptance criteria unmet. Broad cross-platform machine identity, compatibility evidence matching to future imported profiles, and richer audit outcome display remain future work. P028 can consume managed pin records as preferences but must perform its own identity and integrity checks.
+
+Managed-runtime P027 validation passed in [hosted run 41016111074](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41016111074), including all three CI jobs and the process-level CLI selection/tamper flow. The P027 milestone remains partial until external runtime references are supported.
 
 Machine-specific Arch desktop and Dell Vostro validation was not performed. Real known-good Endfield compatibility remains **UNVERIFIED**.
