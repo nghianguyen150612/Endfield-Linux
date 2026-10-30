@@ -9,6 +9,7 @@ license.workspace = true
 endfield-unix-runtime = { path = "../runtime" }
 endfield-unix-runtime-verification = { path = "../runtime-verification" }
 endfield-unix-storage = { path = "../storage" }
+endfield-unix-runtime-audit = { path = "../runtime-audit" }
 libc = "=0.2.191"
 fs2 = "=0.4.3"
 flate2 = "=1.1.5"

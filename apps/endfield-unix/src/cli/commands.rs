@@ -18,6 +18,11 @@ pub enum Command {
     HelpOutput(String),
     LaunchGui,
     RuntimeInstall(Box<super::runtime_install::Operation>),
+    RuntimeAudit(String),
+    RuntimeAuditSource {
+        installation_id: String,
+        inputs: Box<super::runtime_integrity::Options>,
+    },
     DiagnoseReport {
         output: std::path::PathBuf,
         overwrite: bool,

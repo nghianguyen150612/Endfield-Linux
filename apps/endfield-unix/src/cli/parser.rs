@@ -68,6 +68,18 @@ enum SubcommandArgs {
 enum RuntimeArgs {
     /// Show only records inside the Endfield-Unix managed runtime root.
     ListManaged,
+    /// Audit one explicitly selected Endfield-managed runtime installation.
+    Audit {
+        #[arg(long)]
+        installation_id: String,
+    },
+    /// Compare files to an explicitly supplied and P024-verified artifact.
+    AuditSource {
+        #[arg(long)]
+        installation_id: String,
+        #[command(flatten)]
+        inputs: super::runtime_integrity::Options,
+    },
     /// Plan or apply a verified runtime installation.
     Install {
         #[command(subcommand)]
@@ -268,6 +280,14 @@ where
             RuntimeArgs::ListManaged => {
                 Command::RuntimeInstall(Box::new(super::runtime_install::Operation::Status))
             }
+            RuntimeArgs::Audit { installation_id } => Command::RuntimeAudit(installation_id),
+            RuntimeArgs::AuditSource {
+                installation_id,
+                inputs,
+            } => Command::RuntimeAuditSource {
+                installation_id,
+                inputs: Box::new(inputs),
+            },
         },
         Some(SubcommandArgs::Gui) => Command::LaunchGui,
         Some(SubcommandArgs::Help { topic }) => Command::Help(topic.map(|topic| match topic {
@@ -461,6 +481,15 @@ mod tests {
                 other => panic!("expected nested help output for {values:?}, got {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn runtime_audit_requires_an_explicit_installation_id() {
+        assert_command(
+            &["runtime", "audit", "--installation-id", "proton-fixture"],
+            Command::RuntimeAudit("proton-fixture".into()),
+        );
+        assert!(parse(args(&["runtime", "audit"])).is_err());
     }
 
     #[test]

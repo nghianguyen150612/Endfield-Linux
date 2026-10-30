@@ -313,6 +313,7 @@ dependencies = [
  "endfield-unix-ipc",
  "endfield-unix-platform-linux",
  "endfield-unix-runtime",
+ "endfield-unix-runtime-audit",
  "endfield-unix-runtime-install",
  "endfield-unix-runtime-linux",
  "endfield-unix-runtime-verification",
@@ -388,11 +389,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "endfield-unix-runtime-audit"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "endfield-unix-runtime-install"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "endfield-unix-runtime",
+ "endfield-unix-runtime-audit",
  "endfield-unix-runtime-verification",
  "endfield-unix-storage",
  "flate2",

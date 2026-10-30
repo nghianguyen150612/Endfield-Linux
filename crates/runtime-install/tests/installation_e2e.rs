@@ -260,6 +260,77 @@ fn explicit_user_pin_remains_limited_and_requires_two_bound_acknowledgements() {
     let serialized =
         std::fs::read_to_string(plan.destination().join(".endfield-installation.json")).unwrap();
     assert!(serialized.contains("user_pinned_limited_trust"));
+    let baseline = endfield_unix_runtime_audit::load_baseline(plan.destination()).unwrap();
+    assert_eq!(baseline.installation_id, plan.installation_id());
+    let clean =
+        endfield_unix_runtime_install::audit_installation(&paths, plan.installation_id()).unwrap();
+    assert_eq!(
+        clean.completeness,
+        endfield_unix_runtime_audit::Completeness::Complete
+    );
+    assert!(
+        clean
+            .findings
+            .iter()
+            .all(|f| f.kind == endfield_unix_runtime_audit::FindingKind::Match)
+    );
+    let source_match = endfield_unix_runtime_install::audit_against_verified_artifact(
+        &paths,
+        plan.installation_id(),
+        &pinned,
+        &source,
+    )
+    .unwrap();
+    assert!(
+        source_match
+            .findings
+            .iter()
+            .all(|f| f.kind == endfield_unix_runtime_audit::FindingKind::Match)
+    );
+    assert_eq!(
+        source_match.trust,
+        Some(endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust)
+    );
+    assert_eq!(
+        baseline.origin,
+        endfield_unix_runtime_audit::BaselineOrigin::VerifiedInstallation
+    );
+    let bad_source = d.path().join("wrong-source.tar.gz");
+    let mut wrong = data.clone();
+    let last = wrong.len() - 1;
+    wrong[last] ^= 0x01;
+    std::fs::write(&bad_source, wrong).unwrap();
+    assert!(
+        endfield_unix_runtime_install::audit_against_verified_artifact(
+            &paths,
+            plan.installation_id(),
+            &pinned,
+            &bad_source
+        )
+        .is_err()
+    );
+    std::fs::write(plan.destination().join("version"), b"tampered").unwrap();
+    let changed =
+        endfield_unix_runtime_install::audit_installation(&paths, plan.installation_id()).unwrap();
+    assert!(
+        changed
+            .findings
+            .iter()
+            .any(|f| f.kind == endfield_unix_runtime_audit::FindingKind::Modified)
+    );
+    let source_changed = endfield_unix_runtime_install::audit_against_verified_artifact(
+        &paths,
+        plan.installation_id(),
+        &pinned,
+        &source,
+    )
+    .unwrap();
+    assert!(
+        source_changed
+            .findings
+            .iter()
+            .any(|f| f.kind == endfield_unix_runtime_audit::FindingKind::Modified)
+    );
     let unchecked = evidence(
         &data,
         "proton",
@@ -271,6 +342,40 @@ fn explicit_user_pin_remains_limited_and_requires_two_bound_acknowledgements() {
         Err(Error::CheckpointRequired)
     ));
     assert!(plan.destination().exists());
+    std::fs::remove_file(
+        plan.destination()
+            .join(endfield_unix_runtime_audit::BASELINE_FILE),
+    )
+    .unwrap();
+    let legacy =
+        endfield_unix_runtime_install::audit_installation(&paths, plan.installation_id()).unwrap();
+    assert_eq!(
+        legacy.completeness,
+        endfield_unix_runtime_audit::Completeness::Unverifiable
+    );
+    assert_eq!(
+        legacy.findings[0].kind,
+        endfield_unix_runtime_audit::FindingKind::BaselineMissing
+    );
+    assert_eq!(
+        endfield_unix_runtime_install::status(&paths)
+            .unwrap()
+            .recorded_installations,
+        1
+    );
+    let legacy_source = endfield_unix_runtime_install::audit_against_verified_artifact(
+        &paths,
+        plan.installation_id(),
+        &pinned,
+        &source,
+    )
+    .unwrap();
+    assert!(
+        legacy_source
+            .findings
+            .iter()
+            .any(|f| f.kind == endfield_unix_runtime_audit::FindingKind::Modified)
+    );
 }
 
 #[test]

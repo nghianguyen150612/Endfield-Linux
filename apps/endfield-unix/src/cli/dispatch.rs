@@ -627,6 +627,84 @@ where
                 Err(CliError::RuntimeVerification(code))
             }
         }
+        Command::RuntimeAudit(id) => {
+            let paths = endfield_unix_storage::AppPaths::discover()
+                .map_err(|e| CliError::Output(io::Error::other(e.to_string())))?;
+            let report = match endfield_unix_runtime_install::audit_installation(&paths, &id) {
+                Ok(report) => report,
+                Err(endfield_unix_runtime_install::Error::Record) => {
+                    writeln!(stdout, "Installation record: invalid").map_err(CliError::Output)?;
+                    return Err(CliError::RuntimeVerification(4));
+                }
+                Err(endfield_unix_runtime_install::Error::Busy) => {
+                    writeln!(
+                        stdout,
+                        "Audit completeness: partial (managed installation operation active)"
+                    )
+                    .map_err(CliError::Output)?;
+                    return Err(CliError::RuntimeVerification(3));
+                }
+                Err(e) => return Err(CliError::Output(io::Error::other(e.to_string()))),
+            };
+            writeln!(stdout, "Installed runtime audit\n\nInstallation: {id}\nOwnership: Endfield-Unix managed\nFiles inspected: {}\nMatching: {}", report.inspected, report.matching).map_err(CliError::Output)?;
+            for finding in report
+                .findings
+                .iter()
+                .filter(|f| f.kind != endfield_unix_runtime_audit::FindingKind::Match)
+                .take(100)
+            {
+                writeln!(
+                    stdout,
+                    "{:?}: {}",
+                    finding.kind,
+                    finding.path.as_deref().unwrap_or("(control metadata)")
+                )
+                .map_err(CliError::Output)?;
+            }
+            match report.completeness { endfield_unix_runtime_audit::Completeness::Complete if report.findings.iter().all(|f|f.kind==endfield_unix_runtime_audit::FindingKind::Match) => writeln!(stdout, "\nAudit completeness: complete\nLocal baseline: matches\nOfficial publisher authenticity: UNVERIFIED\nRuntime execution: not performed\nGame compatibility: not evaluated").map_err(CliError::Output)?, endfield_unix_runtime_audit::Completeness::Unverifiable => { writeln!(stdout, "\nFile integrity: UNVERIFIABLE\nAudit completeness: unverifiable").map_err(CliError::Output)?; return Err(CliError::RuntimeVerification(3)); }, _ => return Err(CliError::RuntimeVerification(4)) }
+            Ok(())
+        }
+        Command::RuntimeAuditSource {
+            installation_id,
+            inputs,
+        } => {
+            let report = super::runtime_install::audit_source(&installation_id, &inputs)
+                .map_err(|e| CliError::Output(io::Error::other(e)))?;
+            writeln!(stdout,"Installed runtime source comparison\n\nInstallation: {installation_id}\nFiles inspected: {}\nMatching: {}\nSource provenance: user-pinned (limited trust)\nOfficial publisher authenticity: UNVERIFIED",report.inspected,report.matching).map_err(CliError::Output)?;
+            for finding in report
+                .findings
+                .iter()
+                .filter(|f| f.kind != endfield_unix_runtime_audit::FindingKind::Match)
+                .take(100)
+            {
+                writeln!(
+                    stdout,
+                    "{:?}: {}",
+                    finding.kind,
+                    finding.path.as_deref().unwrap_or("(control metadata)")
+                )
+                .map_err(CliError::Output)?;
+            }
+            if report.completeness == endfield_unix_runtime_audit::Completeness::Complete
+                && report
+                    .findings
+                    .iter()
+                    .all(|f| f.kind == endfield_unix_runtime_audit::FindingKind::Match)
+            {
+                writeln!(stdout,"\nSource comparison: MATCH\nRuntime execution: not performed\nGame compatibility: not evaluated").map_err(CliError::Output)?;
+                Ok(())
+            } else {
+                Err(CliError::RuntimeVerification(
+                    if report.completeness
+                        == endfield_unix_runtime_audit::Completeness::Unverifiable
+                    {
+                        3
+                    } else {
+                        4
+                    },
+                ))
+            }
+        }
         Command::DiagnoseRuntimeIntegrity(options) => {
             let code = super::runtime_integrity::run(*options, stdout).map_err(CliError::Output)?;
             if code == 0 {

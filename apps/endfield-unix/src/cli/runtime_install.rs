@@ -272,3 +272,18 @@ pub fn run(operation: Operation, out: &mut impl Write) -> io::Result<u8> {
         }
     }
 }
+
+pub fn audit_source(
+    id: &str,
+    options: &super::runtime_integrity::Options,
+) -> Result<endfield_unix_runtime_audit::AuditReport, String> {
+    let verified = verify_inputs(options)?.evidence;
+    let paths = AppPaths::discover().map_err(|e| e.to_string())?;
+    endfield_unix_runtime_install::audit_against_verified_artifact(
+        &paths,
+        id,
+        &verified,
+        &options.artifact,
+    )
+    .map_err(|e| e.to_string())
+}

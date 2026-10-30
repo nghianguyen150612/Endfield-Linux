@@ -8,7 +8,7 @@ use endfield_unix_storage::AppPaths;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Seek, SeekFrom, Write},
-    os::fd::AsRawFd,
+    os::{fd::AsRawFd, unix::fs::OpenOptionsExt},
     path::{Path, PathBuf},
 };
 pub type Result<T> = std::result::Result<T, Error>;
@@ -198,6 +198,15 @@ impl RuntimeInstallationPlan {
     }
     pub fn trust_classification(&self) -> TrustClassification {
         self.trust
+    }
+    pub fn family(&self) -> &str {
+        &self.family
+    }
+    pub fn build(&self) -> &str {
+        &self.build
+    }
+    pub fn manifest_sha256(&self) -> &str {
+        &self.manifest_sha256
     }
     /// Deliberate approval of this exact plan, never deserialized from plan JSON.
     pub fn approve(&self, exact_identity: &str) -> Result<Authorization> {
@@ -487,6 +496,17 @@ pub fn install_observed(
     extraction::validate(&tree, &plan.family, &plan.build)?;
     write_journal(&mut journal, &handle, plan, TransactionState::Validated)?;
     observer.reached(InstallStage::Validated)?;
+    let baseline_root = PathBuf::from(format!("/proc/self/fd/{}", tree.as_raw_fd()));
+    let baseline = endfield_unix_runtime_audit::create_baseline(
+        &baseline_root, &plan.installation_id, plan.generation, &plan.family, &plan.build,
+        &plan.artifact_sha256, &plan.manifest_sha256,
+        match evidence_trust {
+            TrustClassification::IndependentlyAuthenticatedPublisher => endfield_unix_runtime_audit::TrustClassification::IndependentlyAuthenticatedPublisher,
+            TrustClassification::UserPinnedLimitedTrust => endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust,
+        },
+    ).map_err(|_| Error::Record)?;
+    endfield_unix_runtime_audit::write_baseline(&baseline_root, &baseline)
+        .map_err(|_| Error::Record)?;
     let record = InstallationRecord {
         schema_version: 1,
         owner: "endfield-unix-runtime-install-v1".into(),
@@ -770,6 +790,234 @@ pub fn status(paths: &AppPaths) -> Result<RecoveryStatus> {
         }
     }
     Ok(status)
+}
+
+/// Read-only audit of one explicitly selected managed installation. Ownership
+/// metadata is validated before the payload baseline is consulted.
+pub fn audit_installation(
+    paths: &AppPaths,
+    installation_id: &str,
+) -> Result<endfield_unix_runtime_audit::AuditReport> {
+    if installation_id.len() > 256
+        || installation_id.contains('/')
+        || installation_id.contains("..")
+    {
+        return Err(Error::Record);
+    }
+    let family_name = if installation_id.starts_with("wine-") {
+        "wine"
+    } else if installation_id.starts_with("proton-") {
+        "proton"
+    } else {
+        return Err(Error::Record);
+    };
+    let runtime_root = paths.data_dir().join("runtimes");
+    let root = fs::root(&runtime_root, false)?;
+    let audit_lock = fs::open(&root, ".install-lock", libc::O_RDONLY, 0)?;
+    fs::private_lock(&audit_lock)?;
+    fs2::FileExt::try_lock_shared(&audit_lock).map_err(|_| Error::Busy)?;
+    let family = fs::dir(&root, family_name, false)?;
+    fs::private(&family)?;
+    let install = fs::dir(&family, installation_id, false)?;
+    fs::private(&install)?;
+    let record_file = fs::open(&install, ".endfield-installation.json", libc::O_RDONLY, 0)?;
+    fs::private_lock(&record_file)?;
+    let bytes = read_stable_control(&record_file, 65536)?;
+    let record: InstallationRecord = serde_json::from_slice(&bytes).map_err(|_| Error::Record)?;
+    let expected_destination = runtime_root.join(family_name).join(installation_id);
+    if record.schema_version != 1
+        || record.owner != "endfield-unix-runtime-install-v1"
+        || record.state != TransactionState::Published
+        || record.plan.schema_version != 1
+        || record.plan.installation_id != installation_id
+        || record.plan.family != family_name
+        || record.plan.destination != expected_destination
+        || record.plan.generation == 0
+        || record.plan_sha256 != record.plan.identity()
+        || record.trust != record.plan.trust
+        || !valid_sha256(&record.plan.artifact_sha256)
+        || !valid_sha256(&record.plan.manifest_sha256)
+        || !valid_sha256(&record.plan.trust_key_sha256)
+        || record.plan.installation_id
+            != derive_installation_id(&InstallationIdentityEvidence {
+                family: &record.plan.family,
+                provider: &record.plan.provider,
+                project: &record.plan.project,
+                build: &record.plan.build,
+                artifact_sha256: &record.plan.artifact_sha256,
+                manifest_sha256: &record.plan.manifest_sha256,
+                trust_key_sha256: &record.plan.trust_key_sha256,
+                generation: record.plan.generation,
+            })
+    {
+        return Err(Error::Record);
+    }
+    let tree_path = PathBuf::from(format!("/proc/self/fd/{}", install.as_raw_fd()));
+    let baseline=match endfield_unix_runtime_audit::load_baseline(&tree_path) {
+        Ok(b)=>b,
+        Err(error) => return Ok(endfield_unix_runtime_audit::AuditReport{completeness:if error.contains("missing"){endfield_unix_runtime_audit::Completeness::Unverifiable}else{endfield_unix_runtime_audit::Completeness::Failed},inspected:0,matching:0,findings:vec![endfield_unix_runtime_audit::Finding{kind:if error.contains("missing"){endfield_unix_runtime_audit::FindingKind::BaselineMissing}else{endfield_unix_runtime_audit::FindingKind::BaselineInvalid},path:None}],trust:Some(match record.trust {TrustClassification::IndependentlyAuthenticatedPublisher=>endfield_unix_runtime_audit::TrustClassification::IndependentlyAuthenticatedPublisher,TrustClassification::UserPinnedLimitedTrust=>endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust})}),
+    };
+    let expected_trust = match record.trust {
+        TrustClassification::IndependentlyAuthenticatedPublisher => {
+            endfield_unix_runtime_audit::TrustClassification::IndependentlyAuthenticatedPublisher
+        }
+        TrustClassification::UserPinnedLimitedTrust => {
+            endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust
+        }
+    };
+    if baseline.installation_id != installation_id
+        || baseline.generation != record.plan.generation
+        || baseline.family != family_name
+        || baseline.build != record.plan.build
+        || baseline.artifact_sha256 != record.plan.artifact_sha256
+        || baseline.manifest_sha256 != record.plan.manifest_sha256
+        || baseline.trust != expected_trust
+    {
+        return Ok(endfield_unix_runtime_audit::AuditReport {
+            completeness: endfield_unix_runtime_audit::Completeness::Failed,
+            inspected: 0,
+            matching: 0,
+            findings: vec![endfield_unix_runtime_audit::Finding {
+                kind: endfield_unix_runtime_audit::FindingKind::BaselineInvalid,
+                path: None,
+            }],
+            trust: Some(expected_trust),
+        });
+    }
+    Ok(endfield_unix_runtime_audit::audit(&tree_path, &baseline))
+}
+
+/// Compare an installation with payload contents reconstructed from an archive
+/// that P024 re-verifies against the installation's exact manifest and artifact
+/// identity. The temporary inventory is discarded and never enrolled locally.
+pub fn audit_against_verified_artifact(
+    paths: &AppPaths,
+    installation_id: &str,
+    verified: &v::VerifiedManifest,
+    artifact: &Path,
+) -> Result<endfield_unix_runtime_audit::AuditReport> {
+    let local = audit_installation(paths, installation_id)?;
+    // Audit installation already validates the ownership record. Re-open the
+    // selected private tree and validate the same exact record for source binding.
+    let family_name = if installation_id.starts_with("wine-") {
+        "wine"
+    } else {
+        "proton"
+    };
+    let runtime_root = paths.data_dir().join("runtimes");
+    let root = fs::root(&runtime_root, false)?;
+    let audit_lock = fs::open(&root, ".install-lock", libc::O_RDONLY, 0)?;
+    fs::private_lock(&audit_lock)?;
+    fs2::FileExt::try_lock_shared(&audit_lock).map_err(|_| Error::Busy)?;
+    let family = fs::dir(&root, family_name, false)?;
+    let install = fs::dir(&family, installation_id, false)?;
+    let record_file = fs::open(&install, ".endfield-installation.json", libc::O_RDONLY, 0)?;
+    fs::private_lock(&record_file)?;
+    let bytes = read_stable_control(&record_file, 65536)?;
+    let record: InstallationRecord = serde_json::from_slice(&bytes).map_err(|_| Error::Record)?;
+    let rebuilt = RuntimeInstallationPlan::new(
+        paths,
+        verified,
+        &record.plan.artifact_id,
+        record.plan.generation,
+    )?;
+    if rebuilt.identity() != record.plan.identity()
+        || record.state != TransactionState::Published
+        || record.trust != trust(verified)?
+    {
+        return Err(Error::Verification(v::Error::Identity));
+    }
+    let artifact_meta = verified
+        .manifest()
+        .artifacts
+        .iter()
+        .find(|a| a.artifact_id == record.plan.artifact_id)
+        .ok_or(v::Error::Identity)?;
+    let scratch = tempfile::Builder::new()
+        .prefix("endfield-audit-")
+        .tempdir()?;
+    let staged_path = scratch.path().join("source.tar.gz");
+    let mut staged = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&staged_path)?;
+    let copied = std::io::copy(
+        &mut v::open_artifact(artifact)?.take(record.plan.archive_size.saturating_add(1)),
+        &mut staged,
+    )?;
+    if copied != record.plan.archive_size {
+        return Err(Error::Verification(v::Error::SizeMismatch));
+    }
+    staged.sync_all()?;
+    drop(staged);
+    let staged_report = v::verify_artifact(v::ArtifactInput {
+        artifact_id: &record.plan.artifact_id,
+        filename: &artifact_meta.filename,
+        build: &record.plan.build,
+        file: v::open_artifact(&staged_path)?,
+        metadata: verified,
+    })?;
+    validate_artifact_report(&staged_report, record.trust)?;
+    let scratch_dir = fs::root(scratch.path(), false)?;
+    let expected_tree = fs::dir(&scratch_dir, "tree", true)?;
+    extraction::extract(
+        v::open_artifact(&staged_path)?,
+        &expected_tree,
+        record.plan.archive_size,
+    )?;
+    extraction::validate(&expected_tree, &record.plan.family, &record.plan.build)?;
+    let expected_path = PathBuf::from(format!("/proc/self/fd/{}", expected_tree.as_raw_fd()));
+    let trust_class = match record.trust {
+        TrustClassification::IndependentlyAuthenticatedPublisher => {
+            endfield_unix_runtime_audit::TrustClassification::IndependentlyAuthenticatedPublisher
+        }
+        TrustClassification::UserPinnedLimitedTrust => {
+            endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust
+        }
+    };
+    let mut expected = endfield_unix_runtime_audit::create_baseline(
+        &expected_path,
+        installation_id,
+        record.plan.generation,
+        &record.plan.family,
+        &record.plan.build,
+        &record.plan.artifact_sha256,
+        &record.plan.manifest_sha256,
+        trust_class,
+    )
+    .map_err(|_| Error::Record)?;
+    expected.origin =
+        endfield_unix_runtime_audit::BaselineOrigin::ReconstructedFromReverifiedArtifact;
+    let installed_path = PathBuf::from(format!("/proc/self/fd/{}", install.as_raw_fd()));
+    let mut result = endfield_unix_runtime_audit::audit(&installed_path, &expected);
+    result.trust = Some(trust_class);
+    let _ = local;
+    Ok(result)
+}
+
+fn read_stable_control(file: &std::fs::File, maximum: u64) -> Result<Vec<u8>> {
+    use std::os::unix::fs::MetadataExt;
+    let before = file.metadata()?;
+    if before.len() > maximum {
+        return Err(Error::Record);
+    }
+    let mut bytes = Vec::new();
+    file.take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)?;
+    let after = file.metadata()?;
+    if bytes.len() as u64 > maximum
+        || before.len() != bytes.len() as u64
+        || before.dev() != after.dev()
+        || before.ino() != after.ino()
+        || before.mtime() != after.mtime()
+        || before.mtime_nsec() != after.mtime_nsec()
+        || before.ctime() != after.ctime()
+        || before.ctime_nsec() != after.ctime_nsec()
+    {
+        return Err(Error::Record);
+    }
+    Ok(bytes)
 }
 
 fn valid_sha256(value: &str) -> bool {

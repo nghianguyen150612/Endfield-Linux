@@ -85,6 +85,9 @@ jobs:
       - name: Run P025 installation policy, extraction, recovery, and concurrency tests
         run: cargo test --locked -p endfield-unix-runtime-install --all-targets
 
+      - name: Run P026 installed runtime audit and baseline tests
+        run: cargo test --locked -p endfield-unix-runtime-audit --all-targets
+
       - name: Run the actual CLI install plan/apply smoke in an isolated XDG root
         run: cargo test --locked -p endfield-unix --test runtime_install_cli -- --test-threads=1 --nocapture
 
@@ -246,6 +249,10 @@ jobs:
           assert all("bin" not in t["kind"] for t in runtime_install["targets"])
           assert not ({d["name"] for d in runtime_install["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           assert {"endfield-unix-runtime", "endfield-unix-runtime-verification", "endfield-unix-storage"}.issubset({d["name"] for d in runtime_install["dependencies"]})
+          runtime_audit = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-runtime-audit")
+          assert any("lib" in t["kind"] for t in runtime_audit["targets"])
+          assert all("bin" not in t["kind"] for t in runtime_audit["targets"])
+          assert not ({d["name"] for d in runtime_audit["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           ipc = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-ipc")
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]

@@ -213,6 +213,80 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     );
     assert_eq!(inventory.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&inventory.stdout).contains("Recorded installations: 1"));
+    let installation_id = plan_json["installation_id"].as_str().unwrap();
+    let managed = root
+        .join("data/endfield-unix/runtimes/proton")
+        .join(installation_id);
+    let clean_audit = run(
+        root,
+        &["runtime", "audit", "--installation-id", installation_id],
+    );
+    assert_eq!(
+        clean_audit.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&clean_audit.stdout)
+    );
+    assert!(String::from_utf8_lossy(&clean_audit.stdout).contains("Local baseline: matches"));
+    let mut source_audit_args = vec![
+        "runtime".to_owned(),
+        "audit-source".to_owned(),
+        "--installation-id".to_owned(),
+        installation_id.to_owned(),
+    ];
+    source_audit_args.extend(common(
+        &manifest_path,
+        &signature_path,
+        &archive_path,
+        &key_path,
+    ));
+    let source_audit = run(
+        root,
+        &source_audit_args
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        source_audit.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&source_audit.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&source_audit.stdout)
+            .contains("Source provenance: user-pinned (limited trust)")
+    );
+    fs::write(managed.join("version"), b"changed locally").unwrap();
+    let changed_audit = run(
+        root,
+        &["runtime", "audit", "--installation-id", installation_id],
+    );
+    assert_eq!(changed_audit.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&changed_audit.stdout).contains("Modified"));
+    assert_eq!(
+        fs::read(managed.join("version")).unwrap(),
+        b"changed locally"
+    );
+    fs::remove_file(managed.join("files/lib/nested")).unwrap();
+    let missing_audit = run(
+        root,
+        &["runtime", "audit", "--installation-id", installation_id],
+    );
+    assert_eq!(missing_audit.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&missing_audit.stdout).contains("Missing"));
+    fs::remove_file(managed.join(endfield_unix_runtime_audit::BASELINE_FILE)).unwrap();
+    let legacy_audit = run(
+        root,
+        &["runtime", "audit", "--installation-id", installation_id],
+    );
+    assert_eq!(legacy_audit.status.code(), Some(3));
+    assert!(String::from_utf8_lossy(&legacy_audit.stdout).contains("UNVERIFIABLE"));
+    let legacy_inventory = run(root, &["runtime", "list-managed"]);
+    assert_eq!(legacy_inventory.status.code(), Some(0));
+    assert!(
+        String::from_utf8_lossy(&legacy_inventory.stdout).contains("Recorded installations: 1")
+    );
     let mut duplicate = apply_base.clone();
     duplicate.extend([
         "--approve-plan".into(),

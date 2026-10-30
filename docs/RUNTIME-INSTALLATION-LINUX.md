@@ -96,3 +96,6 @@ Arch desktop installation: UNVERIFIED
 Dell Vostro installation: UNVERIFIED
 
 Real Endfield compatibility: UNVERIFIED
+
+
+P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification remains pending, and no game compatibility claim is made.
