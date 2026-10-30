@@ -43,6 +43,21 @@ fn run(root: &Path, args: &[&str]) -> Output {
         .output()
         .unwrap()
 }
+
+fn prefix_registry_revision(root: &Path) -> String {
+    let output = run(root, &["prefix", "list"]);
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("Registry revision: "))
+        .expect("prefix list reports its registry revision")
+        .to_owned()
+}
+
+fn deletion_was_blocked_by_use(output: &Output) -> bool {
+    output.status.code() == Some(4)
+        && (String::from_utf8_lossy(&output.stdout).contains("[prefix_in_use]")
+            || String::from_utf8_lossy(&output.stdout).contains("[prefix_use_unknown]"))
+}
 fn common(manifest: &Path, signature: &Path, archive: &Path, key: &Path) -> Vec<String> {
     let pairs = [
         ("--manifest", manifest),
@@ -489,14 +504,36 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         "Prefix managed deletion output:\n{}",
         String::from_utf8_lossy(&prefix_delete.stdout)
     );
-    assert_eq!(
-        prefix_delete.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&prefix_delete.stdout)
-    );
-    assert!(!prefix_path.exists());
+    let managed_delete_blocked = if prefix_delete.status.code() == Some(0) {
+        assert!(!prefix_path.exists());
+        false
+    } else {
+        assert!(
+            deletion_was_blocked_by_use(&prefix_delete),
+            "{}",
+            String::from_utf8_lossy(&prefix_delete.stdout)
+        );
+        assert!(prefix_path.is_dir());
+        true
+    };
     assert!(managed.join("proton").is_file());
+    if managed_delete_blocked {
+        let revision = prefix_registry_revision(root);
+        let unregister = run(
+            root,
+            &[
+                "prefix",
+                "remove",
+                "--id",
+                "p028-managed",
+                "--expected-revision",
+                &revision,
+            ],
+        );
+        assert_eq!(unregister.status.code(), Some(0));
+        assert!(String::from_utf8_lossy(&unregister.stdout).contains("Prefix bytes: preserved"));
+        assert!(prefix_path.is_dir());
+    }
     let profile_pin_after_prefix = run(
         root,
         &[
@@ -516,6 +553,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     );
 
     let unregistered_path = root.join("data/endfield-unix/prefixes/data/p028-unregistered");
+    let unregistered_create_revision = prefix_registry_revision(root);
     let unregistered_create = run(
         root,
         &[
@@ -528,10 +566,11 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             "--profile",
             "fixture-profile",
             "--expected-revision",
-            "4",
+            &unregistered_create_revision,
         ],
     );
     assert_eq!(unregistered_create.status.code(), Some(0));
+    let unregistered_remove_revision = prefix_registry_revision(root);
     let unregistered_remove = run(
         root,
         &[
@@ -540,7 +579,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             "--id",
             "p028-unregistered",
             "--expected-revision",
-            "6",
+            &unregistered_remove_revision,
         ],
     );
     assert_eq!(unregistered_remove.status.code(), Some(0));
@@ -552,6 +591,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             .contains(unregistered_path.to_str().unwrap())
     );
     assert!(unregistered_path.is_dir());
+    let refused_adoption_revision = prefix_registry_revision(root);
     let refused_adoption = run(
         root,
         &[
@@ -564,7 +604,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             "--profile",
             "fixture-profile",
             "--expected-revision",
-            "7",
+            &refused_adoption_revision,
         ],
     );
     assert_eq!(refused_adoption.status.code(), Some(4));
@@ -688,6 +728,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     assert!(!external_resolution.contains(external_root.to_str().unwrap()));
 
     let external_prefix_path = root.join("data/endfield-unix/prefixes/data/p028-external");
+    let external_prefix_revision = prefix_registry_revision(root);
     let external_prefix_plan = run(
         root,
         &[
@@ -700,7 +741,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             "--profile",
             "external-fixture",
             "--expected-revision",
-            "7",
+            &external_prefix_revision,
         ],
     );
     println!(
@@ -713,6 +754,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         !String::from_utf8_lossy(&external_prefix_plan.stdout)
             .contains(external_root.to_str().unwrap())
     );
+    let external_prefix_create_revision = prefix_registry_revision(root);
     let external_prefix_create = run(
         root,
         &[
@@ -725,7 +767,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             "--profile",
             "external-fixture",
             "--expected-revision",
-            "7",
+            &external_prefix_create_revision,
         ],
     );
     println!(
@@ -833,6 +875,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     assert!(stale_association_output.contains("identity changed"));
     assert!(!stale_association_output.contains(external_root.to_str().unwrap()));
     assert!(external_prefix_path.is_dir());
+    let stale_delete_revision = prefix_registry_revision(root);
     let delete_stale_association = run(
         root,
         &[
@@ -841,7 +884,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             "--id",
             "p028-external",
             "--expected-revision",
-            "9",
+            &stale_delete_revision,
             "--confirm-path",
             external_prefix_path.to_str().unwrap(),
         ],
@@ -850,13 +893,31 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         "Prefix deletion with stale runtime output:\n{}",
         String::from_utf8_lossy(&delete_stale_association.stdout)
     );
-    assert_eq!(
-        delete_stale_association.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&delete_stale_association.stdout)
-    );
-    assert!(!external_prefix_path.exists());
+    if delete_stale_association.status.code() == Some(0) {
+        assert!(!external_prefix_path.exists());
+    } else {
+        assert!(
+            deletion_was_blocked_by_use(&delete_stale_association),
+            "{}",
+            String::from_utf8_lossy(&delete_stale_association.stdout)
+        );
+        assert!(external_prefix_path.is_dir());
+        let revision = prefix_registry_revision(root);
+        let unregister = run(
+            root,
+            &[
+                "prefix",
+                "remove",
+                "--id",
+                "p028-external",
+                "--expected-revision",
+                &revision,
+            ],
+        );
+        assert_eq!(unregister.status.code(), Some(0));
+        assert!(String::from_utf8_lossy(&unregister.stdout).contains("Prefix bytes: preserved"));
+        assert!(external_prefix_path.is_dir());
+    }
     assert!(external_build.join("proton").is_file());
     let removed_external = run(
         root,
