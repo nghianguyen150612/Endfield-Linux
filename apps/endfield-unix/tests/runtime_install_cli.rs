@@ -235,6 +235,106 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     );
     assert!(String::from_utf8_lossy(&clean_audit.stdout).contains("Local baseline: matches"));
     assert!(String::from_utf8_lossy(&clean_audit.stdout).contains("Audit completeness: complete"));
+
+    // P027 actual process-level persistence and precedence smoke. Each command
+    // starts a fresh CLI process against this isolated XDG root.
+    let set_machine = vec![
+        "runtime",
+        "pin",
+        "set",
+        "--scope",
+        "machine",
+        "--installation-id",
+        installation_id,
+        "--expected-revision",
+        "0",
+    ];
+    let machine_pin = run(root, &set_machine);
+    assert_eq!(
+        machine_pin.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&machine_pin.stdout)
+    );
+    let shown_machine = run(root, &["runtime", "pin", "show", "--scope", "machine"]);
+    assert_eq!(
+        shown_machine.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&shown_machine.stdout)
+    );
+    assert!(String::from_utf8_lossy(&shown_machine.stdout).contains(installation_id));
+    let resolved_machine = run(root, &["runtime", "pin", "resolve"]);
+    assert_eq!(
+        resolved_machine.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&resolved_machine.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&resolved_machine.stdout).contains("P026 local baseline matches")
+    );
+
+    let profile_set_args = [
+        "runtime",
+        "pin",
+        "set",
+        "--scope",
+        "profile",
+        "--profile",
+        "fixture-profile",
+        "--installation-id",
+        installation_id,
+        "--expected-revision",
+        "1",
+    ];
+    let profile_set = run(root, &profile_set_args);
+    assert_eq!(
+        profile_set.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&profile_set.stdout)
+    );
+    let resolved_profile = run(
+        root,
+        &["runtime", "pin", "resolve", "--profile", "fixture-profile"],
+    );
+    assert_eq!(
+        resolved_profile.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&resolved_profile.stdout)
+    );
+    assert!(String::from_utf8_lossy(&resolved_profile.stdout).contains("ProfilePin"));
+    let removed_profile = run(
+        root,
+        &[
+            "runtime",
+            "pin",
+            "remove",
+            "--scope",
+            "profile",
+            "--profile",
+            "fixture-profile",
+            "--expected-revision",
+            "2",
+        ],
+    );
+    assert_eq!(
+        removed_profile.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&removed_profile.stdout)
+    );
+    assert!(
+        managed.exists(),
+        "removing a pin must preserve runtime files"
+    );
+    assert_eq!(
+        run(root, &["runtime", "pin", "resolve"]).status.code(),
+        Some(0)
+    );
+
     let mut source_audit_args = vec![
         "runtime".to_owned(),
         "audit-source".to_owned(),
@@ -275,6 +375,16 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     assert!(
         String::from_utf8_lossy(&changed_audit.stdout).contains("Audit completeness: complete")
     );
+    let stale_pin = run(root, &["runtime", "pin", "resolve"]);
+    assert_eq!(stale_pin.status.code(), Some(4));
+    assert!(
+        String::from_utf8_lossy(&stale_pin.stdout)
+            .contains("P026 detected a local baseline mismatch")
+    );
+    assert!(
+        String::from_utf8_lossy(&stale_pin.stdout).contains("Automatic fallback: not performed")
+    );
+    assert!(String::from_utf8_lossy(&stale_pin.stdout).contains("Stored pin: preserved"));
     assert_eq!(
         fs::read(managed.join("version")).unwrap(),
         b"changed locally"

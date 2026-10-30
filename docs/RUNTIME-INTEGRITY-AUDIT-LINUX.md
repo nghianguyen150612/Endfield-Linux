@@ -31,3 +31,7 @@ The audit command returns 0 for a complete match, 3 for missing-baseline/unverif
 ## Validation status
 
 The runtime-audit and runtime-install crates have deterministic baseline, mutation, symlink, permission, source mismatch, legacy, installation, report-limit, and non-repair tests. The actual application CLI end-to-end flow, full Rust 1.85 workspace/GTK qualification, screenshot upload, and GCC/Clang C17 gates passed in [hosted run 41007250223](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41007250223). The original IPC saturation regression passed in this run; its previously observed `WouldBlock` race remains unresolved. Physical Arch desktop and Dell Vostro audits, real publisher authenticity, and Endfield compatibility remain **UNVERIFIED**. P027 pinning boundaries are unchanged.
+
+## P027 use of audit evidence
+
+Pin set and resolve invoke P025 ownership validation and the P026 bounded baseline audit. List/show do not hash payload files. Resolution requires a complete matching local baseline and exact stored identity; mismatch, unavailable installation, incomplete audit, or changed ownership digest reports stale and blocks fallback. A baseline match is local integrity evidence, not publisher authentication or game compatibility.

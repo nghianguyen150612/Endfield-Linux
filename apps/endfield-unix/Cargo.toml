@@ -11,6 +11,7 @@ default-run = "endfield-unix"
 
 [dependencies]
 endfield-unix-runtime-install = { path = "../../crates/runtime-install" }
+endfield-unix-runtime-selection = { path = "../../crates/runtime-selection" }
 endfield-unix-runtime-audit = { path = "../../crates/runtime-audit" }
 endfield-unix-runtime-verification = { path = "../../crates/runtime-verification" }
 endfield-unix-storage = { path = "../../crates/storage" }

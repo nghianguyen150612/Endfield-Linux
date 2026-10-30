@@ -251,3 +251,7 @@ file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
 ## P025 runtime installation
 
 P025 now provides local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. It does not establish publisher authenticity or support HTTPS acquisition. Hosted qualification is pending. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md) for the workflow and current evidence.
+
+## P027 selection boundary
+
+P022 inventory remains read-only and never changes saved pins. P027 currently pins P025 managed installations only; a path-derived P022 candidate ID is not persisted as a cryptographic identity. External runtime pinning awaits validated stable structural references.

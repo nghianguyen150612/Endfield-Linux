@@ -18,6 +18,7 @@ pub enum Command {
     HelpOutput(String),
     LaunchGui,
     RuntimeInstall(Box<super::runtime_install::Operation>),
+    RuntimePin(Box<super::runtime_pin::Operation>),
     RuntimeAudit(String),
     RuntimeAuditSource {
         installation_id: String,

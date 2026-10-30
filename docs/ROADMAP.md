@@ -131,3 +131,5 @@ P025 provides qualified local tar.gz installation with P024 artifact verificatio
 
 
 P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification remains pending, and no game compatibility claim is made.
+
+P027 implementation is in progress pending hosted qualification. The current implementation provides a portable selection library, XDG JSON registry, machine and machine-bound profile pins, managed P025 identities, P026 revalidation, explicit CLI operations, and stale-pin no-fallback semantics. External P022 candidate pinning and physical device checks remain limitations. Do not mark P027 complete until hosted qualification passes.

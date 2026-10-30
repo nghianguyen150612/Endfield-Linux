@@ -127,6 +127,17 @@ fn installation_side_by_side_collision_and_integrity() {
             &source,
         )
         .unwrap();
+        let pin_identity = pin_identity(&paths, plan.installation_id()).unwrap();
+        assert_eq!(pin_identity.family, family);
+        assert_eq!(pin_identity.generation, 1);
+        assert_eq!(
+            pin_identity.audit.completeness,
+            endfield_unix_runtime_audit::Completeness::Complete
+        );
+        assert_eq!(
+            pin_identity.trust,
+            TrustClassification::IndependentlyAuthenticatedPublisher
+        );
         assert!(
             plan.destination()
                 .join(".endfield-installation.json")

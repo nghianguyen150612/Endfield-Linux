@@ -85,6 +85,11 @@ enum RuntimeArgs {
         #[command(subcommand)]
         operation: Box<super::runtime_install::Operation>,
     },
+    /// Create, inspect, resolve, or remove an explicit persistent runtime pin.
+    Pin {
+        #[command(subcommand)]
+        operation: Box<super::runtime_pin::Operation>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -277,6 +282,7 @@ where
         None => Command::LaunchGui,
         Some(SubcommandArgs::Runtime { command }) => match *command {
             RuntimeArgs::Install { operation } => Command::RuntimeInstall(operation),
+            RuntimeArgs::Pin { operation } => Command::RuntimePin(operation),
             RuntimeArgs::ListManaged => {
                 Command::RuntimeInstall(Box::new(super::runtime_install::Operation::Status))
             }
@@ -481,6 +487,38 @@ mod tests {
                 other => panic!("expected nested help output for {values:?}, got {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn runtime_pin_commands_parse_headlessly_with_explicit_revision() {
+        assert_command(
+            &["runtime", "pin", "list"],
+            Command::RuntimePin(Box::new(super::super::runtime_pin::Operation::List)),
+        );
+        assert_command(
+            &[
+                "runtime",
+                "pin",
+                "set",
+                "--scope",
+                "profile",
+                "--profile",
+                "fixture",
+                "--installation-id",
+                "proton-fixture",
+                "--expected-revision",
+                "4",
+                "--replace",
+            ],
+            Command::RuntimePin(Box::new(super::super::runtime_pin::Operation::Set {
+                scope: super::super::runtime_pin::ScopeArg::Profile,
+                profile: Some("fixture".into()),
+                installation_id: "proton-fixture".into(),
+                expected_revision: 4,
+                replace: true,
+                adapter: None,
+            })),
+        );
     }
 
     #[test]

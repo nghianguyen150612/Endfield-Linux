@@ -310,6 +310,23 @@ pub struct InstallationRecord {
     installed_at: u64,
     reconciled_transactions: usize,
 }
+/// Exact validated fields needed by the pin registry. This API confirms the
+/// ownership record and returns its digest; it does not authorize execution.
+#[derive(Clone, Debug)]
+pub struct PinIdentity {
+    pub installation_id: String,
+    pub family: String,
+    pub lineage: String,
+    pub provider: String,
+    pub project: String,
+    pub build: String,
+    pub artifact_sha256: String,
+    pub manifest_sha256: String,
+    pub generation: u64,
+    pub ownership_record_sha256: String,
+    pub trust: TrustClassification,
+    pub audit: endfield_unix_runtime_audit::AuditReport,
+}
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TransactionJournal {
@@ -922,6 +939,46 @@ pub fn audit_installation(
         mark_audit_changed(&mut report);
     }
     Ok(report)
+}
+
+/// Inspect one exact managed installation through P025's ownership validation
+/// and P026's full local baseline audit, then provide an immutable identity
+/// summary. Callers must not treat this as launch authorization.
+pub fn pin_identity(paths: &AppPaths, installation_id: &str) -> Result<PinIdentity> {
+    // Audit validates the P025 ownership record even when P026 reports a
+    // missing baseline or payload mismatch. Pinning does not promote that
+    // result; every resolution still revalidates the installation.
+    let report = audit_installation(paths, installation_id)?;
+    let family = if installation_id.starts_with("wine-") {
+        "wine"
+    } else {
+        "proton"
+    };
+    let record_path = paths
+        .data_dir()
+        .join("runtimes")
+        .join(family)
+        .join(installation_id)
+        .join(endfield_unix_runtime_audit::RECORD_FILE);
+    let bytes = std::fs::read(record_path)?;
+    if bytes.len() > 65536 {
+        return Err(Error::Record);
+    }
+    let record: InstallationRecord = serde_json::from_slice(&bytes).map_err(|_| Error::Record)?;
+    Ok(PinIdentity {
+        installation_id: record.plan.installation_id.clone(),
+        family: record.plan.family.clone(),
+        lineage: record.plan.lineage.clone(),
+        provider: record.plan.provider.clone(),
+        project: record.plan.project.clone(),
+        build: record.plan.build.clone(),
+        artifact_sha256: record.plan.artifact_sha256.clone(),
+        manifest_sha256: record.plan.manifest_sha256.clone(),
+        generation: record.plan.generation,
+        ownership_record_sha256: v::sha256(&bytes),
+        trust: record.trust,
+        audit: report,
+    })
 }
 
 /// Compare an installation with payload contents reconstructed from an archive

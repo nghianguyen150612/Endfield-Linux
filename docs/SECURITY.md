@@ -269,3 +269,7 @@ P025 provides qualified local tar.gz installation with P024 artifact verificatio
 
 
 P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification remains pending, and no game compatibility claim is made.
+
+## P027 runtime pinning
+
+P027 stores user-owned preferences under XDG config with strict schema validation, a bounded registry, writer locking, compare-and-swap revisions, private files, atomic replacement, and corruption fail-closed behavior. Linux machine scope uses a documented domain-separated digest of validated `/etc/machine-id`; it is pseudonymous, not anonymous, and raw input is not printed. Profile scope includes machine identity. Same-user modification is not prevented cryptographically. Stale or missing references block fallback; pins do not authorize runtime execution.

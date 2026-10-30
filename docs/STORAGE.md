@@ -75,3 +75,7 @@ P025 provides qualified local tar.gz installation with P024 artifact verificatio
 
 
 P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification remains pending, and no game compatibility claim is made.
+
+## P027 runtime pin registry
+
+Runtime pins use a separate strict schema-v1 JSON file, `runtime-pins.json`, beside the P006 config under the XDG config base. The existing SQLite schema and preferences remain unchanged. The registry is bounded, uses advisory locking and revision compare-and-swap, mode-restricted temporary writes, atomic replacement and synchronization. Corruption is reported and never silently reset. Same-user processes remain within the trust boundary.

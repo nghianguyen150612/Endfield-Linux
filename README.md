@@ -24,6 +24,13 @@ compatibility remain unverified. See [UMU integration](docs/UMU-INTEGRATION.md),
 [Linux runtime discovery](docs/RUNTIME-DISCOVERY-LINUX.md), and
 [runtime provider contracts](docs/RUNTIME-PROVIDERS.md).
 
+P027 adds persistent per-machine and machine-bound profile pins for exact
+Endfield-managed runtime installations. `endfield-unix runtime pin` supports
+explicit set, replace, inspect, resolve, and remove operations. Stale pins block
+fallback; resolution revalidates the P025 record and P026 baseline without
+launching a runtime. External candidates and real Endfield compatibility remain
+unverified. See [runtime pinning](docs/RUNTIME-PINNING.md).
+
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
 ## Documentation
@@ -53,6 +60,7 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [P021 runtime provider contracts](docs/RUNTIME-PROVIDERS.md)
 - [P022 Linux Wine and Proton discovery](docs/RUNTIME-DISCOVERY-LINUX.md)
 - [P023 UMU integration and safe launch-plan preparation](docs/UMU-INTEGRATION.md)
+- [P027 runtime pinning and explicit selection](docs/RUNTIME-PINNING.md)
 - [Authenticated local IPC protocol and Linux transport](docs/IPC.md)
 - [Rust and C17 architecture decision](docs/adr/0001-rust-c17-architecture.md)
 - [Cross-platform boundary decision](docs/adr/0002-cross-platform-boundaries.md)

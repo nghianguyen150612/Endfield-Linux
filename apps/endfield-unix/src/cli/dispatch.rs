@@ -683,6 +683,14 @@ where
                 Err(CliError::RuntimeVerification(code))
             }
         }
+        Command::RuntimePin(operation) => {
+            let code = super::runtime_pin::run(*operation, stdout).map_err(CliError::Output)?;
+            if code == 0 {
+                Ok(())
+            } else {
+                Err(CliError::RuntimeVerification(code))
+            }
+        }
         Command::RuntimeAudit(id) => {
             let paths = endfield_unix_storage::AppPaths::discover()
                 .map_err(|e| CliError::Output(io::Error::other(e.to_string())))?;

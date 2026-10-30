@@ -316,6 +316,7 @@ dependencies = [
  "endfield-unix-runtime-audit",
  "endfield-unix-runtime-install",
  "endfield-unix-runtime-linux",
+ "endfield-unix-runtime-selection",
  "endfield-unix-runtime-verification",
  "endfield-unix-storage",
  "endfield-unix-telemetry",
@@ -423,6 +424,21 @@ version = "0.1.0"
 dependencies = [
  "endfield-unix-runtime",
  "libc",
+]
+
+[[package]]
+name = "endfield-unix-runtime-selection"
+version = "0.1.0"
+dependencies = [
+ "endfield-unix-runtime",
+ "endfield-unix-storage",
+ "fs2",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]

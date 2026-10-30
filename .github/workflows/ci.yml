@@ -88,7 +88,10 @@ jobs:
       - name: Run P026 installed runtime audit and baseline tests
         run: cargo test --locked -p endfield-unix-runtime-audit --all-targets
 
-      - name: Run the actual CLI install plan/apply smoke in an isolated XDG root
+      - name: Run P027 runtime pin contracts and persistence tests
+        run: cargo test --locked -p endfield-unix-runtime-selection --all-targets
+
+      - name: Run actual P025 install and P027 pin CLI smoke in an isolated XDG root
         run: cargo test --locked -p endfield-unix --test runtime_install_cli -- --test-threads=1 --nocapture
 
       - name: Run headless installed Wine and Proton discovery smoke
@@ -253,6 +256,11 @@ jobs:
           assert any("lib" in t["kind"] for t in runtime_audit["targets"])
           assert all("bin" not in t["kind"] for t in runtime_audit["targets"])
           assert not ({d["name"] for d in runtime_audit["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
+          selection = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-runtime-selection")
+          assert any("lib" in t["kind"] for t in selection["targets"])
+          assert all("bin" not in t["kind"] for t in selection["targets"])
+          assert {d["name"] for d in selection["dependencies"]} == {"endfield-unix-runtime", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, selection["dependencies"]
+          assert not ({d["name"] for d in selection["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           ipc = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-ipc")
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]

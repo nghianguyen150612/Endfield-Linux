@@ -170,3 +170,7 @@ and actual local artifact size/SHA-256. User-pinned matches remain limited trust
 unverified; no download, extraction, installation or runtime execution is added.
 See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
 file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
+
+## P027 adapter preference
+
+A stored UMU-Proton preference requires a Proton runtime identity. `runtime pin resolve` reports UMU availability separately and preserves the pin if UMU is absent; it does not select direct Proton or Wine as fallback and never executes UMU.
