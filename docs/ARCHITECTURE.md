@@ -115,9 +115,15 @@ The crate does not inspect host paths, discover Wine or Proton, fetch release
 metadata, hash installed files, install/update/remove a runtime, create a
 prefix, launch a process, or query graphics APIs. The providers used by tests
 are synthetic in-memory doubles. P022 discovery, P023 UMU integration, P024
-trusted manifests, P025 acquisition, P026 installed integrity, P027 known-good
-selection, P028/P029 prefix lifecycle, and P034–P036 launch/session lifecycle
-remain separate milestones. See [RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
+trusted manifests, P025 acquisition, P026 installed integrity, P027 runtime
+selection, P028 isolated prefix lifecycle, P029 backup/recovery, and P034–P036
+launch/session lifecycle remain separate milestones. P028 is implemented by
+the library-only `endfield-unix-prefix-management` crate and the headless
+`endfield-unix prefix` command. It depends on P027 selection and P006 storage,
+uses a mockable filesystem adapter, and adds no executable, GUI type, daemon,
+process runner, or C17 ABI surface. See
+[PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md) and
+[RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
 
 ## P015 normalized telemetry contracts
 
@@ -229,7 +235,7 @@ P003's C library validates metadata and identifiers, then returns an empty plan 
 
 ## Runtime, game, and persistence services
 
-Runtime acquisition is verified, user-scoped, integrity-checked, and pin-aware. A runtime pin records provider, exact build/version, integrity identity where available, and association with the game/profile/prefix. Known-good versions are preserved. Wine prefix creation, update, backup, verification, and recovery are Rust-owned workflows with atomic metadata updates and explicit handling of user data. The presence of Proton does not imply that a separate system Wine package is needed.
+Runtime acquisition is verified, user-scoped, integrity-checked, and pin-aware. A runtime pin records provider, exact build/version, integrity identity where available, and association with the game/profile/prefix. Known-good versions are preserved. P028 manages isolated empty Wine prefix directories with explicit ownership and P027 runtime association. Wine initialization, prefix update, backup, verification, and restore remain future Rust-owned workflows with explicit user-data handling. The presence of Proton does not imply that a separate system Wine package is needed.
 
 SQLite is suitable for structured local session/benchmark records; TOML is suitable for human-editable application configuration and profile definitions. Schema and config versions must support safe migrations. Telemetry remains local by default. Do not store passwords or platform credentials when a supported system authentication flow can avoid it.
 

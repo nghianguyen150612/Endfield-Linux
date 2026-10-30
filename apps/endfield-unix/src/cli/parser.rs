@@ -44,6 +44,11 @@ enum SubcommandArgs {
         #[command(subcommand)]
         command: Box<RuntimeArgs>,
     },
+    /// Manage isolated, Endfield-Unix-owned prefix directories without running Wine.
+    Prefix {
+        #[command(subcommand)]
+        command: Box<PrefixArgs>,
+    },
     /// Show command help.
     Help {
         /// Command to describe.
@@ -90,6 +95,87 @@ enum RuntimeArgs {
         #[command(subcommand)]
         operation: Box<super::runtime_pin::Operation>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum PrefixArgs {
+    /// List registered managed prefixes and validate their stored runtime associations.
+    List,
+    /// Inspect one registered prefix.
+    Show {
+        #[arg(long)]
+        id: String,
+    },
+    /// Validate one prefix and its associated runtime without changing files.
+    Validate {
+        #[arg(long)]
+        id: String,
+    },
+    /// Preview prefix storage and the exact P027-selected runtime association.
+    Plan {
+        #[arg(long)]
+        id: String,
+        #[arg(long, value_enum)]
+        scope: PrefixScopeArg,
+        #[arg(long)]
+        profile: Option<String>,
+        #[arg(long)]
+        expected_revision: Option<u64>,
+    },
+    /// Create a managed directory and metadata; this does not initialize Wine.
+    Create {
+        #[arg(long)]
+        id: String,
+        #[arg(long, value_enum)]
+        scope: PrefixScopeArg,
+        #[arg(long)]
+        profile: Option<String>,
+        #[arg(long)]
+        expected_revision: u64,
+    },
+    /// Attempt explicit Wine initialization; blocked until a validated adapter is available.
+    Init {
+        #[arg(long)]
+        id: String,
+    },
+    /// Reconcile an interrupted directory-only create operation.
+    Recover {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        expected_revision: u64,
+    },
+    /// Remove registry ownership only and preserve every prefix byte.
+    Remove {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        expected_revision: u64,
+    },
+    /// Delete a managed prefix tree after confirming the exact previewed target.
+    Delete {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long, value_name = "EXACT_PATH")]
+        confirm_path: PathBuf,
+    },
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum PrefixScopeArg {
+    Machine,
+    Profile,
+}
+
+impl From<PrefixScopeArg> for super::prefix::ScopeArg {
+    fn from(value: PrefixScopeArg) -> Self {
+        match value {
+            PrefixScopeArg::Machine => Self::Machine,
+            PrefixScopeArg::Profile => Self::Profile,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -238,6 +324,7 @@ enum HelpTopicArg {
     About,
     Service,
     Diagnose,
+    Prefix,
 }
 
 /// Parses operating-system arguments into a typed command without exiting the process.
@@ -248,6 +335,9 @@ where
 {
     let arguments = arguments.into_iter().map(Into::into).collect::<Vec<_>>();
     if let Some(help) = runtime_install_help(&arguments) {
+        return Ok(Command::HelpOutput(help));
+    }
+    if let Some(help) = nested_prefix_help(&arguments) {
         return Ok(Command::HelpOutput(help));
     }
     let mut parser = parser_command();
@@ -295,12 +385,67 @@ where
                 inputs,
             },
         },
+        Some(SubcommandArgs::Prefix { command }) => {
+            let operation = match *command {
+                PrefixArgs::List => super::prefix::Operation::List,
+                PrefixArgs::Show { id } => super::prefix::Operation::Show { id },
+                PrefixArgs::Validate { id } => super::prefix::Operation::Validate { id },
+                PrefixArgs::Plan {
+                    id,
+                    scope,
+                    profile,
+                    expected_revision,
+                } => super::prefix::Operation::Plan {
+                    id,
+                    scope: scope.into(),
+                    profile,
+                    expected_revision,
+                },
+                PrefixArgs::Create {
+                    id,
+                    scope,
+                    profile,
+                    expected_revision,
+                } => super::prefix::Operation::Create {
+                    id,
+                    scope: scope.into(),
+                    profile,
+                    expected_revision,
+                },
+                PrefixArgs::Init { id } => super::prefix::Operation::Init { id },
+                PrefixArgs::Recover {
+                    id,
+                    expected_revision,
+                } => super::prefix::Operation::Recover {
+                    id,
+                    expected_revision,
+                },
+                PrefixArgs::Remove {
+                    id,
+                    expected_revision,
+                } => super::prefix::Operation::Remove {
+                    id,
+                    expected_revision,
+                },
+                PrefixArgs::Delete {
+                    id,
+                    expected_revision,
+                    confirm_path,
+                } => super::prefix::Operation::Delete {
+                    id,
+                    expected_revision,
+                    confirm_path,
+                },
+            };
+            Command::PrefixManagement(Box::new(operation))
+        }
         Some(SubcommandArgs::Gui) => Command::LaunchGui,
         Some(SubcommandArgs::Help { topic }) => Command::Help(topic.map(|topic| match topic {
             HelpTopicArg::Gui => HelpTopic::Gui,
             HelpTopicArg::About => HelpTopic::About,
             HelpTopicArg::Service => HelpTopic::Service,
             HelpTopicArg::Diagnose => HelpTopic::Diagnose,
+            HelpTopicArg::Prefix => HelpTopic::Prefix,
         })),
         Some(SubcommandArgs::About) => Command::About,
         Some(SubcommandArgs::Diagnose {
@@ -445,6 +590,18 @@ fn runtime_install_help(arguments: &[OsString]) -> Option<String> {
     Some(command.render_help().to_string())
 }
 
+fn nested_prefix_help(arguments: &[OsString]) -> Option<String> {
+    let (help_flag, path) = arguments.split_last()?;
+    if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "prefix" {
+        return None;
+    }
+    let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
+    for component in path {
+        command = command.find_subcommand(component.to_str()?)?.clone();
+    }
+    Some(command.render_help().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,6 +644,69 @@ mod tests {
                 other => panic!("expected nested help output for {values:?}, got {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn nested_prefix_help_is_available_without_gtk() {
+        for values in [
+            &["prefix", "--help"][..],
+            &["prefix", "plan", "--help"][..],
+            &["prefix", "delete", "--help"][..],
+        ] {
+            match parse(args(values)) {
+                Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
+                other => panic!("expected nested prefix help for {values:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn prefix_commands_parse_explicit_scope_revision_and_deletion_confirmation() {
+        assert_command(
+            &[
+                "prefix",
+                "plan",
+                "--id",
+                "game-one",
+                "--scope",
+                "profile",
+                "--profile",
+                "endfield",
+                "--expected-revision",
+                "3",
+            ],
+            Command::PrefixManagement(Box::new(super::super::prefix::Operation::Plan {
+                id: "game-one".into(),
+                scope: super::super::prefix::ScopeArg::Profile,
+                profile: Some("endfield".into()),
+                expected_revision: Some(3),
+            })),
+        );
+        assert_command(
+            &[
+                "prefix",
+                "delete",
+                "--id",
+                "game-one",
+                "--expected-revision",
+                "4",
+                "--confirm-path",
+                "/home/example/.local/share/endfield-unix/prefixes/data/game-one",
+            ],
+            Command::PrefixManagement(Box::new(super::super::prefix::Operation::Delete {
+                id: "game-one".into(),
+                expected_revision: 4,
+                confirm_path: PathBuf::from(
+                    "/home/example/.local/share/endfield-unix/prefixes/data/game-one",
+                ),
+            })),
+        );
+        assert!(
+            parse(args(&[
+                "prefix", "create", "--id", "x", "--scope", "machine"
+            ]))
+            .is_err()
+        );
     }
 
     #[test]

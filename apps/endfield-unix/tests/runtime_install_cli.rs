@@ -287,6 +287,8 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         installation_id,
         "--expected-revision",
         "1",
+        "--adapter",
+        "umu-proton",
     ];
     let profile_set = run(root, &profile_set_args);
     assert_eq!(
@@ -306,6 +308,270 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
         String::from_utf8_lossy(&resolved_profile.stdout)
     );
     assert!(String::from_utf8_lossy(&resolved_profile.stdout).contains("ProfilePin"));
+    let profile_pin_before_prefix = run(
+        root,
+        &[
+            "runtime",
+            "pin",
+            "show",
+            "--scope",
+            "profile",
+            "--profile",
+            "fixture-profile",
+        ],
+    );
+    assert_eq!(profile_pin_before_prefix.status.code(), Some(0));
+
+    // P028 binds a directory-only prefix to the exact P027 profile selection.
+    // Planning is read-only, creation does not execute Wine, and init fails closed.
+    let prefix_path = root.join("data/endfield-unix/prefixes/data/p028-managed");
+    let prefix_plan = run(
+        root,
+        &[
+            "prefix",
+            "plan",
+            "--id",
+            "p028-managed",
+            "--scope",
+            "profile",
+            "--profile",
+            "fixture-profile",
+            "--expected-revision",
+            "0",
+        ],
+    );
+    println!(
+        "Prefix managed plan output:\n{}",
+        String::from_utf8_lossy(&prefix_plan.stdout)
+    );
+    assert_eq!(
+        prefix_plan.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&prefix_plan.stdout)
+    );
+    let prefix_plan_output = String::from_utf8_lossy(&prefix_plan.stdout);
+    assert!(prefix_plan_output.contains("Prefix creation plan"));
+    assert!(prefix_plan_output.contains("ProfilePin"));
+    assert!(prefix_plan_output.contains("Adapter preference: UmuProton"));
+    assert!(prefix_plan_output.contains("Filesystem mutation: no"));
+    assert!(!prefix_path.exists());
+    assert!(
+        !root
+            .join("data/endfield-unix/prefixes/registry.json")
+            .exists()
+    );
+
+    let prefix_create = run(
+        root,
+        &[
+            "prefix",
+            "create",
+            "--id",
+            "p028-managed",
+            "--scope",
+            "profile",
+            "--profile",
+            "fixture-profile",
+            "--expected-revision",
+            "0",
+        ],
+    );
+    println!(
+        "Prefix managed create output:\n{}",
+        String::from_utf8_lossy(&prefix_create.stdout)
+    );
+    assert_eq!(
+        prefix_create.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&prefix_create.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&prefix_create.stdout)
+            .contains("Lifecycle: created (uninitialized)")
+    );
+    assert!(
+        String::from_utf8_lossy(&prefix_create.stdout).contains("Adapter preference: UmuProton")
+    );
+    assert!(String::from_utf8_lossy(&prefix_create.stdout).contains(installation_id));
+    assert!(prefix_path.is_dir());
+    assert!(!prefix_path.join("drive_c").exists());
+    assert!(managed.join("proton").is_file());
+
+    let prefix_show = run(root, &["prefix", "show", "--id", "p028-managed"]);
+    assert_eq!(prefix_show.status.code(), Some(0));
+    assert!(
+        String::from_utf8_lossy(&prefix_show.stdout).contains("Lifecycle: created (uninitialized)")
+    );
+    assert!(String::from_utf8_lossy(&prefix_show.stdout).contains("Initialization evidence: none"));
+    let prefix_list = run(root, &["prefix", "list"]);
+    assert_eq!(prefix_list.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&prefix_list.stdout).contains("Prefix p028-managed"));
+
+    fs::write(managed.join("proton"), b"modified synthetic inert launcher").unwrap();
+    let stale_managed_prefix = run(root, &["prefix", "validate", "--id", "p028-managed"]);
+    assert_eq!(stale_managed_prefix.status.code(), Some(4));
+    let stale_managed_output = String::from_utf8_lossy(&stale_managed_prefix.stdout);
+    assert!(stale_managed_output.contains("Runtime association: stale or unavailable"));
+    assert!(
+        stale_managed_output
+            .contains("Runtime validation: stale or unavailable; P025/P026 validation failed")
+    );
+    assert!(stale_managed_output.contains("P026 detected a local baseline mismatch"));
+    assert!(prefix_path.is_dir());
+    fs::write(managed.join("proton"), b"synthetic inert launcher").unwrap();
+
+    fs::remove_file(managed.join("proton")).unwrap();
+    let removed_managed_runtime = run(root, &["prefix", "validate", "--id", "p028-managed"]);
+    assert_eq!(removed_managed_runtime.status.code(), Some(4));
+    assert!(
+        String::from_utf8_lossy(&removed_managed_runtime.stdout)
+            .contains("Runtime association: stale or unavailable")
+    );
+    assert!(
+        String::from_utf8_lossy(&removed_managed_runtime.stdout)
+            .contains("Runtime validation: stale or unavailable; P025/P026 validation failed")
+    );
+    assert!(prefix_path.is_dir());
+    fs::write(managed.join("proton"), b"synthetic inert launcher").unwrap();
+
+    let prefix_validate = run(root, &["prefix", "validate", "--id", "p028-managed"]);
+    println!(
+        "Prefix managed validation output:\n{}",
+        String::from_utf8_lossy(&prefix_validate.stdout)
+    );
+    assert_eq!(
+        prefix_validate.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&prefix_validate.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&prefix_validate.stdout)
+            .contains("Wine initialization: not initialized")
+    );
+    let prefix_init = run(root, &["prefix", "init", "--id", "p028-managed"]);
+    println!(
+        "Prefix blocked initialization output:\n{}",
+        String::from_utf8_lossy(&prefix_init.stdout)
+    );
+    assert_eq!(prefix_init.status.code(), Some(5));
+    let prefix_init_output = String::from_utf8_lossy(&prefix_init.stdout);
+    assert!(prefix_init_output.contains("Initialization: BLOCKED"));
+    assert!(prefix_init_output.contains("Error category: initialization_unsupported"));
+    assert!(prefix_init_output.contains("Process execution: not performed"));
+    assert!(prefix_path.is_dir());
+    assert!(!prefix_path.join("drive_c").exists());
+    assert!(managed.join("proton").is_file());
+
+    let prefix_delete = run(
+        root,
+        &[
+            "prefix",
+            "delete",
+            "--id",
+            "p028-managed",
+            "--expected-revision",
+            "2",
+            "--confirm-path",
+            prefix_path.to_str().unwrap(),
+        ],
+    );
+    println!(
+        "Prefix managed deletion output:\n{}",
+        String::from_utf8_lossy(&prefix_delete.stdout)
+    );
+    assert_eq!(
+        prefix_delete.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&prefix_delete.stdout)
+    );
+    assert!(!prefix_path.exists());
+    assert!(managed.join("proton").is_file());
+    let profile_pin_after_prefix = run(
+        root,
+        &[
+            "runtime",
+            "pin",
+            "show",
+            "--scope",
+            "profile",
+            "--profile",
+            "fixture-profile",
+        ],
+    );
+    assert_eq!(profile_pin_after_prefix.status.code(), Some(0));
+    assert_eq!(
+        profile_pin_after_prefix.stdout,
+        profile_pin_before_prefix.stdout
+    );
+
+    let unregistered_path = root.join("data/endfield-unix/prefixes/data/p028-unregistered");
+    let unregistered_create = run(
+        root,
+        &[
+            "prefix",
+            "create",
+            "--id",
+            "p028-unregistered",
+            "--scope",
+            "profile",
+            "--profile",
+            "fixture-profile",
+            "--expected-revision",
+            "4",
+        ],
+    );
+    assert_eq!(unregistered_create.status.code(), Some(0));
+    let unregistered_remove = run(
+        root,
+        &[
+            "prefix",
+            "remove",
+            "--id",
+            "p028-unregistered",
+            "--expected-revision",
+            "6",
+        ],
+    );
+    assert_eq!(unregistered_remove.status.code(), Some(0));
+    assert!(
+        String::from_utf8_lossy(&unregistered_remove.stdout).contains("Prefix bytes: preserved")
+    );
+    assert!(
+        String::from_utf8_lossy(&unregistered_remove.stdout)
+            .contains(unregistered_path.to_str().unwrap())
+    );
+    assert!(unregistered_path.is_dir());
+    let refused_adoption = run(
+        root,
+        &[
+            "prefix",
+            "create",
+            "--id",
+            "p028-unregistered",
+            "--scope",
+            "profile",
+            "--profile",
+            "fixture-profile",
+            "--expected-revision",
+            "7",
+        ],
+    );
+    assert_eq!(refused_adoption.status.code(), Some(4));
+    assert!(unregistered_path.is_dir());
+    assert_eq!(
+        run(
+            root,
+            &["runtime", "pin", "resolve", "--profile", "fixture-profile"]
+        )
+        .status
+        .code(),
+        Some(0)
+    );
+
     let removed_profile = run(
         root,
         &[
@@ -413,6 +679,122 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     assert!(external_resolution.contains("external source authenticity unverified"));
     assert!(external_resolution.contains("Compatibility: not verified"));
     assert!(!external_resolution.contains(external_root.to_str().unwrap()));
+
+    let external_prefix_path = root.join("data/endfield-unix/prefixes/data/p028-external");
+    let external_prefix_plan = run(
+        root,
+        &[
+            "prefix",
+            "plan",
+            "--id",
+            "p028-external",
+            "--scope",
+            "profile",
+            "--profile",
+            "external-fixture",
+            "--expected-revision",
+            "7",
+        ],
+    );
+    println!(
+        "Prefix external-runtime plan output:\n{}",
+        String::from_utf8_lossy(&external_prefix_plan.stdout)
+    );
+    assert_eq!(external_prefix_plan.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&external_prefix_plan.stdout).contains("ProfilePin"));
+    assert!(
+        !String::from_utf8_lossy(&external_prefix_plan.stdout)
+            .contains(external_root.to_str().unwrap())
+    );
+    let external_prefix_create = run(
+        root,
+        &[
+            "prefix",
+            "create",
+            "--id",
+            "p028-external",
+            "--scope",
+            "profile",
+            "--profile",
+            "external-fixture",
+            "--expected-revision",
+            "7",
+        ],
+    );
+    println!(
+        "Prefix external-runtime create output:\n{}",
+        String::from_utf8_lossy(&external_prefix_create.stdout)
+    );
+    assert_eq!(
+        external_prefix_create.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&external_prefix_create.stdout)
+    );
+    assert!(external_prefix_path.is_dir());
+    let changed_pin = run(
+        root,
+        &[
+            "runtime",
+            "pin",
+            "set",
+            "--scope",
+            "profile",
+            "--profile",
+            "external-fixture",
+            "--installation-id",
+            installation_id,
+            "--expected-revision",
+            "4",
+            "--replace",
+        ],
+    );
+    assert_eq!(changed_pin.status.code(), Some(0));
+    let retained_prefix = run(root, &["prefix", "validate", "--id", "p028-external"]);
+    println!(
+        "Prefix after pin change output:\n{}",
+        String::from_utf8_lossy(&retained_prefix.stdout)
+    );
+    assert_eq!(
+        retained_prefix.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&retained_prefix.stdout)
+    );
+    let retained_prefix_output = String::from_utf8_lossy(&retained_prefix.stdout);
+    assert!(
+        retained_prefix_output
+            .contains("Current P027 pin: changed; existing prefix association is preserved")
+    );
+    assert!(
+        retained_prefix_output.contains("Runtime association: available; identity revalidated")
+    );
+    assert!(!retained_prefix_output.contains(external_root.to_str().unwrap()));
+    let restore_external_pin = run(
+        root,
+        &[
+            "runtime",
+            "pin",
+            "set-external",
+            "--candidate-id",
+            candidate_id,
+            "--scope",
+            "profile",
+            "--profile",
+            "external-fixture",
+            "--root",
+            external_root.to_str().unwrap(),
+            "--expected-revision",
+            "5",
+            "--replace",
+        ],
+    );
+    assert_eq!(
+        restore_external_pin.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&restore_external_pin.stdout)
+    );
     fs::write(
         external_build.join("version"),
         b"P027 external replacement\n",
@@ -424,7 +806,51 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     );
     assert_eq!(stale_external.status.code(), Some(4));
     assert!(String::from_utf8_lossy(&stale_external.stdout).contains("identity changed"));
+    assert!(
+        String::from_utf8_lossy(&stale_external.stdout)
+            .contains("Automatic fallback: not performed")
+    );
     assert!(String::from_utf8_lossy(&stale_external.stdout).contains("Stored pin: preserved"));
+    let stale_association = run(root, &["prefix", "validate", "--id", "p028-external"]);
+    println!(
+        "Prefix after external runtime change output:\n{}",
+        String::from_utf8_lossy(&stale_association.stdout)
+    );
+    assert_eq!(stale_association.status.code(), Some(4));
+    let stale_association_output = String::from_utf8_lossy(&stale_association.stdout);
+    assert!(stale_association_output.contains("Runtime association: stale or unavailable"));
+    assert!(
+        stale_association_output
+            .contains("Runtime validation: stale or unavailable; P022 structural identity changed")
+    );
+    assert!(stale_association_output.contains("identity changed"));
+    assert!(!stale_association_output.contains(external_root.to_str().unwrap()));
+    assert!(external_prefix_path.is_dir());
+    let delete_stale_association = run(
+        root,
+        &[
+            "prefix",
+            "delete",
+            "--id",
+            "p028-external",
+            "--expected-revision",
+            "9",
+            "--confirm-path",
+            external_prefix_path.to_str().unwrap(),
+        ],
+    );
+    println!(
+        "Prefix deletion with stale runtime output:\n{}",
+        String::from_utf8_lossy(&delete_stale_association.stdout)
+    );
+    assert_eq!(
+        delete_stale_association.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&delete_stale_association.stdout)
+    );
+    assert!(!external_prefix_path.exists());
+    assert!(external_build.join("proton").is_file());
     let removed_external = run(
         root,
         &[
@@ -436,7 +862,7 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             "--profile",
             "external-fixture",
             "--expected-revision",
-            "4",
+            "6",
         ],
     );
     assert_eq!(removed_external.status.code(), Some(0));

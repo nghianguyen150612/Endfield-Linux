@@ -287,47 +287,13 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
                 .transpose()
                 .map_err(|_| "profile identifier is invalid")?;
             let registry = store.load().map_err(|e| e.to_string())?;
-            let report = pins::resolve(&registry, &machine, profile.as_ref(), None, |reference| {
-                match reference {
-                    pins::PinnedRuntimeReference::Managed(reference) => {
-                        let paths = endfield_unix_storage::AppPaths::discover()
-                            .map_err(|_| "XDG paths unavailable".to_owned())?;
-                        let identity = endfield_unix_runtime_install::pin_identity(
-                            &paths,
-                            &reference.installation_id,
-                        )
-                        .map_err(|_| {
-                            "managed installation unavailable, stale, or integrity audit not complete"
-                                .to_owned()
-                        })?;
-                        if identity.family != reference.family
-                            || identity.lineage != reference.lineage
-                            || identity.provider != reference.provider
-                            || identity.project != reference.project
-                            || identity.build != reference.build
-                            || identity.artifact_sha256 != reference.artifact_sha256
-                            || identity.manifest_sha256 != reference.manifest_sha256
-                            || identity.generation != reference.generation
-                            || identity.ownership_record_sha256 != reference.ownership_record_sha256
-                        {
-                            return Err("managed installation identity changed".into());
-                        }
-                        use endfield_unix_runtime_audit::{Completeness, FindingKind};
-                        match identity.audit.completeness {
-                            Completeness::Complete
-                                if identity.audit.findings.iter().all(|finding| finding.kind == FindingKind::Match) => {}
-                            Completeness::Complete => return Err("P026 detected a local baseline mismatch".into()),
-                            Completeness::Unverifiable => return Err("P026 integrity is unverifiable because a baseline is missing or legacy".into()),
-                            Completeness::Partial => return Err("P026 audit was partial; integrity is not established".into()),
-                            Completeness::Failed => return Err("P026 audit failed; integrity is not established".into()),
-                        }
-                        Ok(())
-                    }
-                    pins::PinnedRuntimeReference::External(reference) => {
-                        revalidate_external(reference)
-                    }
-                }
-            });
+            let report = pins::resolve(
+                &registry,
+                &machine,
+                profile.as_ref(),
+                None,
+                validate_reference,
+            );
             match report.state {
                 pins::ResolutionState::NoPin => {
                     writeln!(out, "No runtime pin configured.\nSelection: none\nAutomatic fallback: not performed").map_err(|e| e.to_string())?;
@@ -375,6 +341,114 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
                 }
             }
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PrefixRuntimeResolution {
+    pub runtime: pins::PinnedRuntimeReference,
+    pub source: super::prefix::RuntimeScope,
+    pub pin_id: String,
+    pub revision: u64,
+    pub adapter_preference: Option<pins::AdapterPreference>,
+}
+
+pub(crate) fn resolve_for_prefix(profile: Option<&str>) -> Result<PrefixRuntimeResolution, String> {
+    let machine = pins::current_machine_id().map_err(|error| error.to_string())?;
+    let profile = profile
+        .map(|value| pins::ProfileKey::new(value.to_owned()))
+        .transpose()
+        .map_err(|_| "profile identifier is invalid".to_owned())?;
+    let registry = store()?.load().map_err(|error| error.to_string())?;
+    let report = pins::resolve(
+        &registry,
+        &machine,
+        profile.as_ref(),
+        None,
+        validate_reference,
+    );
+    let runtime = match report.state {
+        pins::ResolutionState::Selected => report
+            .runtime
+            .ok_or_else(|| "P027 selected a runtime without preserving its identity".to_owned())?,
+        pins::ResolutionState::NoPin => {
+            return Err("P027 has no runtime pin for the requested machine/profile".into());
+        }
+        pins::ResolutionState::Stale(reason) => {
+            return Err(format!("P027 selected pin is blocked or stale: {reason}"));
+        }
+    };
+    let pin_id = report
+        .pin_id
+        .ok_or_else(|| "P027 selection has no persistent pin identity".to_owned())?;
+    let pin = registry
+        .pins
+        .iter()
+        .find(|pin| pin.pin_id == pin_id)
+        .ok_or_else(|| "P027 selected pin disappeared during resolution".to_owned())?;
+    let source = match report.source {
+        pins::SelectionSource::ProfilePin => super::prefix::RuntimeScope::Profile,
+        pins::SelectionSource::MachinePin => super::prefix::RuntimeScope::Machine,
+        pins::SelectionSource::ExplicitOverride | pins::SelectionSource::None => {
+            return Err("P027 did not report a persistent machine/profile pin".into());
+        }
+    };
+    Ok(PrefixRuntimeResolution {
+        runtime,
+        source,
+        pin_id,
+        revision: report.registry_revision,
+        adapter_preference: pin.adapter_preference,
+    })
+}
+
+pub(crate) fn validate_reference(reference: &pins::PinnedRuntimeReference) -> Result<(), String> {
+    match reference {
+        pins::PinnedRuntimeReference::Managed(reference) => {
+            let paths = endfield_unix_storage::AppPaths::discover()
+                .map_err(|_| "XDG paths unavailable".to_owned())?;
+            let identity =
+                endfield_unix_runtime_install::pin_identity(&paths, &reference.installation_id)
+                    .map_err(|_| {
+                        "managed installation unavailable, stale, or integrity audit not complete"
+                            .to_owned()
+                    })?;
+            if identity.family != reference.family
+                || identity.lineage != reference.lineage
+                || identity.provider != reference.provider
+                || identity.project != reference.project
+                || identity.build != reference.build
+                || identity.artifact_sha256 != reference.artifact_sha256
+                || identity.manifest_sha256 != reference.manifest_sha256
+                || identity.generation != reference.generation
+                || identity.ownership_record_sha256 != reference.ownership_record_sha256
+            {
+                return Err("managed installation identity changed".into());
+            }
+            use endfield_unix_runtime_audit::{Completeness, FindingKind};
+            match identity.audit.completeness {
+                Completeness::Complete
+                    if identity
+                        .audit
+                        .findings
+                        .iter()
+                        .all(|finding| finding.kind == FindingKind::Match) =>
+                {
+                    Ok(())
+                }
+                Completeness::Complete => Err("P026 detected a local baseline mismatch".into()),
+                Completeness::Unverifiable => Err(
+                    "P026 integrity is unverifiable because a baseline is missing or legacy".into(),
+                ),
+                Completeness::Partial => {
+                    Err("P026 audit was partial; integrity is not established".into())
+                }
+                Completeness::Failed => {
+                    Err("P026 audit failed; integrity is not established".into())
+                }
+            }
+        }
+        pins::PinnedRuntimeReference::External(reference) => revalidate_external(reference),
     }
 }
 

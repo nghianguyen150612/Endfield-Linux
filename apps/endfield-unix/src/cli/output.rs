@@ -29,6 +29,7 @@ pub fn write_help<W: Write>(topic: Option<HelpTopic>, output: &mut W) -> io::Res
         Some(HelpTopic::About) => write_about_help(output),
         Some(HelpTopic::Service) => write_service_help(output),
         Some(HelpTopic::Diagnose) => write_diagnose_help(output),
+        Some(HelpTopic::Prefix) => write_prefix_help(output),
     }
 }
 
@@ -1625,6 +1626,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
+        "  prefix <list|show|plan|create|validate|init|recover|remove|delete>  Manage isolated Wine prefix directories"
+    )?;
+    writeln!(
+        output,
         "  diagnose platform  Inspect Linux platform facts without the daemon"
     )?;
     writeln!(
@@ -1746,6 +1751,33 @@ fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
         "Report writes only to its explicit output path and does not inspect the host platform."
+    )
+}
+
+fn write_prefix_help<W: Write>(output: &mut W) -> io::Result<()> {
+    writeln!(
+        output,
+        "Usage: {APPLICATION_NAME} prefix <list|show|plan|create|validate|init|recover|remove|delete>\n"
+    )?;
+    writeln!(
+        output,
+        "Prefix directories are owned by Endfield-Unix under the P006 XDG data directory. External Wine, Steam, Bottles, Lutris, and Heroic prefixes are read-only and are not imported."
+    )?;
+    writeln!(
+        output,
+        "Plan is read-only. Create requires an explicit machine/profile scope, a valid P027 selection, and the current prefix-registry revision. It creates an empty managed directory and does not initialize Wine."
+    )?;
+    writeln!(
+        output,
+        "Init currently returns initialization_unsupported because no validated Wine/Proton initialization adapter is available."
+    )?;
+    writeln!(
+        output,
+        "Remove drops only registry ownership and preserves data. Delete removes data only after --confirm-path exactly matches the previewed managed target."
+    )?;
+    writeln!(
+        output,
+        "Examples: {APPLICATION_NAME} prefix plan --id game --scope machine; {APPLICATION_NAME} prefix create --id game --scope machine --expected-revision REV; {APPLICATION_NAME} prefix delete --id game --expected-revision REV --confirm-path /exact/managed/path"
     )
 }
 

@@ -86,7 +86,7 @@ Prefix selection requires an absolute, bounded, traversal-free path with an
 explicit non-unknown ownership class. Preparation checks that it already
 exists as a directory. P023 never creates, initializes, migrates, repairs,
 backs up, or deletes it. A path does not prove prefix compatibility with a
-Proton build; P028 and P030 own fuller management and diagnostics.
+Proton build; P028 manages empty prefix directories, while P030 owns fuller diagnostics.
 
 ## Side effects and readiness boundary
 

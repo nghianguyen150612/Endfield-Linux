@@ -1,0 +1,26 @@
+[package]
+name = "endfield-unix-prefix-management"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Isolated, user-owned Wine prefix lifecycle management"
+
+[lib]
+name = "endfield_unix_prefix_management"
+path = "src/lib.rs"
+
+[dependencies]
+endfield-unix-runtime-selection = { path = "../runtime-selection" }
+endfield-unix-storage = { path = "../storage" }
+fs2 = "=0.4.3"
+libc = "=0.2.191"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+thiserror = "=2.0.11"
+
+[dev-dependencies]
+tempfile = "=3.15.0"
