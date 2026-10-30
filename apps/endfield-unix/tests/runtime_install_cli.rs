@@ -2,7 +2,7 @@ use ed25519_dalek::{Signer, SigningKey};
 use serde_json::json;
 use std::{
     fs,
-    os::unix::fs::PermissionsExt,
+    os::unix::fs::{MetadataExt, PermissionsExt},
     path::Path,
     process::{Command, Output},
 };
