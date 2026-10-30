@@ -8,7 +8,10 @@ use endfield_unix_storage::AppPaths;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Seek, SeekFrom, Write},
-    os::{fd::AsRawFd, unix::fs::OpenOptionsExt},
+    os::{
+        fd::AsRawFd,
+        unix::fs::{OpenOptionsExt, PermissionsExt},
+    },
     path::{Path, PathBuf},
 };
 pub type Result<T> = std::result::Result<T, Error>;
@@ -936,6 +939,7 @@ pub fn audit_against_verified_artifact(
     let scratch = tempfile::Builder::new()
         .prefix("endfield-audit-")
         .tempdir()?;
+    std::fs::set_permissions(scratch.path(), std::fs::Permissions::from_mode(0o700))?;
     let staged_path = scratch.path().join("source.tar.gz");
     let mut staged = std::fs::OpenOptions::new()
         .write(true)
