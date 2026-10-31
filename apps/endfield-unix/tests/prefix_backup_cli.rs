@@ -299,6 +299,20 @@ fn actual_backup_restore_recovery_and_pin_cas_or_documented_use_refusal() {
     );
     assert!(!root.join("data/endfield-unix/backups/restores").exists());
     json(root, &["prefix", "recovery", "status", "--id", "game"]);
+    expect(
+        root,
+        &[
+            "prefix",
+            "recovery",
+            "run",
+            "--id",
+            "game",
+            "--expected-revision",
+            "2",
+            "--confirm",
+        ],
+        4,
+    );
     json(
         root,
         &[

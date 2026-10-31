@@ -446,3 +446,20 @@ fn process_exit_mid_copy_and_mid_unlink_preserves_source_and_inspectable_evidenc
         }
     }
 }
+
+#[test]
+fn premature_completion_with_valid_shape_cannot_hide_an_uncommitted_registry() {
+    let (_tmp, mut b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.fault = Some("restore-published");
+    assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
+    b.fault = None;
+    let tx = b.transaction_dir(&id, false).unwrap().unwrap();
+    let j: RestoreTransaction = read_json(&tx, "staged.json").unwrap();
+    write_json(&tx, "completed.json", &j.staged).unwrap();
+    let before = b.fs.load_registry_bytes().unwrap();
+    assert!(b.recovery_status(&id).is_err());
+    assert!(b.recover(&id, &scope, rev, true).is_err());
+    assert_eq!(before, b.fs.load_registry_bytes().unwrap());
+}

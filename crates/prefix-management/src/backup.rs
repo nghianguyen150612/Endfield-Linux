@@ -1096,6 +1096,18 @@ impl BackupStore {
                 if completed != journal.staged {
                     return Err(BackupError::RecoveryBlocked);
                 }
+                let snapshot = self.prefixes.load_snapshot()?;
+                let record = snapshot
+                    .registry
+                    .record(id)
+                    .ok_or(BackupError::RecoveryBlocked)?;
+                if snapshot.registry.revision != journal.expected_revision + 1
+                    || record.generation != journal.expected_revision + 1
+                    || record.filesystem_identity != Some(journal.staged)
+                    || record.lifecycle != PrefixLifecycleState::Created
+                {
+                    return Err(BackupError::RecoveryBlocked);
+                }
                 RecoveryAction::None
             } else {
                 RecoveryAction::FinalizePublishedRestore
