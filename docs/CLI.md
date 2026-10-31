@@ -237,3 +237,7 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P027 runtime pin commands
 
 `runtime pin list`, `show`, `set`, `set-external`, `resolve`, and `remove` manage explicit managed-runtime and P022-discovered external preferences without GTK or daemon access. Mutations require the current registry revision; replacement additionally requires `--replace`. Profile scopes require `--profile`. External selection uses a candidate ID printed by `diagnose runtimes`; a custom candidate parent must be supplied again with `--root`. The candidate ID is a temporary selection handle. The registry stores the exact canonical observed location and bounded structural identity, not the candidate ID. Managed `resolve` revalidates the P025 record and P026 baseline; external `resolve` revalidates the exact P022 candidate structure and does not claim file integrity. Neither path starts Wine, Proton, UMU, or a game. See [runtime pinning](RUNTIME-PINNING.md) for examples and status semantics.
+
+## P029 backup/recovery commands
+
+The existing prefix family gains nested backup, restore and recovery commands, documented with exact approval strings in [backup/recovery](BACKUP-RECOVERY.md). backup create and recovery run require --confirm; restore apply requires restore:ID:BACKUP; recovery pin requires pin:BACKUP and an expected P027 revision. backup deletion requires delete:BACKUP. P029 refusals return 4. These operations do not initialize GTK, start the daemon or run runtimes.

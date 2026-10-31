@@ -63,3 +63,7 @@ endfield-unix prefix delete --id game --expected-revision REV --confirm-path /ex
 ## Qualification boundary
 
 Synthetic tests cover read-only plans, lifecycle transitions, idempotence, concurrent creates, registry conflicts/corruption/schema handling, permission and symlink failures, interrupted creation, stale runtime identity, external-data preservation, active-use detection, and no fake initialization. The process-level CLI integration uses synthetic inert managed and external runtimes in isolated XDG roots. No real Wine, Proton, UMU, game, or hardware compatibility execution is part of P028. Physical Arch and Dell Vostro verification remains **UNVERIFIED**.
+
+## P029 snapshot extension
+
+The same library now exposes backup/recovery types and Linux operations. P028 mutations refuse outstanding restore evidence, including completed evidence until explicit release archives it without removing original bytes. Existing commands and initialization_unsupported remain. See [backup/recovery](BACKUP-RECOVERY.md).

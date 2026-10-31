@@ -63,3 +63,7 @@ Managed and external pinning, typed P021 evidence evaluation, and the actual CLI
 ## P028 prefix association
 
 P028 consumes the explicit machine/profile selection without changing this registry. Each created prefix records its exact P027 runtime reference, pin ID/revision, scope source, and adapter preference. Plan/create revalidate managed identity and the P026 baseline or revalidate an external reference through P022. A changed pin does not migrate an existing prefix, and a blocking profile pin does not fall back to the machine pin. Prefix deletion never removes the runtime installation or pin. See [isolated prefix management](PREFIX-MANAGEMENT.md).
+
+## P029 association recovery
+
+Prefix snapshot restoration preserves its exact historical association and never calls PinStore mutation APIs. Separately approved recovery reconstructs only that association’s original pin scope through public P027 CAS APIs after exact P025/P026/P022 revalidation. It is not a full registry import. Independent journals handle interrupted pin commits; there is no cross-registry atomicity. See [backup/recovery](BACKUP-RECOVERY.md).
