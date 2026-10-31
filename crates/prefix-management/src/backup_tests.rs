@@ -737,3 +737,467 @@ fn rollback_blocks_when_a_pin_recovery_journal_references_the_snapshot() {
     assert!(b.rollback_plan(&id, &scope).is_err());
     assert_eq!(before, b.fs.load_registry_bytes().unwrap());
 }
+
+#[test]
+fn empty_deletion_replays_process_exits_without_touching_source_or_pins() {
+    for point in [
+        "delete-empty-intent",
+        "delete-retired",
+        "delete-empty-ready",
+        "delete-empty-payload",
+        "delete-empty-source",
+        "delete-empty-manifest",
+        "delete-empty-root",
+        "delete-empty-completed",
+    ] {
+        let (tmp, b, id, scope, rev) = fixture();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        fs::write(b.fs.target_path(&id).join("keep"), b"source data").unwrap();
+        let pin_path = tmp.path().join("pins/runtime-pins.json");
+        let machine = match &scope {
+            PrefixScope::Machine { machine } => machine.clone(),
+            _ => unreachable!(),
+        };
+        let pin = RuntimePin::new(
+            m.source.runtime.pin_id.clone(),
+            RuntimePinScope::Machine { machine },
+            m.source.runtime.runtime.clone(),
+            m.source.runtime.adapter_preference,
+            1,
+        )
+        .unwrap();
+        PinStore::new(&pin_path).set(pin, 0, false).unwrap();
+        let pins = fs::read(&pin_path).unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "linux_fs::backup::recovery_tests::crash_child",
+                "--nocapture",
+            ])
+            .env("ENDFIELD_P029_CHILD_DATA", &b.fs.data_dir)
+            .env(
+                "ENDFIELD_P029_CHILD_BACKUP",
+                format!("delete:{}", m.id.as_str()),
+            )
+            .env("ENDFIELD_P029_EXIT_AT", point)
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(91), "{point}");
+        let plan = b.deletion_plan(&m.id).unwrap();
+        let journals = b.deletion_journals().unwrap();
+        assert_eq!(journals.len(), 1);
+        assert_eq!(journals[0].state.as_ref(), Some(&plan.state));
+        assert!(journals[0].issue.is_none());
+        assert!(
+            b.deletion_resume(&m.id, &scope, rev + 1, &plan.confirmation)
+                .is_err()
+        );
+        assert!(b.deletion_resume(&m.id, &scope, rev, "wrong").is_err());
+        b.deletion_resume(&m.id, &scope, rev, &plan.confirmation)
+            .unwrap();
+        assert_eq!(
+            fs::read(b.fs.target_path(&id).join("keep")).unwrap(),
+            b"source data"
+        );
+        assert_eq!(pins, fs::read(pin_path).unwrap());
+        assert!(b.list().unwrap().is_empty());
+        let collision = b.fs.data_dir.join("backups/snapshots").join(m.id.as_str());
+        fs::create_dir(&collision).unwrap();
+        fs::write(collision.join("unrelated"), b"preserve").unwrap();
+        assert!(
+            b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+                .is_err()
+        );
+        assert!(
+            b.deletion_resume(&m.id, &scope, rev, &plan.confirmation)
+                .is_err()
+        );
+        assert_eq!(fs::read(collision.join("unrelated")).unwrap(), b"preserve");
+    }
+}
+
+#[test]
+fn nonempty_deletion_replays_every_durable_unlink_boundary() {
+    for point in [
+        "delete-intent",
+        "delete-retired",
+        "delete-ready",
+        "delete-unlink",
+        "delete-payload",
+        "delete-meta-intent",
+        "delete-meta-manifest",
+        "delete-root",
+        "delete-completed",
+    ] {
+        let (tmp, b, id, scope, rev) = fixture();
+        let prefix = b.fs.target_path(&id);
+        fs::create_dir_all(prefix.join("tree/nested")).unwrap();
+        fs::write(prefix.join("tree/nested/save.bin"), b"nested bytes\0\xff").unwrap();
+        fs::write(prefix.join("top-level"), b"another payload").unwrap();
+        let manifest = b.create(&id, &scope, rev, true).unwrap();
+        let pin_path = tmp.path().join("pins/runtime-pins.json");
+        let machine = match &scope {
+            PrefixScope::Machine { machine } => machine.clone(),
+            _ => unreachable!(),
+        };
+        let pin = RuntimePin::new(
+            manifest.source.runtime.pin_id.clone(),
+            RuntimePinScope::Machine { machine },
+            manifest.source.runtime.runtime.clone(),
+            manifest.source.runtime.adapter_preference,
+            1,
+        )
+        .unwrap();
+        PinStore::new(&pin_path).set(pin, 0, false).unwrap();
+        let pin_bytes = fs::read(&pin_path).unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "linux_fs::backup::recovery_tests::crash_child",
+                "--nocapture",
+            ])
+            .env("ENDFIELD_P029_CHILD_DATA", &b.fs.data_dir)
+            .env(
+                "ENDFIELD_P029_CHILD_BACKUP",
+                format!("delete:{}", manifest.id.as_str()),
+            )
+            .env("ENDFIELD_P029_EXIT_AT", point)
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(91), "{point}");
+        let plan = b.deletion_plan(&manifest.id).unwrap();
+        assert_eq!(plan.prefix_registry_revision, rev);
+        b.deletion_resume(&manifest.id, &scope, rev, &plan.confirmation)
+            .unwrap();
+        b.deletion_resume(&manifest.id, &scope, rev, &plan.confirmation)
+            .unwrap();
+        assert_eq!(
+            b.deletion_plan(&manifest.id).unwrap().state,
+            DeletionRecoveryState::Completed,
+            "{point}"
+        );
+        assert!(
+            !b.fs
+                .data_dir
+                .join("backups/snapshots")
+                .join(manifest.id.as_str())
+                .exists()
+        );
+        assert!(
+            !b.fs
+                .data_dir
+                .join("backups/deleting")
+                .join(manifest.id.as_str())
+                .exists()
+        );
+        assert_eq!(
+            fs::read(prefix.join("tree/nested/save.bin")).unwrap(),
+            b"nested bytes\0\xff"
+        );
+        assert_eq!(
+            fs::read(prefix.join("top-level")).unwrap(),
+            b"another payload"
+        );
+        assert_eq!(pin_bytes, fs::read(pin_path).unwrap());
+    }
+}
+
+#[test]
+fn nonempty_deletion_blocks_changed_entries_and_registry_revision_conflicts() {
+    for case in ["replacement", "symlink", "hardlink", "extra", "revision"] {
+        let (tmp, b, id, scope, rev) = fixture();
+        let prefix = b.fs.target_path(&id);
+        fs::create_dir_all(prefix.join("tree")).unwrap();
+        fs::write(prefix.join("tree/save"), b"original backup bytes").unwrap();
+        let manifest = b.create(&id, &scope, rev, true).unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "linux_fs::backup::recovery_tests::crash_child",
+                "--nocapture",
+            ])
+            .env("ENDFIELD_P029_CHILD_DATA", &b.fs.data_dir)
+            .env(
+                "ENDFIELD_P029_CHILD_BACKUP",
+                format!("delete:{}", manifest.id.as_str()),
+            )
+            .env("ENDFIELD_P029_EXIT_AT", "delete-ready")
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(91));
+        let retired =
+            b.fs.data_dir
+                .join("backups/deleting")
+                .join(manifest.id.as_str());
+        match case {
+            "replacement" => {
+                let file = retired.join("payload/tree/save");
+                fs::remove_file(&file).unwrap();
+                fs::write(&file, b"original backup bytes").unwrap();
+                assert!(b.deletion_plan(&manifest.id).is_err());
+            }
+            "symlink" | "hardlink" => {
+                let file = retired.join("payload/tree/save");
+                let outside = tmp.path().join("outside-save");
+                fs::write(&outside, b"original backup bytes").unwrap();
+                fs::remove_file(&file).unwrap();
+                if case == "symlink" {
+                    std::os::unix::fs::symlink(&outside, &file).unwrap();
+                } else {
+                    fs::hard_link(&outside, &file).unwrap();
+                }
+                assert!(b.deletion_plan(&manifest.id).is_err());
+                assert_eq!(fs::read(outside).unwrap(), b"original backup bytes");
+            }
+            "extra" => {
+                fs::write(retired.join("payload/unexpected"), b"must remain").unwrap();
+                assert!(b.deletion_plan(&manifest.id).is_err());
+                assert_eq!(
+                    fs::read(retired.join("payload/unexpected")).unwrap(),
+                    b"must remain"
+                );
+            }
+            _ => {
+                let next = PrefixId::new("other").unwrap();
+                b.prefixes
+                    .create(next, scope.clone(), manifest.source.runtime.clone(), rev)
+                    .unwrap();
+                assert!(b.deletion_plan(&manifest.id).is_err());
+            }
+        }
+        assert!(retired.exists());
+        assert!(retired.join("payload/tree/save").exists());
+        assert_eq!(
+            fs::read(prefix.join("tree/save")).unwrap(),
+            b"original backup bytes"
+        );
+        assert!(b.fs.data_dir.join("backups").exists());
+    }
+}
+#[test]
+fn empty_deletion_rejects_replaced_payload_and_unexpected_entries() {
+    for case in ["symlink", "unexpected", "missing-intent"] {
+        let (tmp, mut b, id, scope, rev) = fixture();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        b.fault = Some("delete-retired");
+        assert!(
+            b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+                .is_err()
+        );
+        b.fault = None;
+        let retired = b.fs.data_dir.join("backups/deleting").join(m.id.as_str());
+        let outside = tmp.path().join("external");
+        fs::create_dir(&outside).unwrap();
+        fs::write(outside.join("keep"), b"outside").unwrap();
+        match case {
+            "symlink" => {
+                fs::remove_dir(retired.join("payload")).unwrap();
+                std::os::unix::fs::symlink(&outside, retired.join("payload")).unwrap();
+            }
+            "unexpected" => {
+                fs::write(retired.join("payload/unexpected"), b"keep").unwrap();
+            }
+            _ => {
+                fs::remove_file(
+                    b.fs.data_dir
+                        .join("backups/deletion-journals")
+                        .join(m.id.as_str())
+                        .join("intent.json"),
+                )
+                .unwrap();
+            }
+        }
+        assert!(b.deletion_plan(&m.id).is_err());
+        let reports = b.deletion_journals().unwrap();
+        assert_eq!(reports.len(), 1);
+        assert!(reports[0].state.is_none());
+        assert!(reports[0].issue.is_some());
+        assert_eq!(fs::read(outside.join("keep")).unwrap(), b"outside");
+        assert!(retired.exists());
+    }
+}
+
+#[test]
+fn deletion_intent_blocks_a_conflicting_restore_before_retirement() {
+    let (_tmp, mut b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    b.fault = Some("delete-empty-intent");
+    assert!(
+        b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+            .is_err()
+    );
+    b.fault = None;
+    let plan = b.deletion_plan(&m.id).unwrap();
+    assert_eq!(plan.state, DeletionRecoveryState::PendingRetirement);
+    assert!(b.restore_plan(&id, &m.id, &scope).is_err());
+    assert!(
+        b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+            .is_err()
+    );
+    b.deletion_resume(&m.id, &scope, rev, &plan.confirmation)
+        .unwrap();
+}
+
+#[test]
+fn empty_deletion_rejects_corrupt_journal_parent_replacement_and_wrong_scope() {
+    for case in ["corrupt", "parent", "scope", "ambiguous"] {
+        let (tmp, mut b, id, scope, rev) = fixture();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        b.fault = Some("delete-retired");
+        assert!(
+            b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+                .is_err()
+        );
+        b.fault = None;
+        let plan = b.deletion_plan(&m.id).unwrap();
+        let before = b.fs.load_registry_bytes().unwrap();
+        match case {
+            "corrupt" => {
+                let path =
+                    b.fs.data_dir
+                        .join("backups/deletion-journals")
+                        .join(m.id.as_str())
+                        .join("intent.json");
+                let mut record: serde_json::Value =
+                    serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+                record["body"]["root"]["inode"] = 1.into();
+                fs::write(path, serde_json::to_vec(&record).unwrap()).unwrap();
+                assert!(
+                    b.deletion_resume(&m.id, &scope, rev, &plan.confirmation)
+                        .is_err()
+                );
+            }
+            "parent" => {
+                let old = b.fs.data_dir.join("backups/deleting");
+                fs::rename(&old, tmp.path().join("preserved-deleting")).unwrap();
+                fs::create_dir(&old).unwrap();
+                fs::set_permissions(&old, fs::Permissions::from_mode(0o700)).unwrap();
+                assert!(
+                    b.deletion_resume(&m.id, &scope, rev, &plan.confirmation)
+                        .is_err()
+                );
+                assert!(
+                    tmp.path()
+                        .join("preserved-deleting")
+                        .join(m.id.as_str())
+                        .is_dir()
+                );
+            }
+            "scope" => {
+                let other =
+                    PrefixScope::machine(crate::MachineId::from_digest("b".repeat(64)).unwrap());
+                assert!(
+                    b.deletion_resume(&m.id, &other, rev, &plan.confirmation)
+                        .is_err()
+                );
+                assert!(
+                    b.fs.data_dir
+                        .join("backups/deleting")
+                        .join(m.id.as_str())
+                        .is_dir()
+                );
+            }
+            _ => {
+                let journal =
+                    b.fs.data_dir
+                        .join("backups/deletion-journals")
+                        .join(m.id.as_str());
+                fs::write(
+                    journal.join("completed.json"),
+                    serde_json::to_vec(&FilesystemIdentity {
+                        device: 1,
+                        inode: 1,
+                    })
+                    .unwrap(),
+                )
+                .unwrap();
+                assert!(b.deletion_plan(&m.id).is_err());
+                assert!(
+                    b.deletion_resume(&m.id, &scope, rev, &plan.confirmation)
+                        .is_err()
+                );
+            }
+        }
+        assert_eq!(before, b.fs.load_registry_bytes().unwrap());
+    }
+}
+
+#[test]
+fn deserialized_traversal_identifiers_are_rejected_at_new_filesystem_boundaries() {
+    let (_tmp, b, _id, _scope, _rev) = fixture();
+    let bad_backup: BackupId = serde_json::from_str("\"../outside\"").unwrap();
+    let bad_prefix: PrefixId = serde_json::from_str("\"../outside\"").unwrap();
+    assert!(b.ensure_no_deletion_journal(&bad_backup).is_err());
+    assert!(b.transaction_dir(&bad_prefix, false).is_err());
+}
+#[test]
+fn archived_and_pin_history_detect_corrupt_evidence_without_mutation() {
+    let (tmp, mut b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let pins = PinStore::new(tmp.path().join("pins/pins.json"));
+    b.fault = Some("pin-intent");
+    assert!(
+        b.restore_pin(
+            &m.id,
+            &scope,
+            &pins,
+            0,
+            &format!("pin:{}", m.id.as_str()),
+            |_| Ok(())
+        )
+        .is_err()
+    );
+    b.fault = None;
+    assert!(matches!(
+        b.pin_recoveries().unwrap()[0].state,
+        PinRecoveryState::Pending
+    ));
+    b.restore_pin(
+        &m.id,
+        &scope,
+        &pins,
+        0,
+        &format!("pin:{}", m.id.as_str()),
+        |_| Ok(()),
+    )
+    .unwrap();
+    assert!(matches!(
+        b.pin_recoveries().unwrap()[0].state,
+        PinRecoveryState::Completed
+    ));
+    let pin_path = tmp.path().join("pins/pins.json");
+    let before = fs::read(&pin_path).unwrap();
+    let marker =
+        b.fs.data_dir
+            .join("backups/pin-recovery")
+            .join(format!("{}-0", m.id.as_str()))
+            .join("completed.json");
+    fs::write(marker, b"999").unwrap();
+    assert!(b.pin_recoveries().is_err());
+    assert_eq!(before, fs::read(pin_path).unwrap());
+}
+
+#[test]
+fn archived_history_reports_identity_only_and_rejects_corrupt_journal() {
+    let (_tmp, b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.restore(&id, &m.id, &scope, rev, &p.confirmation).unwrap();
+    b.release(&id, &scope, rev + 1, "release:game").unwrap();
+    let entries = b.history(&id).unwrap();
+    assert_eq!(entries.len(), 1);
+    assert!(matches!(entries[0].outcome, HistoryOutcome::Restore));
+    assert_eq!(
+        entries[0].validation,
+        "directory identity only; payload integrity not assessed"
+    );
+    let tx =
+        b.fs.data_dir
+            .join("backups/history")
+            .join(&entries[0].transaction);
+    let before = b.fs.load_registry_bytes().unwrap();
+    fs::write(tx.join("staged.json"), b"{}").unwrap();
+    assert!(b.history(&id).is_err());
+    assert_eq!(before, b.fs.load_registry_bytes().unwrap());
+    assert!(tx.join("payload").is_dir());
+}
