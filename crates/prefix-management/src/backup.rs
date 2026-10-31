@@ -1,5 +1,10 @@
+#[path = "backup/deletion_recovery.rs"]
+mod deletion_recovery;
 use super::*;
 use crate::{PrefixLifecycleState, PrefixRecord, PrefixScope, PrefixStore};
+pub use deletion_recovery::{
+    DeletionJournalInspection, DeletionRecoveryPlan, DeletionRecoveryState,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::Read;
@@ -18,6 +23,8 @@ pub enum BackupError {
     Integrity(BackupIntegrity),
     #[error("saved runtime failed exact revalidation")]
     RuntimeBlocked,
+    #[error("rollback is unsupported for this transaction state")]
+    RollbackUnsupported,
     #[error("unsupported snapshot entry or metadata")]
     Unsupported,
     #[error("snapshot quota or available space exceeded")]
@@ -241,6 +248,34 @@ pub struct DeletionInspection {
     pub detail: String,
 }
 #[derive(Clone, Debug, Serialize)]
+pub enum HistoryOutcome {
+    Restore,
+    Rollback,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct RecoveryHistoryEntry {
+    pub prefix: PrefixId,
+    pub scope: PrefixScope,
+    pub backup: BackupId,
+    pub transaction: String,
+    pub outcome: HistoryOutcome,
+    pub preserved_identity: FilesystemIdentity,
+    pub validation: &'static str,
+}
+#[derive(Clone, Debug, Serialize)]
+pub enum PinRecoveryState {
+    Pending,
+    Completed,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct PinRecoveryEntry {
+    pub backup: BackupId,
+    pub scope: PrefixScope,
+    pub expected_revision: u64,
+    pub state: PinRecoveryState,
+    pub validation: &'static str,
+}
+#[derive(Clone, Debug, Serialize)]
 pub struct RecoveryReport {
     pub action: RecoveryAction,
     pub original_preserved: bool,
@@ -423,6 +458,11 @@ impl BackupStore {
             std::process::id(),
             TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
         ))?;
+        if let Some(root) = self.sub("deletion-journals", false)? {
+            if child_dir(&root, OsStr::new(id.as_str()), false)?.is_some() {
+                return Err(PrefixError::DestinationCollision.into());
+            }
+        }
         let dir = exclusive_dir(&staging, id.as_str())?;
         write_json(&dir, "intent.json", &plan.source)?;
         self.checkpoint("backup-intent")?;
@@ -455,6 +495,15 @@ impl BackupStore {
             return Ok(vec![]);
         };
         names(&root)?.into_iter().map(BackupId::new).collect()
+    }
+    fn ensure_no_deletion_journal(&self, id: &BackupId) -> Result<(), BackupError> {
+        BackupId::new(id.as_str())?;
+        if let Some(root) = self.sub("deletion-journals", false)? {
+            if child_dir(&root, OsStr::new(id.as_str()), false)?.is_some() {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        }
+        Ok(())
     }
     fn snapshot(&self, id: &BackupId) -> Result<File, BackupError> {
         BackupId::new(id.as_str())?;
@@ -522,6 +571,7 @@ impl BackupStore {
             return Err(BackupError::Confirmation);
         }
         let _guard = self.fs.lock_registry()?;
+        self.ensure_no_deletion_journal(id)?;
         if self.list()?.contains(id) {
             return self.verify(id, scope);
         }
@@ -581,8 +631,9 @@ impl BackupStore {
                 state: DeletionState::Unverifiable,
                 remaining_entries: None,
                 original_entries: None,
-                detail: "Preserved for manual inspection; automatic deletion resume is unsupported"
-                    .into(),
+                detail:
+                    "No automatic action; deletion-plan can assess supported empty-snapshot replay"
+                        .into(),
             };
             if names(&dir)?
                 .iter()
@@ -645,6 +696,7 @@ impl BackupStore {
             return Err(BackupError::Confirmation);
         }
         let _guard = self.fs.lock_registry()?;
+        self.ensure_no_deletion_journal(id)?;
         let m = self.verify(id, scope)?;
         if let Some(pins) = self.sub("pin-recovery", false)? {
             if names(&pins)?
@@ -663,51 +715,7 @@ impl BackupStore {
         if names(&dir)? != ["intent.json", "manifest.json", "payload"] {
             return Err(BackupError::RecoveryBlocked);
         }
-        let expected = identity(&dir)?;
-        rename(
-            &snapshots,
-            id.as_str(),
-            &deleting,
-            id.as_str(),
-            libc::RENAME_NOREPLACE,
-        )?;
-        self.checkpoint("delete-retired")?;
-        let retired = open_at(
-            &deleting,
-            id.as_str(),
-            libc::O_RDONLY | libc::O_DIRECTORY,
-            0,
-        )?;
-        if identity(&retired)? != expected {
-            return Err(BackupError::RecoveryBlocked);
-        }
-        let payload = open_at(&retired, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
-        if scan(&payload, None)? != m.inventory {
-            return Err(BackupError::Integrity(BackupIntegrity::Corrupt));
-        }
-        delete_verified_tree(&payload, mount_id(&retired)?, 0, "", &m.inventory)?;
-        unlink_at(&retired, "payload", libc::AT_REMOVEDIR)?;
-        for name in ["intent.json", "manifest.json"] {
-            let f = open_at(&retired, name, libc::O_RDONLY, 0)?;
-            verify_private_file(&f)?;
-            if identity(&f)? != identity(&open_at(&retired, name, libc::O_RDONLY, 0)?)? {
-                return Err(BackupError::RecoveryBlocked);
-            }
-            unlink_at(&retired, name, 0)?;
-        }
-        retired.sync_all()?;
-        if identity(&open_at(
-            &deleting,
-            id.as_str(),
-            libc::O_RDONLY | libc::O_DIRECTORY,
-            0,
-        )?)? != expected
-        {
-            return Err(BackupError::RecoveryBlocked);
-        }
-        unlink_at(&deleting, id.as_str(), libc::AT_REMOVEDIR)?;
-        deleting.sync_all()?;
-        Ok(())
+        self.start_deletion(id, &m, &snapshots, &deleting, &dir)
     }
 
     pub fn restore_plan(
@@ -717,6 +725,7 @@ impl BackupStore {
         scope: &PrefixScope,
     ) -> Result<RestorePlan, BackupError> {
         self.ensure_no_restore(id)?;
+        self.ensure_no_deletion_journal(backup)?;
         let m = self.verify(backup, scope)?;
         let p = self.plan(id, scope)?;
         if m.source.id != *id {
@@ -749,6 +758,7 @@ impl BackupStore {
         })
     }
     fn transaction_dir(&self, id: &PrefixId, create: bool) -> Result<Option<File>, BackupError> {
+        PrefixId::new(id.as_str())?;
         let Some(root) = self.sub("restores", create)? else {
             return Ok(None);
         };
@@ -978,6 +988,7 @@ impl BackupStore {
             return Err(BackupError::Confirmation);
         }
         let _guard = self.fs.lock_registry()?;
+        self.ensure_no_deletion_journal(backup)?;
         let m = self.verify(backup, authorized_scope)?;
         validate(&m.source.runtime).map_err(|_| BackupError::RuntimeBlocked)?;
         let machine = match authorized_scope {
@@ -1087,8 +1098,12 @@ impl BackupStore {
             .ok_or(BackupError::RecoveryBlocked)?;
         let j: RestoreTransaction = read_json(&tx, "staged.json")?;
         self.validate_restore_journal(id, &tx, &j)?;
-        if j.schema_version != 2 || &j.original.scope != scope || has_file(&tx, "completed.json")? {
-            return Err(BackupError::RecoveryBlocked);
+        self.ensure_no_deletion_journal(&j.backup)?;
+        if j.schema_version != 2 || has_file(&tx, "completed.json")? {
+            return Err(BackupError::RollbackUnsupported);
+        }
+        if &j.original.scope != scope {
+            return Err(PrefixError::InvalidScope.into());
         }
         let original = j
             .original_inventory
@@ -1255,6 +1270,145 @@ impl BackupStore {
         Ok(())
     }
 
+    /// Inspect archived transactions without modifying or adopting data.
+    pub fn history(&self, id: &PrefixId) -> Result<Vec<RecoveryHistoryEntry>, BackupError> {
+        let Some(root) = self.sub("history", false)? else {
+            return Ok(vec![]);
+        };
+        let mut entries = vec![];
+        for name in names(&root)? {
+            let dir =
+                child_dir(&root, OsStr::new(&name), false)?.ok_or(BackupError::RecoveryBlocked)?;
+            verify_private_dir(&dir)?;
+            if mount_id(&dir)? != mount_id(&root)? {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let j: RestoreTransaction = read_json(&dir, "staged.json")?;
+            // Corrupt evidence is never silently ignored, even for another ID.
+            self.validate_restore_journal(&j.original.id, &dir, &j)?;
+            BackupId::new(j.backup.as_str())?;
+            if j.original.id != *id {
+                continue;
+            }
+            let payload = open_at(&dir, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+            verify_private_dir(&payload)?;
+            if mount_id(&payload)? != mount_id(&dir)? {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let preserved = identity(&payload)?;
+            let outcome = if has_file(&dir, "rollback-completed.json")? {
+                let token: String = read_json(&dir, "rollback-completed.json")?;
+                let intent: String = read_json(&dir, "rollback-intent.json")?;
+                let old = j
+                    .original
+                    .filesystem_identity
+                    .ok_or(BackupError::RecoveryBlocked)?;
+                if token != intent
+                    || token
+                        != format!(
+                            "rollback:{}:{}:{}:{}",
+                            id.as_str(),
+                            j.backup.as_str(),
+                            old.inode,
+                            j.staged.inode
+                        )
+                    || preserved != j.staged
+                {
+                    return Err(BackupError::RecoveryBlocked);
+                }
+                HistoryOutcome::Rollback
+            } else {
+                if !has_file(&dir, "completed.json")?
+                    || Some(preserved) != j.original.filesystem_identity
+                {
+                    return Err(BackupError::RecoveryBlocked);
+                }
+                HistoryOutcome::Restore
+            };
+            entries.push(RecoveryHistoryEntry {
+                prefix: id.clone(),
+                scope: j.original.scope,
+                backup: j.backup,
+                transaction: name,
+                outcome,
+                preserved_identity: preserved,
+                validation: "directory identity only; payload integrity not assessed",
+            });
+        }
+        Ok(entries)
+    }
+    /// Inspect separately journaled P027 pin recovery attempts, without pin writes.
+    pub fn pin_recoveries(&self) -> Result<Vec<PinRecoveryEntry>, BackupError> {
+        use endfield_unix_runtime_selection::{RuntimePin, RuntimePinScope};
+        let Some(root) = self.sub("pin-recovery", false)? else {
+            return Ok(vec![]);
+        };
+        let mut entries = vec![];
+        for name in names(&root)? {
+            let (backup, revision) = name.rsplit_once('-').ok_or(BackupError::RecoveryBlocked)?;
+            let backup = BackupId::new(backup)?;
+            let expected_revision: u64 =
+                revision.parse().map_err(|_| BackupError::RecoveryBlocked)?;
+            if name != format!("{}-{}", backup.as_str(), expected_revision) {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let dir =
+                child_dir(&root, OsStr::new(&name), false)?.ok_or(BackupError::RecoveryBlocked)?;
+            verify_private_dir(&dir)?;
+            if mount_id(&dir)? != mount_id(&root)?
+                || names(&dir)?
+                    .iter()
+                    .any(|n| !["intent.json", "completed.json"].contains(&n.as_str()))
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let pin: RuntimePin = read_json(&dir, "intent.json")?;
+            if pin.created_at_unix_seconds > pin.updated_at_unix_seconds
+                || RuntimePin::new(
+                    pin.pin_id.clone(),
+                    pin.scope.clone(),
+                    pin.runtime.clone(),
+                    pin.adapter_preference,
+                    pin.updated_at_unix_seconds,
+                )
+                .is_err()
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let scope = match pin.scope {
+                RuntimePinScope::Machine { machine } => {
+                    crate::MachineId::from_digest(machine.as_str())
+                        .map_err(|_| PrefixError::InvalidScope)?;
+                    PrefixScope::machine(machine)
+                }
+                RuntimePinScope::Profile { machine, profile } => {
+                    crate::MachineId::from_digest(machine.as_str())
+                        .map_err(|_| PrefixError::InvalidScope)?;
+                    crate::ProfileKey::new(profile.as_str())
+                        .map_err(|_| PrefixError::InvalidScope)?;
+                    PrefixScope::profile(machine, profile)
+                }
+            };
+            let state = if has_file(&dir, "completed.json")? {
+                let revision: u64 = read_json(&dir, "completed.json")?;
+                if Some(revision) != expected_revision.checked_add(1) {
+                    return Err(BackupError::RecoveryBlocked);
+                }
+                PinRecoveryState::Completed
+            } else {
+                PinRecoveryState::Pending
+            };
+            entries.push(PinRecoveryEntry {
+                backup,
+                scope,
+                expected_revision,
+                state,
+                validation: "journal marker only; current pin state not assessed",
+            });
+        }
+        Ok(entries)
+    }
+
     pub fn recovery_status(&self, id: &PrefixId) -> Result<RecoveryReport, BackupError> {
         let Some(tx) = self.transaction_dir(id, false)? else {
             return Ok(RecoveryReport {
@@ -1394,84 +1548,6 @@ impl BackupStore {
         }
         self.finalize(id, &tx, &journal, scope)
     }
-}
-
-fn delete_verified_tree(
-    dir: &File,
-    mount: u64,
-    depth: usize,
-    parent: &str,
-    inventory: &[InventoryEntry],
-) -> Result<(), BackupError> {
-    if depth > 64 || mount_id(dir)? != mount {
-        return Err(BackupError::RecoveryBlocked);
-    }
-    for name in names(dir)? {
-        let mut f = open_at(dir, &name, libc::O_RDONLY, 0)?;
-        let m = f.metadata()?;
-        let path = if parent.is_empty() {
-            name.clone()
-        } else {
-            format!("{parent}/{name}")
-        };
-        let expected = inventory
-            .iter()
-            .find(|e| e.path == path)
-            .ok_or(BackupError::RecoveryBlocked)?;
-        if expected.directory != m.is_dir()
-            || expected.mode != m.mode() & 0o777
-            || expected.modified_seconds != m.mtime()
-            || expected.modified_nanoseconds != m.mtime_nsec()
-        {
-            return Err(BackupError::RecoveryBlocked);
-        }
-        if m.uid() != crate::current_uid() || mount_id(&f)? != mount {
-            return Err(BackupError::RecoveryBlocked);
-        }
-        let flags = if m.is_dir() {
-            // Retirement already durably records deletion intent. Grant only
-            // owner traversal/write rights to remove an otherwise readonly tree.
-            f.set_permissions(fs::Permissions::from_mode((m.mode() & 0o777) | 0o700))?;
-            delete_verified_tree(&f, mount, depth + 1, &path, inventory)?;
-            libc::AT_REMOVEDIR
-        } else if m.is_file() && m.nlink() == 1 {
-            if m.len() != expected.size {
-                return Err(BackupError::RecoveryBlocked);
-            }
-            let mut hash = Sha256::new();
-            let mut remaining = m.len();
-            let mut buffer = [0u8; 65536];
-            loop {
-                let n = f.read(&mut buffer)?;
-                if n == 0 {
-                    break;
-                }
-                remaining = remaining
-                    .checked_sub(n as u64)
-                    .ok_or(BackupError::RecoveryBlocked)?;
-                hash.update(&buffer[..n]);
-            }
-            if remaining != 0
-                || format!("{:x}", hash.finalize()) != expected.sha256
-                || !unchanged(&m, &f.metadata()?)
-            {
-                return Err(BackupError::RecoveryBlocked);
-            }
-            0
-        } else {
-            return Err(BackupError::RecoveryBlocked);
-        };
-        if identity(&f)? != identity(&open_at(dir, &name, libc::O_RDONLY, 0)?)? {
-            return Err(BackupError::RecoveryBlocked);
-        }
-        unlink_at(dir, &name, flags)?;
-        dir.sync_all()?;
-        #[cfg(test)]
-        if std::env::var("ENDFIELD_P029_EXIT_AT").ok().as_deref() == Some("delete-unlink") {
-            unsafe { libc::_exit(91) }
-        }
-    }
-    Ok(())
 }
 
 fn identity(f: &File) -> Result<FilesystemIdentity, BackupError> {

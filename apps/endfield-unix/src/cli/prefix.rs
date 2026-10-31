@@ -89,6 +89,22 @@ pub enum Operation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum BackupOperation {
+    /// Inspect durable deletion journals without changing files.
+    DeletionJournals,
+    /// Inspect an interrupted empty-snapshot deletion.
+    DeletionPlan {
+        #[arg(long)]
+        backup_id: String,
+    },
+    /// Resume only a verified empty-snapshot deletion with explicit approval.
+    DeletionResume {
+        #[arg(long)]
+        backup_id: String,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long)]
+        confirm: String,
+    },
     /// Inspect preserved, incomplete deletion transactions without removing bytes.
     Deletions,
     /// List unfinished snapshot staging without resuming or deleting it.
@@ -159,6 +175,13 @@ pub enum RestoreOperation {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum RecoveryOperation {
+    /// Inspect archived restore and rollback transactions.
+    History {
+        #[arg(long)]
+        id: String,
+    },
+    /// Inspect pending and completed pin recovery journals.
+    Pins,
     /// Preview rollback of an uncommitted published restore.
     RollbackPlan {
         #[arg(long)]
@@ -243,7 +266,15 @@ pub fn run(operation: Operation, out: &mut impl Write) -> io::Result<u8> {
         Err(Failure::Output(error)) => Err(error),
         Err(failure) => {
             let (category, message, code) = match failure {
-                Failure::Backup(error) => ("backup_recovery_blocked", error.to_string(), 4),
+                Failure::Backup(error) => {
+                    let category =
+                        if matches!(error, prefixes::backup::BackupError::RollbackUnsupported) {
+                            "rollback_unsupported"
+                        } else {
+                            "backup_recovery_blocked"
+                        };
+                    (category, error.to_string(), 4)
+                }
                 Failure::Runtime(reason) => ("runtime_selection_blocked", reason, 4),
                 Failure::Prefix(error) => {
                     let code = match &error {
@@ -867,6 +898,34 @@ fn run_backup(op: BackupOperation, out: &mut impl Write) -> Result<u8, Failure> 
     use prefixes::backup::BackupId;
     let b = backup_store()?;
     match op {
+        BackupOperation::DeletionJournals => {
+            let entries = b.deletion_journals()?;
+            for entry in &entries {
+                if let Some(scope) = &entry.scope {
+                    check_machine(scope)?;
+                }
+            }
+            json_output(out, &entries)
+        }
+        BackupOperation::DeletionPlan { backup_id } => {
+            let id = BackupId::new(backup_id)?;
+            let plan = b.deletion_plan(&id)?;
+            check_machine(&plan.scope)?;
+            json_output(out, &plan)
+        }
+        BackupOperation::DeletionResume {
+            backup_id,
+            expected_revision,
+            confirm,
+        } => {
+            let id = BackupId::new(backup_id)?;
+            let plan = b.deletion_plan(&id)?;
+            check_machine(&plan.scope)?;
+            json_output(
+                out,
+                &b.deletion_resume(&id, &plan.scope, expected_revision, &confirm)?,
+            )
+        }
         BackupOperation::Deletions => json_output(out, &b.deletions()?),
         BackupOperation::Pending => json_output(out, &b.pending_backups()?),
         BackupOperation::Recover {
@@ -971,6 +1030,21 @@ fn run_restore(op: RestoreOperation, out: &mut impl Write) -> Result<u8, Failure
 fn run_recovery(op: RecoveryOperation, out: &mut impl Write) -> Result<u8, Failure> {
     let b = backup_store()?;
     match op {
+        RecoveryOperation::History { id } => {
+            let id = prefixes::PrefixId::new(id)?;
+            let entries = b.history(&id)?;
+            for e in &entries {
+                check_machine(&e.scope)?;
+            }
+            json_output(out, &entries)
+        }
+        RecoveryOperation::Pins => {
+            let entries = b.pin_recoveries()?;
+            for e in &entries {
+                check_machine(&e.scope)?;
+            }
+            json_output(out, &entries)
+        }
         RecoveryOperation::RollbackPlan { id } => {
             let id = prefixes::PrefixId::new(id)?;
             json_output(out, &b.rollback_plan(&id, &authorized_scope(&id)?)?)
