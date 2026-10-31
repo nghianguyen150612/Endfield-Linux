@@ -414,6 +414,74 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
     assert!(!prefix_path.join("drive_c").exists());
     assert!(managed.join("proton").is_file());
 
+    // P029 uses the actual headless CLI. Restricted /proc runners must fail
+    // closed, while library fixtures exercise successful copy/swap recovery.
+    let pin_bytes = fs::read(root.join("config/endfield-unix/runtime-pins.json")).unwrap();
+    let revision = prefix_registry_revision(root);
+    let backup = run(
+        root,
+        &[
+            "prefix",
+            "backup",
+            "create",
+            "--id",
+            "p028-managed",
+            "--expected-revision",
+            &revision,
+            "--confirm",
+        ],
+    );
+    println!(
+        "P029 backup create: {}",
+        String::from_utf8_lossy(&backup.stdout)
+    );
+    if backup.status.code() == Some(0) {
+        let manifest: serde_json::Value = serde_json::from_slice(&backup.stdout).unwrap();
+        let backup_id = manifest["id"].as_str().unwrap();
+        let verify = run(
+            root,
+            &["prefix", "backup", "verify", "--backup-id", backup_id],
+        );
+        assert_eq!(
+            verify.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&verify.stdout)
+        );
+        let delete = run(
+            root,
+            &[
+                "prefix",
+                "backup",
+                "delete",
+                "--backup-id",
+                backup_id,
+                "--confirm",
+                &format!("delete:{backup_id}"),
+            ],
+        );
+        assert_eq!(
+            delete.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&delete.stdout)
+        );
+    } else {
+        assert_eq!(backup.status.code(), Some(4));
+        let text = String::from_utf8_lossy(&backup.stdout);
+        assert!(
+            text.contains("prefix use could not be checked safely")
+                || text.contains("actively referenced"),
+            "{text}"
+        );
+        assert!(!root.join("data/endfield-unix/backups").exists());
+    }
+    assert_eq!(
+        pin_bytes,
+        fs::read(root.join("config/endfield-unix/runtime-pins.json")).unwrap()
+    );
+    assert_eq!(revision, prefix_registry_revision(root));
+
     let prefix_show = run(root, &["prefix", "show", "--id", "p028-managed"]);
     assert_eq!(prefix_show.status.code(), Some(0));
     assert!(
@@ -1139,4 +1207,19 @@ fn actual_cli_plan_apply_and_preserve_existing_install() {
             .join(plan_json["installation_id"].as_str().unwrap())
             .exists()
     );
+}
+
+#[test]
+fn p029_empty_headless_queries_leave_xdg_absent() {
+    let temp = tempfile::tempdir().unwrap();
+    for args in [
+        ["prefix", "backup", "list"],
+        ["prefix", "backup", "pending"],
+    ] {
+        let result = run(temp.path(), &args);
+        assert_eq!(result.status.code(), Some(0));
+        assert_eq!(String::from_utf8_lossy(&result.stdout).trim(), "[]");
+    }
+    assert!(!temp.path().join("data").exists());
+    assert!(!temp.path().join("config").exists());
 }

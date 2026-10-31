@@ -1,0 +1,218 @@
+use super::tests::fixture;
+use super::*;
+use endfield_unix_runtime_selection::{PinStore, RuntimePin, RuntimePinScope};
+
+#[test]
+fn saved_pin_requires_approval_revalidation_and_cas_with_journal_recovery() {
+    for fault in ["pin-intent", "pin-committed"] {
+        let (tmp, mut b, id, scope, rev) = fixture();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        let pins = PinStore::new(tmp.path().join("pins/runtime-pins.json"));
+        let mut assoc = m.source.runtime.clone();
+        assoc.runtime = match assoc.runtime {
+            crate::PinnedRuntimeReference::Managed(mut r) => {
+                r.build = "changed-pin".into();
+                r.into()
+            }
+            _ => unreachable!(),
+        };
+        let machine = match &scope {
+            PrefixScope::Machine { machine } => machine.clone(),
+            _ => unreachable!(),
+        };
+        let scope_pin = RuntimePinScope::Machine { machine };
+        pins.set(
+            RuntimePin::new(
+                "other-pin",
+                scope_pin.clone(),
+                assoc.runtime,
+                None,
+                crate::now(),
+            )
+            .unwrap(),
+            0,
+            false,
+        )
+        .unwrap();
+        assert!(
+            b.restore_pin(&m.id, &scope, &pins, 1, "", |_| Ok(()))
+                .is_err()
+        );
+        let confirmation = format!("pin:{}", m.id.as_str());
+        assert!(
+            b.restore_pin(&m.id, &scope, &pins, 1, &confirmation, |_| Err(
+                "runtime removed".into()
+            ))
+            .is_err()
+        );
+        assert_eq!(pins.load().unwrap().revision, 1);
+        b.fault = Some(fault);
+        assert!(
+            b.restore_pin(&m.id, &scope, &pins, 1, &confirmation, |_| Ok(()))
+                .is_err()
+        );
+        b.fault = None;
+        assert_eq!(
+            b.restore_pin(&m.id, &scope, &pins, 1, &confirmation, |_| Ok(()))
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            b.restore_pin(&m.id, &scope, &pins, 1, &confirmation, |_| Ok(()))
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            pins.load().unwrap().pin(&scope_pin).unwrap().runtime,
+            m.source.runtime.runtime
+        );
+        assert!(
+            b.restore_pin(&m.id, &scope, &pins, 0, &confirmation, |_| Ok(()))
+                .is_err()
+        );
+        // Prefix restoration has no path to PinStore; prove exact bytes remain.
+        let pin_path = tmp.path().join("pins/runtime-pins.json");
+        let before = fs::read(&pin_path).unwrap();
+        let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+        b.restore(&id, &m.id, &scope, rev, &p.confirmation).unwrap();
+        assert_eq!(before, fs::read(pin_path).unwrap());
+    }
+}
+#[test]
+fn deletion_preserves_prefix_and_interrupted_retirement_is_not_silent() {
+    let (_tmp, mut b, id, scope, rev) = fixture();
+    fs::write(b.fs.target_path(&id).join("save"), b"keep").unwrap();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    assert!(b.delete(&m.id, &scope, "bad").is_err());
+    b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+        .unwrap();
+    assert!(b.list().unwrap().is_empty());
+    assert_eq!(
+        fs::read(b.fs.target_path(&id).join("save")).unwrap(),
+        b"keep"
+    );
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    b.fault = Some("delete-retired");
+    assert!(
+        b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+            .is_err()
+    );
+    assert!(
+        b.fs.data_dir
+            .join("backups/deleting")
+            .join(m.id.as_str())
+            .join("payload/save")
+            .exists()
+    );
+}
+#[test]
+fn completed_restore_can_be_archived_without_removing_original_bytes() {
+    let (_tmp, b, id, scope, rev) = fixture();
+    fs::write(b.fs.target_path(&id).join("save"), b"old").unwrap();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.restore(&id, &m.id, &scope, rev, &p.confirmation).unwrap();
+    assert!(b.release(&id, &scope, rev + 1, "bad").is_err());
+    b.release(&id, &scope, rev + 1, "release:game").unwrap();
+    let history = b.sub("history", false).unwrap().unwrap();
+    assert_eq!(names(&history).unwrap().len(), 1);
+    assert!(b.plan(&id, &scope).is_ok());
+}
+#[test]
+fn read_only_backup_queries_do_not_create_storage() {
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = endfield_unix_storage::AppPaths::from_base_dirs(
+        tmp.path().join("config"),
+        tmp.path().join("data"),
+        tmp.path().join("cache"),
+    )
+    .unwrap();
+    let b = BackupStore::for_app(&paths);
+    assert!(b.list().unwrap().is_empty());
+    assert!(b.pending_backups().unwrap().is_empty());
+    assert!(b.show(&BackupId::new("missing").unwrap()).is_err());
+    assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 0);
+}
+#[test]
+fn complete_staging_can_be_republished_and_incomplete_is_preserved() {
+    for fault in ["backup-intent", "backup-staged"] {
+        let (_tmp, mut b, id, scope, rev) = fixture();
+        b.fault = Some(fault);
+        assert!(b.create(&id, &scope, rev, true).is_err());
+        b.fault = None;
+        let pending = b.pending_backups().unwrap();
+        assert_eq!(pending.len(), 1);
+        let result = b.recover_backup(&pending[0], &scope, true);
+        assert_eq!(result.is_ok(), fault == "backup-staged");
+    }
+}
+#[test]
+fn crash_child() {
+    let Ok(data) = std::env::var("ENDFIELD_P029_CHILD_DATA") else {
+        return;
+    };
+    let mut b = BackupStore {
+        fs: LinuxPrefixFilesystem::new(&data),
+        prefixes: PrefixStore::with_filesystem(std::sync::Arc::new(LinuxPrefixFilesystem::new(
+            &data,
+        ))),
+        usage_override: Some(Some(false)),
+        fault: None,
+    };
+    let id = PrefixId::new("game").unwrap();
+    let scope = PrefixScope::machine(crate::MachineId::from_digest("a".repeat(64)).unwrap());
+    let rev = b.prefixes.load_snapshot().unwrap().registry.revision;
+    let backup = std::env::var("ENDFIELD_P029_CHILD_BACKUP").unwrap();
+    if backup == "create" {
+        b.create(&id, &scope, rev, true).unwrap();
+    } else {
+        let backup = BackupId::new(backup).unwrap();
+        let p = b.restore_plan(&id, &backup, &scope).unwrap();
+        b.fault = None;
+        b.restore(&id, &backup, &scope, rev, &p.confirmation)
+            .unwrap();
+    }
+}
+#[test]
+fn process_exit_releases_locks_and_published_restore_recovers() {
+    for fault in [
+        "backup-intent",
+        "backup-staged",
+        "backup-published",
+        "restore-intent",
+        "restore-staged",
+        "restore-published",
+        "restore-registry",
+    ] {
+        let (_tmp, b, id, scope, rev) = fixture();
+        fs::write(b.fs.target_path(&id).join("save"), b"before").unwrap();
+        let backup = if fault.starts_with("restore") {
+            b.create(&id, &scope, rev, true).unwrap().id.0
+        } else {
+            "create".into()
+        };
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "linux_fs::backup::recovery_tests::crash_child",
+                "--nocapture",
+            ])
+            .env("ENDFIELD_P029_CHILD_DATA", &b.fs.data_dir)
+            .env("ENDFIELD_P029_CHILD_BACKUP", backup)
+            .env("ENDFIELD_P029_EXIT_AT", fault)
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(91), "{fault}");
+        if matches!(
+            fault,
+            "restore-staged" | "restore-published" | "restore-registry"
+        ) {
+            let current = b.prefixes.load_snapshot().unwrap().registry.revision;
+            b.recover(&id, &scope, current, true).unwrap();
+        }
+        assert_eq!(
+            fs::read(b.fs.target_path(&id).join("save")).unwrap(),
+            b"before"
+        );
+    }
+}
