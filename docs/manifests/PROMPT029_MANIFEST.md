@@ -105,3 +105,15 @@ Final post-documentation HEAD must have its own hosted run; exact final SHA and 
 ### Remaining limits
 
 The documented IPC timing race is unresolved and can still fail a default-threaded gate. Partial-deletion auto-resume, automatic rollback, cleanup of preserved originals, full POSIX metadata, Initialized prefixes, symlinks/hardlinks/sparse files/xattrs/special files and cross-mount publication remain unsupported or blocked. The full adversarial mount/rename, alternate-UID, physical ENOSPC and power-loss matrix is not claimed. Synthetic successful tests do not qualify real Wine prefixes, physical Arch/Dell devices or Endfield compatibility. Keep PR #2 Draft; this remediation does not authorize merging or starting P030.
+
+### Qualified implementation/test state
+
+Implementation and test state `38cac50cb2d4673374a5260e9da7a3549d9ccd11` passed **all required hosted jobs** in [run 41159904367](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41159904367):
+
+- [Rust/workspace/actual CLI/GTK/metadata](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41159904367/job/124414944301) — success, including the full default workspace suite, both formerly failing tests, new P029 actual-executable integration, GTK smoke/screenshot and existing mandatory gates.
+- [Clang C17 ABI](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41159904367/job/124414944424) — success.
+- [GCC C17 ABI](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41159904367/job/124414944431) — success after runner assignment; its earlier queued status was not treated as a pass.
+
+The final local repeats at that same HEAD passed format, build, warning-denied workspace Clippy, 42 prefix tests, all four actual CLI integration tests, GTK smoke, both C17 scripts and metadata. Both the default and serialized final full-workspace attempts reproduced the unchanged `ipc_e2e.rs:144` race. The earlier 763-test serialized pass is retained as earlier-attempt evidence, not substituted for those failures. Hosted final-implementation workspace gates passed; the IPC race remains a reproducibility risk.
+
+The subsequent commit only records this evidence. It must receive its own hosted qualification before delivery; final post-evidence HEAD/run links are reported in PR #2 and the completion report. P029A is ready for review as remediation within Draft PR #2, subject to those final gates and the documented unsupported/physical-device limits. This does not authorize merging or claim every broader P029 acceptance scenario is qualified.
