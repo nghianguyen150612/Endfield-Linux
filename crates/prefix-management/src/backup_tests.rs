@@ -722,3 +722,18 @@ fn committed_restore_is_not_eligible_for_rollback() {
     assert!(b.rollback_plan(&id, &scope).is_err());
     assert_eq!(before, b.fs.load_registry_bytes().unwrap());
 }
+
+#[test]
+fn rollback_blocks_when_a_pin_recovery_journal_references_the_snapshot() {
+    let (_tmp, mut b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.fault = Some("restore-published");
+    assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
+    b.fault = None;
+    let journals = b.sub("pin-recovery", true).unwrap().unwrap();
+    let _journal = exclusive_dir(&journals, &format!("{}-7", m.id.as_str())).unwrap();
+    let before = b.fs.load_registry_bytes().unwrap();
+    assert!(b.rollback_plan(&id, &scope).is_err());
+    assert_eq!(before, b.fs.load_registry_bytes().unwrap());
+}

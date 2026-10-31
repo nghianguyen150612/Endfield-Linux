@@ -1094,6 +1094,14 @@ impl BackupStore {
             .original_inventory
             .as_ref()
             .ok_or(BackupError::RecoveryBlocked)?;
+        if let Some(pins) = self.sub("pin-recovery", false)? {
+            if names(&pins)?
+                .iter()
+                .any(|name| name.starts_with(&format!("{}-", j.backup.as_str())))
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        }
         let registry = self.prefixes.load_snapshot()?.registry;
         if registry.revision != j.expected_revision || registry.record(id) != Some(&j.original) {
             return Err(BackupError::RecoveryBlocked);

@@ -90,6 +90,26 @@ fn every_documented_p029_command_is_recognized_by_the_actual_parser() {
         );
     }
     expect(root, &["prefix", "recover", "--help"], 0);
+    expect(
+        root,
+        &["prefix", "recovery", "rollback-plan", "--id", "missing"],
+        3,
+    );
+    expect(
+        root,
+        &[
+            "prefix",
+            "recovery",
+            "rollback",
+            "--id",
+            "missing",
+            "--expected-revision",
+            "0",
+            "--confirm",
+            "wrong",
+        ],
+        3,
+    );
     for args in [
         &[
             "prefix",
