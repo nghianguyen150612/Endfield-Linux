@@ -2279,6 +2279,7 @@ mod tests {
                 driver_identity: Some(VulkanDriverIdentity {
                     driver_id: 13,
                     name: "Mesa lavapipe".to_owned(),
+                    driver_info: None,
                 }),
                 device_type: VulkanDeviceType::Cpu,
                 api_version: Some((1, 3, 0)),
