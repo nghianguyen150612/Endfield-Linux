@@ -213,8 +213,10 @@ P021 has no process-spawning API.
 Prefix ownership distinguishes Endfield-managed, external user-managed,
 other-launcher-managed, and unknown references. Mount requirements are
 bounded descriptions with read-only/read-write intent and explicit ownership;
-they do not issue mount operations. P028 adds prefix creation/management and
-P029 adds backup/recovery.
+they do not issue mount operations. P028's directory-only prefix management is
+implemented separately in [PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md); it
+preserves P027 selection and does not provide Wine initialization. P029 remains
+backup/recovery.
 
 ## Validation and later milestones
 
@@ -228,8 +230,8 @@ redaction; ownership; risk; and deterministic dry-run serialization.
 P021 does not change the daemon lifecycle, IPC v1.0, systemd user service, C17
 ABI 0x00010000, P007 capability ID 50, GTK runtime selection, or P006 SQLite
 schema. UMU integration is P023, trusted source manifests P024, acquisition
-P025, installed integrity P026, pinning P027, prefix management P028–P029,
-and production launch/session ownership P034–P036. Physical Arch-device Wine
+P025, installed integrity P026, pinning P027, isolated prefix directories
+P028, backup/recovery P029, and production launch/session ownership P034–P036. Physical Arch-device Wine
 and Proton inventory and Endfield compatibility remain unverified.
 
 ## Qualification
@@ -294,3 +296,7 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P027 persistent selection
 
 P027 persists explicit preferences over exact P025 managed identity or a conservatively bound P022 external candidate. Managed pins preserve provider/build/artifact/manifest/generation/provenance and P025 ownership-record digest. External pins preserve canonical location, source category, ownership observation, lineage and its evidence basis, optional build, structural identity fingerprint, and unknown source trust; the transient candidate ID is not the persistent identity. Selection does not create a LaunchPlan or authorize execution. Adapter preference is separate from provider availability; unknown compatibility remains unverified.
+
+## P028 prefix association
+
+P028 stores P027's exact managed or external runtime reference, adapter preference, selection source, pin identity, and registry revision at directory creation. It revalidates managed references through P025/P026 and external references through P022. A later pin change is reported without migrating the prefix; stale profile pins keep P027's blocking/no-fallback behavior. P028 creates directories only. No P021 `LaunchPlan` is executed, no prefix is initialized, and compatibility remains unverified. See [P028 prefix management](PREFIX-MANAGEMENT.md).

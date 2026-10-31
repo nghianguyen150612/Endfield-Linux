@@ -263,8 +263,10 @@ by the application.
 P007 does not implement `HardwareTelemetryProvider`, `SessionSupervisor`,
 `OptimizationPlanner`, `OptimizationExecutor`, `BenchmarkProvider`, or
 `ServiceManager`. P021 adds a separate runtime contract library; it does not
-change P007 snapshot schema 1 or any capability ID. Runtime discovery,
-installation, prefix management, and launch remain future work. P042 will
+change P007 snapshot schema 1 or any capability ID. Runtime discovery, installation, and integrity are implemented in separate
+crates; P027 selection and P028 directory-only prefix management also remain
+outside this portable domain crate. Wine initialization and production launch
+remain future work. P042 will
 define complete snapshot-to-C marshalling. P015 adds a separate telemetry
 library that depends on these P007 contracts and refines metric units,
 timestamps, provenance, quality, and missing-data behavior.

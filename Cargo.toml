@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/endfield-unix", "apps/endfield-unixd", "crates/diagnostics", "crates/domain", "crates/ipc", "crates/optimizer-ffi", "crates/platform-linux", "crates/runtime", "crates/runtime-linux", "crates/runtime-verification", "crates/runtime-install", "crates/runtime-audit", "crates/runtime-selection", "crates/sessions", "crates/storage", "crates/telemetry"]
+members = ["apps/endfield-unix", "apps/endfield-unixd", "crates/diagnostics", "crates/domain", "crates/ipc", "crates/optimizer-ffi", "crates/platform-linux", "crates/runtime", "crates/runtime-linux", "crates/runtime-verification", "crates/runtime-install", "crates/runtime-audit", "crates/runtime-selection", "crates/prefix-management", "crates/sessions", "crates/storage", "crates/telemetry"]
 resolver = "3"
 
 [workspace.package]

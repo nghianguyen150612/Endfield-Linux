@@ -232,7 +232,8 @@ identity inspection in the same provider session. It writes no inventory to
 storage or support reports. Explicit roots are opt-in, absolute, traversal
 free, bounded, and ephemeral. Familiar directory names do not verify origin,
 integrity, launch readiness, or compatibility. Source acquisition, trusted
-manifests, prefix management, and launch remain later milestones. See
+manifests and P028 directory-only prefix management are implemented in
+separate components; Wine initialization and launch remain later milestones. See
 [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md) and
 [RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
 
@@ -273,3 +274,9 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P027 runtime pinning
 
 P027 stores user-owned preferences under XDG config with strict schema validation, a bounded registry, writer locking, compare-and-swap revisions, private files, atomic replacement, v1-to-v2 managed-pin migration, and corruption fail-closed behavior. Linux machine scope uses a documented domain-separated digest of validated `/etc/machine-id`; it is pseudonymous, not anonymous, and raw input is not printed. Profile scope includes machine identity. External pins persist a canonical path privately because exact-location revalidation requires it; normal pin output and support reports omit it. The P022 structural digest is not a full runtime hash or cryptographic provenance. Same-user modification is not prevented cryptographically. Stale or missing references block fallback; pins do not authorize runtime execution.
+
+## P028 isolated prefix management
+
+P028 owns only `prefixes/data/<id>` below the P006 XDG application data directory. External Wine, Steam compatibility, Bottles, Lutris, Heroic, and arbitrary user prefixes are never imported or modified. Linux filesystem operations use no-follow directory descriptors, private owner/mode checks, mount and inode identity checks, advisory locks, registry revision checks, and bounded metadata. Create writes a recovery journal before making its empty directory. Delete requires the exact managed path and revision, checks containment and identity, and refuses known active use or an indeterminate process scan. Recovery does not adopt non-empty paths.
+
+The process-use check inspects visible same-UID `/proc/*/environ` for an exact `WINEPREFIX` value. It may not identify a process that changes its environment after startup or otherwise hides that variable; unreadable scans block deletion. Same-user processes remain within the trust boundary, and the registry checksum is not a MAC. `remove` deletes only registry ownership and intentionally preserves the directory, which then cannot be silently adopted. P028 never launches Wine/Proton/UMU or a game and never changes P027 pins or runtime installations. `prefix init` is explicitly unsupported until a validated adapter and completion evidence exist. See [prefix management](PREFIX-MANAGEMENT.md).

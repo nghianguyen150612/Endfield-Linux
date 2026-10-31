@@ -32,10 +32,18 @@ P025 record and P026 baseline, while external resolution revalidates P022
 structural identity. Neither path launches a runtime or proves compatibility.
 See [runtime pinning](docs/RUNTIME-PINNING.md).
 
+P028 adds isolated Endfield-Unix-owned prefix directories through
+`endfield-unix prefix`. Plans are read-only; create records the exact P027
+selection and leaves an empty, uninitialized directory. Wine initialization
+returns an explicit unsupported result, and no prefix command launches Wine,
+Proton, UMU, or Endfield. External prefixes remain outside the ownership
+boundary. See [prefix management](docs/PREFIX-MANAGEMENT.md).
+
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
 ## Documentation
 
+- [Unreleased changes](CHANGELOG.md)
 - [Product scope and requirements](docs/PRODUCT.md)
 - [Architecture and C ABI contract](docs/ARCHITECTURE.md)
 - [UI design and component ownership](docs/UI.md)
@@ -62,6 +70,7 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [P022 Linux Wine and Proton discovery](docs/RUNTIME-DISCOVERY-LINUX.md)
 - [P023 UMU integration and safe launch-plan preparation](docs/UMU-INTEGRATION.md)
 - [P027 runtime pinning and explicit selection](docs/RUNTIME-PINNING.md)
+- [P028 isolated prefix management](docs/PREFIX-MANAGEMENT.md)
 - [Authenticated local IPC protocol and Linux transport](docs/IPC.md)
 - [Rust and C17 architecture decision](docs/adr/0001-rust-c17-architecture.md)
 - [Cross-platform boundary decision](docs/adr/0002-cross-platform-boundaries.md)

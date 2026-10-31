@@ -8,5 +8,6 @@ pub use commands::{Command, HelpTopic};
 
 pub mod runtime_integrity;
 
+pub mod prefix;
 pub mod runtime_install;
 pub mod runtime_pin;

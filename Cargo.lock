@@ -312,6 +312,7 @@ dependencies = [
  "endfield-unix-domain",
  "endfield-unix-ipc",
  "endfield-unix-platform-linux",
+ "endfield-unix-prefix-management",
  "endfield-unix-runtime",
  "endfield-unix-runtime-audit",
  "endfield-unix-runtime-install",
@@ -380,6 +381,21 @@ dependencies = [
  "wayland-client",
  "wayland-protocols",
  "x11rb",
+]
+
+[[package]]
+name = "endfield-unix-prefix-management"
+version = "0.1.0"
+dependencies = [
+ "endfield-unix-runtime-selection",
+ "endfield-unix-storage",
+ "fs2",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]

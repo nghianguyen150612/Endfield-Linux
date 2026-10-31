@@ -7,6 +7,7 @@ pub enum HelpTopic {
     About,
     Service,
     Diagnose,
+    Prefix,
 }
 
 /// Typed command selected by the CLI parser.
@@ -19,6 +20,7 @@ pub enum Command {
     LaunchGui,
     RuntimeInstall(Box<super::runtime_install::Operation>),
     RuntimePin(Box<super::runtime_pin::Operation>),
+    PrefixManagement(Box<super::prefix::Operation>),
     RuntimeAudit(String),
     RuntimeAuditSource {
         installation_id: String,

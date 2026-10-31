@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, `diagnose runtimes`, `diagnose umu`, `diagnose telemetry cpu-memory`, and `diagnose telemetry frames` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Runtime discovery never executes UMU, Wine, or Proton and prints no absolute runtime paths. Frame import reads one explicitly named regular file and never searches for recordings. Hardware, display, telemetry, and runtime output is printed only for an explicit command and is not automatically persisted or exported. `service ping` and `service status` make bounded local Unix-socket requests and never start the daemon. P020's explicit `service systemd` operations manage the user service through fixed `systemctl --user` commands. See [IPC.md](IPC.md), [SYSTEMD-USER.md](SYSTEMD-USER.md), and [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md).
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, `diagnose runtimes`, `diagnose umu`, `diagnose telemetry cpu-memory`, and `diagnose telemetry frames` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Runtime discovery never executes UMU, Wine, or Proton and prints no absolute runtime paths. Frame import reads one explicitly named regular file and never searches for recordings. Hardware, display, telemetry, and runtime output is printed only for an explicit command and is not automatically persisted or exported. `service ping` and `service status` make bounded local Unix-socket requests and never start the daemon. P020's explicit `service systemd` operations manage the user service through fixed `systemctl --user` commands. P028's `prefix` command plans, creates, inspects, recovers, unregisters, or explicitly deletes Endfield-Unix-owned directories without Wine execution. See [IPC.md](IPC.md), [SYSTEMD-USER.md](SYSTEMD-USER.md), [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md), and [PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md).
 
 ## Available commands
 
@@ -22,6 +22,15 @@
 | `endfield-unix diagnose umu` | Inspect local UMU availability and Proton candidate count without execution | No |
 | `endfield-unix diagnose telemetry cpu-memory [--interval-ms MS]` | Sample CPU utilization and collect RAM, swap, cgroup memory, and optional current frequency | No |
 | `endfield-unix diagnose telemetry frames --input PATH [--format frame-events-v1|mangohud-csv]` | Import one selected frame recording and report only source-supported P015 metrics | No |
+| `endfield-unix prefix list` | List managed prefixes and revalidate stored runtime associations | No |
+| `endfield-unix prefix show --id ID` | Inspect one managed prefix without mutation | No |
+| `endfield-unix prefix plan --id ID --scope machine|profile [--profile ID] [--expected-revision REV]` | Preflight managed storage and exact P027 runtime association | No |
+| `endfield-unix prefix create --id ID --scope machine|profile [--profile ID] --expected-revision REV` | Create an empty managed directory and metadata; does not initialize Wine | No |
+| `endfield-unix prefix validate --id ID` | Revalidate lifecycle, ownership, and associated runtime without mutation | No |
+| `endfield-unix prefix init --id ID` | Return explicit initialization_unsupported status; no process starts | No |
+| `endfield-unix prefix recover --id ID --expected-revision REV` | Reconcile a matching interrupted directory-only create | No |
+| `endfield-unix prefix remove --id ID --expected-revision REV` | Remove only registry ownership and preserve data | No |
+| `endfield-unix prefix delete --id ID --expected-revision REV --confirm-path PATH` | Delete only the exact verified managed path after safety checks | No |
 | `endfield-unix service ping` | Complete authenticated Ping/Pong over the local daemon socket | No |
 | `endfield-unix service status` | Print validated lifecycle, protocol, version, and capability data | No |
 | `endfield-unix service systemd install [--daemon PATH] [--replace]` | Install the foreground daemon and generated unit; autostart remains disabled | No |
@@ -69,6 +78,12 @@ endfield-unix diagnose telemetry cpu-memory --interval-ms 500
 endfield-unix diagnose telemetry frames --input ./frames.csv
 endfield-unix diagnose telemetry frames --format mangohud-csv --input ./recording.csv
 endfield-unix help gui
+endfield-unix prefix plan --id game --scope profile --profile default --expected-revision 0
+endfield-unix prefix create --id game --scope profile --profile default --expected-revision 0
+endfield-unix prefix validate --id game
+endfield-unix prefix init --id game
+endfield-unix prefix show --id game
+endfield-unix prefix delete --id game --expected-revision REV --confirm-path /exact/path/from/plan
 endfield-unix service ping
 endfield-unix service status
 endfield-unix service systemd install --daemon /absolute/path/to/endfield-unixd
@@ -104,6 +119,9 @@ Output writers can be injected through `run_with_io` for deterministic dispatch 
 | `70` | Malformed frame source, fatal provider, required platform identity, or hardware-probe failure |
 | `78` | Platform or explicitly selected frame format is unsupported |
 | `79` | systemd user-service command or installation failed |
+| `3` (prefix) | Prefix is missing or unregistered |
+| `4` (prefix) | Prefix operation is stale, conflicting, unsafe, or unverifiable |
+| `5` (prefix) | Wine initialization is unsupported by validated adapters |
 
 Status `74` also covers report destination and file-write failures. Invalid
 syntax or an unsupported report option remains status `2`. IPC failures use
@@ -115,6 +133,14 @@ command returns `0` for complete or partial hardware facts, `70` when required
 Linux identity cannot be established, and `78` on an unsupported platform;
 optional subsystem failures are reported as partial results. Output and
 argument failures remain `74` and `2`.
+
+P028 prefix commands are headless and perform no implicit mutation from
+`list`, `show`, `plan`, or `validate`. `create` requires a valid P027 pin and a
+current prefix registry revision. `delete` also requires the exact destination
+shown by `plan` or `show`; `remove` unregisters while preserving all data.
+`init` currently exits 5 with an explicit blocked result. Prefix-specific
+statuses 3–5 may have separate meanings for other command families. See
+[PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md) for lifecycle and deletion details.
 
 ## Planned command namespaces
 

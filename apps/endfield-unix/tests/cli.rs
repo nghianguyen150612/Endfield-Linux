@@ -19,6 +19,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("endfield-unix"));
+    assert!(stdout.contains("prefix <list|show|plan|create|validate|init|recover|remove|delete>"));
     assert!(stdout.contains("native GTK4 desktop application"));
     assert!(stdout.contains("diagnose report --output PATH"));
     assert!(stdout.contains("diagnose platform"));
@@ -118,6 +119,7 @@ fn command_specific_help_describes_gui_and_about() {
     let about = invoke(&["help", "about"]);
     let service = invoke(&["help", "service"]);
     let diagnose = invoke(&["help", "diagnose"]);
+    let prefix = invoke(&["help", "prefix"]);
 
     assert_eq!(gui.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&gui.stdout).contains("same startup path"));
@@ -133,6 +135,10 @@ fn command_specific_help_describes_gui_and_about() {
     assert!(String::from_utf8_lossy(&diagnose.stdout).contains(
         "diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>\nUsage: endfield-unix runtime <install|list-managed|audit|audit-source>"
     ));
+    assert_eq!(prefix.status.code(), Some(0));
+    let prefix_help = String::from_utf8_lossy(&prefix.stdout);
+    assert!(prefix_help.contains("Init currently returns initialization_unsupported"));
+    assert!(prefix_help.contains("Delete removes data only after --confirm-path"));
     for args in [
         &["runtime", "install", "--help"][..],
         &["runtime", "install", "plan", "--help"][..],
