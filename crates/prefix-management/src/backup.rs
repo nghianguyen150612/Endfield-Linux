@@ -16,6 +16,8 @@ pub enum BackupError {
     Prefix(#[from] PrefixError),
     #[error("backup integrity: {0:?}")]
     Integrity(BackupIntegrity),
+    #[error("saved runtime failed exact revalidation")]
+    RuntimeBlocked,
     #[error("unsupported snapshot entry or metadata")]
     Unsupported,
     #[error("snapshot quota or available space exceeded")]
@@ -139,6 +141,10 @@ impl BackupStore {
     }
     fn checkpoint(&self, _name: &str) -> Result<(), BackupError> {
         #[cfg(test)]
+        if std::env::var("ENDFIELD_P029_EXIT_AT").ok().as_deref() == Some(_name) {
+            unsafe { libc::_exit(91) }
+        }
+        #[cfg(test)]
         if self.fault == Some(_name) {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Interrupted,
@@ -207,6 +213,15 @@ impl BackupStore {
     }
     pub fn plan(&self, id: &PrefixId, scope: &PrefixScope) -> Result<BackupPlan, BackupError> {
         self.ensure_no_restore(id)?;
+        if let Some(staging) = self.sub("staging", false)? {
+            for pending in names(&staging)? {
+                let d = open_at(&staging, &pending, libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+                let record: PrefixRecord = read_json(&d, "intent.json")?;
+                if record.id == *id {
+                    return Err(BackupError::RecoveryBlocked);
+                }
+            }
+        }
         let (source, registry_revision) = self.record(id)?;
         if &source.scope != scope {
             return Err(PrefixError::InvalidScope.into());
@@ -330,6 +345,139 @@ impl BackupStore {
         }
         Ok(m)
     }
+    pub fn pending_backups(&self) -> Result<Vec<BackupId>, BackupError> {
+        let Some(root) = self.sub("staging", false)? else {
+            return Ok(vec![]);
+        };
+        names(&root)?.into_iter().map(BackupId::new).collect()
+    }
+    pub fn recover_backup(
+        &self,
+        id: &BackupId,
+        scope: &PrefixScope,
+        confirmed: bool,
+    ) -> Result<BackupManifest, BackupError> {
+        if !confirmed {
+            return Err(BackupError::Confirmation);
+        }
+        let _guard = self.fs.lock_registry()?;
+        if self.list()?.contains(id) {
+            return self.verify(id, scope);
+        }
+        let staging = self
+            .sub("staging", false)?
+            .ok_or(BackupError::Integrity(BackupIntegrity::Missing))?;
+        let dir = open_at(&staging, id.as_str(), libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+        verify_private_dir(&dir)?;
+        if mount_id(&dir)? != mount_id(&staging)? {
+            return Err(PrefixError::Blocked.into());
+        }
+        let m: BackupManifest = read_json(&dir, "manifest.json")
+            .map_err(|_| BackupError::Integrity(BackupIntegrity::Incomplete))?;
+        m.source.validate()?;
+        if m.schema_version != 1
+            || m.id != *id
+            || &m.source.scope != scope
+            || m.source.owner_uid != crate::current_uid()
+            || m.source.lifecycle != PrefixLifecycleState::Created
+            || m.integrity != BackupIntegrity::Verified
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let payload = open_at(&dir, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+        if mount_id(&payload)? != mount_id(&dir)?
+            || scan(&payload, None)? != m.inventory
+            || total(&m.inventory)? != m.payload_bytes
+        {
+            return Err(BackupError::Integrity(BackupIntegrity::Corrupt));
+        }
+        let published = self.sub("snapshots", true)?.ok_or(PrefixError::Blocked)?;
+        rename(
+            &staging,
+            id.as_str(),
+            &published,
+            id.as_str(),
+            libc::RENAME_NOREPLACE,
+        )?;
+        self.verify(id, scope)
+    }
+    /// Deletion is journaled by moving the fully verified snapshot to deleting/.
+    /// A partial unlink is retained there and requires inspection, never guessing.
+    pub fn delete(
+        &self,
+        id: &BackupId,
+        scope: &PrefixScope,
+        confirmation: &str,
+    ) -> Result<(), BackupError> {
+        if confirmation != format!("delete:{}", id.as_str()) {
+            return Err(BackupError::Confirmation);
+        }
+        let _guard = self.fs.lock_registry()?;
+        let m = self.verify(id, scope)?;
+        if let Some(pins) = self.sub("pin-recovery", false)? {
+            if names(&pins)?
+                .iter()
+                .any(|n| n.starts_with(&format!("{}-", id.as_str())))
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        }
+        if self.transaction_dir(&m.source.id, false)?.is_some() {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let snapshots = self.sub("snapshots", false)?.ok_or(PrefixError::Missing)?;
+        let deleting = self.sub("deleting", true)?.ok_or(PrefixError::Blocked)?;
+        let dir = self.snapshot(id)?;
+        if names(&dir)? != ["intent.json", "manifest.json", "payload"] {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let expected = identity(&dir)?;
+        rename(
+            &snapshots,
+            id.as_str(),
+            &deleting,
+            id.as_str(),
+            libc::RENAME_NOREPLACE,
+        )?;
+        self.checkpoint("delete-retired")?;
+        let retired = open_at(
+            &deleting,
+            id.as_str(),
+            libc::O_RDONLY | libc::O_DIRECTORY,
+            0,
+        )?;
+        if identity(&retired)? != expected {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let payload = open_at(&retired, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+        if scan(&payload, None)? != m.inventory {
+            return Err(BackupError::Integrity(BackupIntegrity::Corrupt));
+        }
+        delete_verified_tree(&payload, mount_id(&retired)?, 0)?;
+        unlink_at(&retired, "payload", libc::AT_REMOVEDIR)?;
+        for name in ["intent.json", "manifest.json"] {
+            let f = open_at(&retired, name, libc::O_RDONLY, 0)?;
+            verify_private_file(&f)?;
+            if identity(&f)? != identity(&open_at(&retired, name, libc::O_RDONLY, 0)?)? {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            unlink_at(&retired, name, 0)?;
+        }
+        retired.sync_all()?;
+        if identity(&open_at(
+            &deleting,
+            id.as_str(),
+            libc::O_RDONLY | libc::O_DIRECTORY,
+            0,
+        )?)? != expected
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        unlink_at(&deleting, id.as_str(), libc::AT_REMOVEDIR)?;
+        deleting.sync_all()?;
+        Ok(())
+    }
+
     pub fn restore_plan(
         &self,
         id: &PrefixId,
@@ -491,6 +639,138 @@ impl BackupStore {
             original_preserved: true,
         })
     }
+    /// Separately approved P027 mutation. Prefix restoration never calls this.
+    pub fn restore_pin(
+        &self,
+        backup: &BackupId,
+        authorized_scope: &PrefixScope,
+        pins: &endfield_unix_runtime_selection::PinStore,
+        expected: u64,
+        confirmation: &str,
+        mut validate: impl FnMut(&crate::PrefixRuntimeAssociation) -> Result<(), String>,
+    ) -> Result<u64, BackupError> {
+        use endfield_unix_runtime_selection::{RuntimePin, RuntimePinScope};
+        if confirmation != format!("pin:{}", backup.as_str()) {
+            return Err(BackupError::Confirmation);
+        }
+        let _guard = self.fs.lock_registry()?;
+        let m = self.verify(backup, authorized_scope)?;
+        validate(&m.source.runtime).map_err(|_| BackupError::RuntimeBlocked)?;
+        let machine = match authorized_scope {
+            PrefixScope::Machine { machine } | PrefixScope::Profile { machine, .. } => {
+                machine.clone()
+            }
+        };
+        let scope = match (&m.source.runtime.selection_source, authorized_scope) {
+            (crate::RuntimeSelectionSource::MachinePin, _) => RuntimePinScope::Machine { machine },
+            (crate::RuntimeSelectionSource::ProfilePin, PrefixScope::Profile { profile, .. }) => {
+                RuntimePinScope::Profile {
+                    machine,
+                    profile: profile.clone(),
+                }
+            }
+            _ => return Err(PrefixError::InvalidScope.into()),
+        };
+        let root = self
+            .sub("pin-recovery", true)?
+            .ok_or(PrefixError::Blocked)?;
+        let name = format!("{}-{expected}", backup.as_str());
+        let tx = match child_dir(&root, OsStr::new(&name), false)? {
+            Some(tx) => {
+                verify_private_dir(&tx)?;
+                tx
+            }
+            None => exclusive_dir(&root, &name)?,
+        };
+        if mount_id(&tx)? != mount_id(&root)? {
+            return Err(PrefixError::Blocked.into());
+        }
+        let desired = RuntimePin::new(
+            m.source.runtime.pin_id.clone(),
+            scope,
+            m.source.runtime.runtime.clone(),
+            m.source.runtime.adapter_preference,
+            crate::now(),
+        )
+        .map_err(|_| BackupError::RuntimeBlocked)?;
+        let desired: RuntimePin = if has_file(&tx, "intent.json")? {
+            let saved: RuntimePin = read_json(&tx, "intent.json")?;
+            if saved.scope != desired.scope
+                || saved.runtime != desired.runtime
+                || saved.adapter_preference != desired.adapter_preference
+                || saved.pin_id != desired.pin_id
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            saved
+        } else {
+            write_json(&tx, "intent.json", &desired)?;
+            desired
+        };
+        self.checkpoint("pin-intent")?;
+        let current = pins.load().map_err(|_| BackupError::RuntimeBlocked)?;
+        let resulting_revision = expected
+            .checked_add(1)
+            .ok_or(BackupError::RecoveryBlocked)?;
+        if current.revision == expected {
+            validate(&m.source.runtime).map_err(|_| BackupError::RuntimeBlocked)?;
+            pins.set(desired.clone(), expected, true)
+                .map_err(|_| BackupError::RuntimeBlocked)?;
+            self.checkpoint("pin-committed")?;
+        } else {
+            let pin = current
+                .pin(&desired.scope)
+                .ok_or(BackupError::RecoveryBlocked)?;
+            if current.revision != resulting_revision
+                || pin.runtime != desired.runtime
+                || pin.adapter_preference != desired.adapter_preference
+                || pin.pin_id != desired.pin_id
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        }
+        if !has_file(&tx, "completed.json")? {
+            write_json(&tx, "completed.json", &resulting_revision)?;
+        }
+        Ok(resulting_revision)
+    }
+
+    /// Archive completed evidence and preserved bytes without deleting them.
+    pub fn release(
+        &self,
+        id: &PrefixId,
+        scope: &PrefixScope,
+        expected: u64,
+        confirmation: &str,
+    ) -> Result<(), BackupError> {
+        if confirmation != format!("release:{}", id.as_str()) {
+            return Err(BackupError::Confirmation);
+        }
+        let _rg = self.fs.lock_registry()?;
+        let _pg = self.fs.lock_prefix(id)?;
+        if self.prefixes.load_snapshot()?.registry.revision != expected {
+            return Err(PrefixError::RevisionConflict.into());
+        }
+        let tx = self
+            .transaction_dir(id, false)?
+            .ok_or(BackupError::RecoveryBlocked)?;
+        let j: RestoreTransaction = read_json(&tx, "staged.json")?;
+        if !has_file(&tx, "completed.json")? {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        self.finalize(id, &tx, &j, scope)?;
+        let roots = self.sub("restores", false)?.ok_or(PrefixError::Missing)?;
+        let history = self.sub("history", true)?.ok_or(PrefixError::Blocked)?;
+        rename(
+            &roots,
+            id.as_str(),
+            &history,
+            &format!("{}-{}", id.as_str(), j.staged.inode),
+            libc::RENAME_NOREPLACE,
+        )?;
+        Ok(())
+    }
+
     pub fn recovery_status(&self, id: &PrefixId) -> Result<RecoveryReport, BackupError> {
         let Some(tx) = self.transaction_dir(id, false)? else {
             return Ok(RecoveryReport {
@@ -540,9 +820,65 @@ impl BackupStore {
         let tx = self
             .transaction_dir(id, false)?
             .ok_or(BackupError::RecoveryBlocked)?;
-        let journal = read_json(&tx, "staged.json")?;
+        let journal: RestoreTransaction = read_json(&tx, "staged.json")?;
+        if journal.schema_version != 1
+            || journal.original.id != *id
+            || &journal.original.scope != scope
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        if self.fs.inspect_directory(id)? == journal.original.filesystem_identity {
+            journal.original.validate()?;
+            let snap = self.prefixes.load_snapshot()?;
+            if snap.registry.revision != journal.expected_revision
+                || snap.registry.record(id) != Some(&journal.original)
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let m = self.verify(&journal.backup, scope)?;
+            let payload = open_at(&tx, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+            if m.source.id != *id
+                || identity(&payload)? != journal.staged
+                || scan(&payload, None)? != m.inventory
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            self.inactive(id)?;
+            let l = self.fs.layout(false)?.ok_or(PrefixError::Blocked)?;
+            if mount_id(&payload)? != l.root_mount {
+                return Err(PrefixError::Blocked.into());
+            }
+            rename(&tx, "payload", &l.data, id.as_str(), libc::RENAME_EXCHANGE)?;
+        }
         self.finalize(id, &tx, &journal, scope)
     }
+}
+
+fn delete_verified_tree(dir: &File, mount: u64, depth: usize) -> Result<(), BackupError> {
+    if depth > 64 || mount_id(dir)? != mount {
+        return Err(BackupError::RecoveryBlocked);
+    }
+    for name in names(dir)? {
+        let f = open_at(dir, &name, libc::O_RDONLY, 0)?;
+        let m = f.metadata()?;
+        if m.uid() != crate::current_uid() || mount_id(&f)? != mount {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let flags = if m.is_dir() {
+            delete_verified_tree(&f, mount, depth + 1)?;
+            libc::AT_REMOVEDIR
+        } else if m.is_file() && m.nlink() == 1 {
+            0
+        } else {
+            return Err(BackupError::RecoveryBlocked);
+        };
+        if identity(&f)? != identity(&open_at(dir, &name, libc::O_RDONLY, 0)?)? {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        unlink_at(dir, &name, flags)?;
+        dir.sync_all()?;
+    }
+    Ok(())
 }
 
 fn identity(f: &File) -> Result<FilesystemIdentity, BackupError> {
@@ -809,7 +1145,7 @@ fn rename(from: &File, a: &str, to: &File, b: &str, flags: u32) -> Result<(), Ba
 mod tests {
     use super::*;
     use std::os::unix::fs::symlink;
-    fn fixture() -> (tempfile::TempDir, BackupStore, PrefixId, PrefixScope, u64) {
+    pub(super) fn fixture() -> (tempfile::TempDir, BackupStore, PrefixId, PrefixScope, u64) {
         let (tmp, prefixes, scope, runtime) = crate::tests::fixture();
         let id = PrefixId::new("game").unwrap();
         let (_, rev) = prefixes
@@ -964,7 +1300,11 @@ mod tests {
             b.fault = Some(fault);
             assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
             b.fault = None;
-            assert!(b.recover(&id, &scope, rev, true).is_err());
+            if fault == "restore-staged" {
+                b.recover(&id, &scope, rev, true).unwrap();
+            } else {
+                assert!(b.recover(&id, &scope, rev, true).is_err());
+            }
             assert_eq!(
                 fs::read(b.fs.target_path(&id).join("file")).unwrap(),
                 b"original"
@@ -986,3 +1326,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "backup_tests.rs"]
+mod recovery_tests;

@@ -89,6 +89,21 @@ pub enum Operation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum BackupOperation {
+    Pending,
+    Recover {
+        #[arg(long)]
+        backup_id: String,
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        confirm: bool,
+    },
+    Delete {
+        #[arg(long)]
+        backup_id: String,
+        #[arg(long)]
+        confirm: String,
+    },
     List,
     Plan {
         #[arg(long)]
@@ -132,6 +147,23 @@ pub enum RestoreOperation {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum RecoveryOperation {
+    Release {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long)]
+        confirm: String,
+    },
+    /// Restore only the saved association's P027 pin, with separate approval.
+    Pin {
+        #[arg(long)]
+        backup_id: String,
+        #[arg(long)]
+        expected_pin_revision: u64,
+        #[arg(long)]
+        confirm: String,
+    },
     Status {
         #[arg(long)]
         id: String,
@@ -806,6 +838,30 @@ fn run_backup(op: BackupOperation, out: &mut impl Write) -> Result<u8, Failure> 
     use prefixes::backup::BackupId;
     let b = backup_store()?;
     match op {
+        BackupOperation::Pending => json_output(out, &b.pending_backups()?),
+        BackupOperation::Recover {
+            backup_id,
+            id,
+            confirm,
+        } => {
+            let prefix = prefixes::PrefixId::new(id)?;
+            json_output(
+                out,
+                &b.recover_backup(
+                    &BackupId::new(backup_id)?,
+                    &authorized_scope(&prefix)?,
+                    confirm,
+                )?,
+            )
+        }
+        BackupOperation::Delete { backup_id, confirm } => {
+            let id = BackupId::new(backup_id)?;
+            let m = b.show(&id)?;
+            check_machine(&m.source.scope)?;
+            b.delete(&id, &m.source.scope, &confirm)?;
+            writeln!(out, "Backup removed; source prefix and P027 pins preserved")?;
+            Ok(0)
+        }
         BackupOperation::List => json_output(out, &b.list()?),
         BackupOperation::Plan { id } => {
             let id = prefixes::PrefixId::new(id)?;
@@ -869,6 +925,49 @@ fn run_restore(op: RestoreOperation, out: &mut impl Write) -> Result<u8, Failure
 fn run_recovery(op: RecoveryOperation, out: &mut impl Write) -> Result<u8, Failure> {
     let b = backup_store()?;
     match op {
+        RecoveryOperation::Release {
+            id,
+            expected_revision,
+            confirm,
+        } => {
+            let id = prefixes::PrefixId::new(id)?;
+            b.release(&id, &authorized_scope(&id)?, expected_revision, &confirm)?;
+            writeln!(
+                out,
+                "Completed restore archived; original data preserved in backup history"
+            )?;
+            Ok(0)
+        }
+        RecoveryOperation::Pin {
+            backup_id,
+            expected_pin_revision,
+            confirm,
+        } => {
+            let id = prefixes::backup::BackupId::new(backup_id)?;
+            let m = b.show(&id)?;
+            check_machine(&m.source.scope)?;
+            let paths = endfield_unix_storage::AppPaths::discover()
+                .map_err(|e| Failure::Runtime(e.to_string()))?;
+            let pins = pins::PinStore::for_app(&paths);
+            let revision = b.restore_pin(
+                &id,
+                &m.source.scope,
+                &pins,
+                expected_pin_revision,
+                &confirm,
+                |association| {
+                    super::runtime_pin::validate_reference(&association.runtime)?;
+                    if association.adapter_preference == Some(pins::AdapterPreference::UmuProton) {
+                        // Pinning does not install UMU or substitute an adapter.
+                        return Err(
+                            "UMU adapter availability has not been established for recovery".into(),
+                        );
+                    }
+                    Ok(())
+                },
+            )?;
+            json_output(out, &revision)
+        }
         RecoveryOperation::Status { id } => {
             let id = prefixes::PrefixId::new(id)?;
             authorized_scope(&id)?;
