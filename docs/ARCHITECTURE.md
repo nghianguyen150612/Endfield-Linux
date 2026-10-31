@@ -374,3 +374,6 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P029 headless snapshots
 
 The P028 prefix-management crate owns the snapshot API; its Linux adapter reuses existing dirfd, ownership, locking and CAS contracts. Planning and verification remain observational. Restore exchanges fully verified staging with live managed data, then separately commits the P028 registry, retaining the original. P027 pin restoration is an independent approved public-API CAS transaction with its own evidence. No executable, daemon protocol or C17 ABI change is added. See [backup/recovery](BACKUP-RECOVERY.md).
+
+
+P029B adds a limited rollback transition to the existing prefix backup adapter. A schema-2 journal records original content evidence; a durable intent precedes exchange and a completion marker follows revalidation. The prefix registry is still the original record in this supported phase, so it is checked under the lock without a registry write. No cross-registry atomicity is claimed.

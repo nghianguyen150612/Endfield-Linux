@@ -67,3 +67,6 @@ Synthetic tests cover read-only plans, lifecycle transitions, idempotence, concu
 ## P029 snapshot extension
 
 The same library now exposes backup/recovery types and Linux operations. P028 mutations refuse outstanding restore evidence, including completed evidence until explicit release archives it without removing original bytes. Existing commands and initialization_unsupported remain. See [backup/recovery](BACKUP-RECOVERY.md).
+
+
+P029B introduces optional explicit rollback only for schema-2 restores published before their registry commit. The original record and revision must still match, and both filesystem trees are verified. Legacy and already committed restores remain blocked. See [backup/recovery](BACKUP-RECOVERY.md).

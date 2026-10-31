@@ -18,3 +18,6 @@ Added managed-prefix snapshot inventories and SHA-256 verification, private stag
 ### P029A remediation
 
 Fixed the actual executable's P028-only parser by sharing the prefix operation enum with dispatch. Added complete nested parser/help coverage and real-executable backup/restore/recovery tests. Restore planning now assesses current P027 state through a new strictly observational API. Incomplete deletions have a read-only inspection command; corrupt and premature completion evidence is rejected before mutations. Added copy/unlink process-exit and staging-replacement regressions. This is P029 hardening, not a new milestone; unsupported filesystem objects and real-prefix qualification limits remain.
+
+
+P029B adds original-tree inventory evidence and narrowly scoped explicit rollback for published, uncommitted schema-2 restores. It preserves both trees and P027 pins and blocks legacy/committed rollback. Interrupted deletion resume and final qualification remain incomplete.

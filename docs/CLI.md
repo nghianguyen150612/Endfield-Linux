@@ -245,3 +245,6 @@ The existing prefix family gains nested backup, restore and recovery commands, d
 ## P029A canonical parser repair
 
 The executable now parses the same typed prefix operation tree used by dispatch. `prefix recover` remains the P028 creation-reconciliation command; `prefix recovery <status|run|release|pin>` handles P029 snapshots. Top-level, topic and nested help expose the new groups. `prefix backup deletions` reports incomplete retirement evidence without unlinking anything. Restore-plan JSON now includes current P027 selection and saved-reference assessment; it never mutates pins. See [backup/recovery](BACKUP-RECOVERY.md) for approval strings and exit codes.
+
+
+P029B adds `prefix recovery rollback-plan --id ID` and `prefix recovery rollback --id ID --expected-revision REV --confirm TOKEN`. Use the exact token printed by the plan. Only published, uncommitted schema-2 restores qualify; unsupported states return a blocked result. `recovery release` archives completed rollback evidence and displaced data.

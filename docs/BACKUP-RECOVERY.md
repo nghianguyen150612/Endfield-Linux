@@ -47,7 +47,7 @@ Apply checks the prefix revision and exact `restore:<prefix-id>:<backup-id>` con
 
 Publication and prefix-registry CAS are separate durable steps. Recovery compares the live and preserved identities with the journal, verifies the restored payload, and commits the original snapshot lifecycle/runtime association into P028. The expected revision, exact original record and staged inode distinguish pre-publication, published-before-registry, registry-committed and completed states. Recovery refuses ambiguous or changed evidence. Repeated successful recovery is idempotent. Registry revisions must not have advanced through unrelated operations; an unexpected revision blocks inspection rather than guessing.
 
-`recovery release` archives a completed transaction into history and preserves all original bytes. Until release, even completed restore evidence blocks further P028 mutations and further restores for that prefix. There is no original-data deletion operation. Archive names use the preserved journal's restored inode; collisions block rather than overwrite. No automatic rollback of published data is offered: recovery completes publication, and preserved originals remain available for inspection. Restoring an earlier snapshot is a separate explicit operation after release.
+`recovery release` archives a completed transaction into history and preserves all original bytes. Until release, even completed restore evidence blocks further P028 mutations and further restores for that prefix. There is no original-data deletion operation. Archive names use the preserved journal's restored inode; collisions block rather than overwrite. No automatic rollback is offered. Forward recovery completes publication; the separately approved limited rollback described below is available only before the registry commit. Preserved originals remain available for inspection.
 
 ## Runtime-pin recovery
 
@@ -95,4 +95,14 @@ Recovery validates the original intent against the staged journal, checks allowe
 
 ## P029B investigation status
 
-P029B remains incomplete. A synthetic Wine-style tree with internal and external `dosdevices` symlinks was rejected without following either link. Existing snapshots do not provide the durable deletion intent or preserved-original content evidence needed to safely infer deletion replay or rollback. Neither operation has been enabled. See [the P029B investigation record](manifests/PROMPT029B_MANIFEST.md).
+P029B remains incomplete. A synthetic Wine-style tree with internal and external `dosdevices` symlinks was rejected without following either link. Legacy transactions lack the durable deletion intent and preserved-original content evidence needed to safely infer deletion replay or rollback. Deletion replay remains unsupported. New schema-2 restore transactions support explicitly approved rollback only after filesystem publication and before the prefix registry commit. They retain and recheck an inventory of the preserved original; schema-1 and committed restore rollback are blocked. See the investigation record for the journal, retention and qualification limits. See [the P029B investigation record](manifests/PROMPT029B_MANIFEST.md).
+
+
+### P029B limited rollback commands
+
+```sh
+endfield-unix prefix recovery rollback-plan --id game
+endfield-unix prefix recovery rollback --id game --expected-revision REV --confirm EXACT_TOKEN_FROM_PLAN
+```
+
+Rollback is not automatic. The saved original and displaced restored payload are retained, and no P027 pin is changed. If interrupted after intent, run rollback again with the exact token and unchanged revision; forward recovery refuses the active rollback intent. `recovery release` archives a completed rollback while retaining the displaced tree. A valid schema-2 inventory and the exact original registry record are required. Legacy schema-1 journals, completed/registry-committed restores and ambiguous evidence fail closed. Hashes detect changes, not malicious same-user tampering or publisher authenticity.

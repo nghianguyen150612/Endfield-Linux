@@ -284,3 +284,6 @@ The process-use check inspects visible same-UID `/proc/*/environ` for an exact `
 ## P029 backup boundaries
 
 Snapshots are accidental-corruption detection, not authenticated archives. No-follow dirfds, owner/parent identities, same-mount checks, source change observations, bounded accounting and existing operation locks constrain filesystem access. Unknown /proc results block backup/restore. Cooperative offline use is required; hashes and advisory locks do not exclude arbitrary same-user writers. All symlinks, hardlinks, detected sparse files, xattrs/ACLs and special files are unsupported. Restore preserves the original directory, and ambiguous journals block further mutation. See [backup/recovery](BACKUP-RECOVERY.md).
+
+
+P029B schema-2 restore journals record a bounded hash inventory of the original tree. Explicit pre-commit rollback verifies both trees, exact identities and the unchanged registry revision before and after exchange; it preserves displaced data and requires process-use assessment. Hashes are not authentication. Legacy journals and committed states fail closed.

@@ -117,3 +117,6 @@ Implementation and test state `38cac50cb2d4673374a5260e9da7a3549d9ccd11` passed 
 The final local repeats at that same HEAD passed format, build, warning-denied workspace Clippy, 42 prefix tests, all four actual CLI integration tests, GTK smoke, both C17 scripts and metadata. Both the default and serialized final full-workspace attempts reproduced the unchanged `ipc_e2e.rs:144` race. The earlier 763-test serialized pass is retained as earlier-attempt evidence, not substituted for those failures. Hosted final-implementation workspace gates passed; the IPC race remains a reproducibility risk.
 
 The subsequent commit only records this evidence. It must receive its own hosted qualification before delivery; final post-evidence HEAD/run links are reported in PR #2 and the completion report. P029A is ready for review as remediation within Draft PR #2, subject to those final gates and the documented unsupported/physical-device limits. This does not authorize merging or claim every broader P029 acceptance scenario is qualified.
+
+
+P029B continues this milestone with schema-2 restore evidence and limited explicit pre-commit rollback; deletion replay and final qualification are still outstanding. See [P029B manifest](PROMPT029B_MANIFEST.md).
