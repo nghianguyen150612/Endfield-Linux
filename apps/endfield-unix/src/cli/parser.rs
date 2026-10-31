@@ -47,7 +47,7 @@ enum SubcommandArgs {
     /// Manage isolated, Endfield-Unix-owned prefix directories without running Wine.
     Prefix {
         #[command(subcommand)]
-        command: Box<PrefixArgs>,
+        command: Box<super::prefix::Operation>,
     },
     /// Show command help.
     Help {
@@ -95,87 +95,6 @@ enum RuntimeArgs {
         #[command(subcommand)]
         operation: Box<super::runtime_pin::Operation>,
     },
-}
-
-#[derive(Debug, Subcommand)]
-enum PrefixArgs {
-    /// List registered managed prefixes and validate their stored runtime associations.
-    List,
-    /// Inspect one registered prefix.
-    Show {
-        #[arg(long)]
-        id: String,
-    },
-    /// Validate one prefix and its associated runtime without changing files.
-    Validate {
-        #[arg(long)]
-        id: String,
-    },
-    /// Preview prefix storage and the exact P027-selected runtime association.
-    Plan {
-        #[arg(long)]
-        id: String,
-        #[arg(long, value_enum)]
-        scope: PrefixScopeArg,
-        #[arg(long)]
-        profile: Option<String>,
-        #[arg(long)]
-        expected_revision: Option<u64>,
-    },
-    /// Create a managed directory and metadata; this does not initialize Wine.
-    Create {
-        #[arg(long)]
-        id: String,
-        #[arg(long, value_enum)]
-        scope: PrefixScopeArg,
-        #[arg(long)]
-        profile: Option<String>,
-        #[arg(long)]
-        expected_revision: u64,
-    },
-    /// Attempt explicit Wine initialization; blocked until a validated adapter is available.
-    Init {
-        #[arg(long)]
-        id: String,
-    },
-    /// Reconcile an interrupted directory-only create operation.
-    Recover {
-        #[arg(long)]
-        id: String,
-        #[arg(long)]
-        expected_revision: u64,
-    },
-    /// Remove registry ownership only and preserve every prefix byte.
-    Remove {
-        #[arg(long)]
-        id: String,
-        #[arg(long)]
-        expected_revision: u64,
-    },
-    /// Delete a managed prefix tree after confirming the exact previewed target.
-    Delete {
-        #[arg(long)]
-        id: String,
-        #[arg(long)]
-        expected_revision: u64,
-        #[arg(long, value_name = "EXACT_PATH")]
-        confirm_path: PathBuf,
-    },
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum PrefixScopeArg {
-    Machine,
-    Profile,
-}
-
-impl From<PrefixScopeArg> for super::prefix::ScopeArg {
-    fn from(value: PrefixScopeArg) -> Self {
-        match value {
-            PrefixScopeArg::Machine => Self::Machine,
-            PrefixScopeArg::Profile => Self::Profile,
-        }
-    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -385,60 +304,7 @@ where
                 inputs,
             },
         },
-        Some(SubcommandArgs::Prefix { command }) => {
-            let operation = match *command {
-                PrefixArgs::List => super::prefix::Operation::List,
-                PrefixArgs::Show { id } => super::prefix::Operation::Show { id },
-                PrefixArgs::Validate { id } => super::prefix::Operation::Validate { id },
-                PrefixArgs::Plan {
-                    id,
-                    scope,
-                    profile,
-                    expected_revision,
-                } => super::prefix::Operation::Plan {
-                    id,
-                    scope: scope.into(),
-                    profile,
-                    expected_revision,
-                },
-                PrefixArgs::Create {
-                    id,
-                    scope,
-                    profile,
-                    expected_revision,
-                } => super::prefix::Operation::Create {
-                    id,
-                    scope: scope.into(),
-                    profile,
-                    expected_revision,
-                },
-                PrefixArgs::Init { id } => super::prefix::Operation::Init { id },
-                PrefixArgs::Recover {
-                    id,
-                    expected_revision,
-                } => super::prefix::Operation::Recover {
-                    id,
-                    expected_revision,
-                },
-                PrefixArgs::Remove {
-                    id,
-                    expected_revision,
-                } => super::prefix::Operation::Remove {
-                    id,
-                    expected_revision,
-                },
-                PrefixArgs::Delete {
-                    id,
-                    expected_revision,
-                    confirm_path,
-                } => super::prefix::Operation::Delete {
-                    id,
-                    expected_revision,
-                    confirm_path,
-                },
-            };
-            Command::PrefixManagement(Box::new(operation))
-        }
+        Some(SubcommandArgs::Prefix { command }) => Command::PrefixManagement(command),
         Some(SubcommandArgs::Gui) => Command::LaunchGui,
         Some(SubcommandArgs::Help { topic }) => Command::Help(topic.map(|topic| match topic {
             HelpTopicArg::Gui => HelpTopic::Gui,
@@ -599,7 +465,11 @@ fn nested_prefix_help(arguments: &[OsString]) -> Option<String> {
     for component in path {
         command = command.find_subcommand(component.to_str()?)?.clone();
     }
-    Some(command.render_help().to_string())
+    let invocation = std::iter::once(APPLICATION_NAME.to_owned())
+        .chain(path.iter().map(|part| part.to_string_lossy().into_owned()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(command.bin_name(invocation).render_help().to_string())
 }
 
 #[cfg(test)]
@@ -614,6 +484,265 @@ mod tests {
         match parse(args(values)) {
             Ok(command) => assert_eq!(command, expected),
             Err(error) => panic!("expected a command, got parser error: {error}"),
+        }
+    }
+
+    #[test]
+    fn p029_commands_use_the_canonical_operation_tree() {
+        use super::super::prefix::{
+            BackupOperation as B, Operation as O, RecoveryOperation as R, RestoreOperation as S,
+        };
+        let cases = vec![
+            (
+                vec!["backup", "deletions"],
+                O::Backup {
+                    operation: B::Deletions,
+                },
+            ),
+            (vec!["backup", "list"], O::Backup { operation: B::List }),
+            (
+                vec!["backup", "pending"],
+                O::Backup {
+                    operation: B::Pending,
+                },
+            ),
+            (
+                vec!["backup", "plan", "--id", "game"],
+                O::Backup {
+                    operation: B::Plan { id: "game".into() },
+                },
+            ),
+            (
+                vec![
+                    "backup",
+                    "create",
+                    "--id",
+                    "game",
+                    "--expected-revision",
+                    "2",
+                    "--confirm",
+                ],
+                O::Backup {
+                    operation: B::Create {
+                        id: "game".into(),
+                        expected_revision: 2,
+                        confirm: true,
+                    },
+                },
+            ),
+            (
+                vec!["backup", "show", "--backup-id", "b"],
+                O::Backup {
+                    operation: B::Show {
+                        backup_id: "b".into(),
+                    },
+                },
+            ),
+            (
+                vec!["backup", "verify", "--backup-id", "b"],
+                O::Backup {
+                    operation: B::Verify {
+                        backup_id: "b".into(),
+                    },
+                },
+            ),
+            (
+                vec![
+                    "backup",
+                    "recover",
+                    "--id",
+                    "game",
+                    "--backup-id",
+                    "b",
+                    "--confirm",
+                ],
+                O::Backup {
+                    operation: B::Recover {
+                        id: "game".into(),
+                        backup_id: "b".into(),
+                        confirm: true,
+                    },
+                },
+            ),
+            (
+                vec![
+                    "backup",
+                    "delete",
+                    "--backup-id",
+                    "b",
+                    "--confirm",
+                    "delete:b",
+                ],
+                O::Backup {
+                    operation: B::Delete {
+                        backup_id: "b".into(),
+                        confirm: "delete:b".into(),
+                    },
+                },
+            ),
+            (
+                vec!["restore", "plan", "--id", "game", "--backup-id", "b"],
+                O::Restore {
+                    operation: S::Plan {
+                        id: "game".into(),
+                        backup_id: "b".into(),
+                    },
+                },
+            ),
+            (
+                vec![
+                    "restore",
+                    "apply",
+                    "--id",
+                    "game",
+                    "--backup-id",
+                    "b",
+                    "--expected-revision",
+                    "2",
+                    "--confirm",
+                    "restore:game:b",
+                ],
+                O::Restore {
+                    operation: S::Apply {
+                        id: "game".into(),
+                        backup_id: "b".into(),
+                        expected_revision: 2,
+                        confirm: "restore:game:b".into(),
+                    },
+                },
+            ),
+            (
+                vec!["recovery", "status", "--id", "game"],
+                O::Recovery {
+                    operation: R::Status { id: "game".into() },
+                },
+            ),
+            (
+                vec![
+                    "recovery",
+                    "run",
+                    "--id",
+                    "game",
+                    "--expected-revision",
+                    "2",
+                    "--confirm",
+                ],
+                O::Recovery {
+                    operation: R::Run {
+                        id: "game".into(),
+                        expected_revision: 2,
+                        confirm: true,
+                    },
+                },
+            ),
+            (
+                vec![
+                    "recovery",
+                    "release",
+                    "--id",
+                    "game",
+                    "--expected-revision",
+                    "2",
+                    "--confirm",
+                    "release:game",
+                ],
+                O::Recovery {
+                    operation: R::Release {
+                        id: "game".into(),
+                        expected_revision: 2,
+                        confirm: "release:game".into(),
+                    },
+                },
+            ),
+            (
+                vec![
+                    "recovery",
+                    "pin",
+                    "--backup-id",
+                    "b",
+                    "--expected-pin-revision",
+                    "7",
+                    "--confirm",
+                    "pin:b",
+                ],
+                O::Recovery {
+                    operation: R::Pin {
+                        backup_id: "b".into(),
+                        expected_pin_revision: 7,
+                        confirm: "pin:b".into(),
+                    },
+                },
+            ),
+            (
+                vec!["recover", "--id", "game", "--expected-revision", "2"],
+                O::Recover {
+                    id: "game".into(),
+                    expected_revision: 2,
+                },
+            ),
+        ];
+        for (tail, operation) in cases {
+            let values = std::iter::once("prefix").chain(tail).collect::<Vec<_>>();
+            assert_command(&values, Command::PrefixManagement(Box::new(operation)));
+        }
+    }
+
+    #[test]
+    fn every_p029_leaf_has_nested_help_and_keeps_required_arguments() {
+        for (group, leaves) in [
+            (
+                "backup",
+                &[
+                    "list",
+                    "pending",
+                    "deletions",
+                    "plan",
+                    "create",
+                    "show",
+                    "verify",
+                    "recover",
+                    "delete",
+                ][..],
+            ),
+            ("restore", &["plan", "apply"][..]),
+            ("recovery", &["status", "run", "release", "pin"][..]),
+        ] {
+            assert!(matches!(
+                parse(args(&["prefix", group, "--help"])),
+                Ok(Command::HelpOutput(_))
+            ));
+            for leaf in leaves {
+                let parsed = parse(args(&["prefix", group, leaf, "--help"]));
+                assert!(
+                    matches!(parsed,Ok(Command::HelpOutput(ref h)) if h.contains("Usage:")),
+                    "{parsed:?}"
+                );
+            }
+        }
+        for values in [
+            &[
+                "prefix",
+                "restore",
+                "apply",
+                "--id",
+                "game",
+                "--backup-id",
+                "b",
+                "--expected-revision",
+                "2",
+            ][..],
+            &[
+                "prefix",
+                "recovery",
+                "pin",
+                "--backup-id",
+                "b",
+                "--confirm",
+                "pin:b",
+            ][..],
+            &["prefix", "backup", "create", "--id", "game", "--confirm"][..],
+        ] {
+            assert!(parse(args(values)).is_err(), "{values:?}");
         }
     }
 

@@ -237,3 +237,16 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P027 runtime pin commands
 
 `runtime pin list`, `show`, `set`, `set-external`, `resolve`, and `remove` manage explicit managed-runtime and P022-discovered external preferences without GTK or daemon access. Mutations require the current registry revision; replacement additionally requires `--replace`. Profile scopes require `--profile`. External selection uses a candidate ID printed by `diagnose runtimes`; a custom candidate parent must be supplied again with `--root`. The candidate ID is a temporary selection handle. The registry stores the exact canonical observed location and bounded structural identity, not the candidate ID. Managed `resolve` revalidates the P025 record and P026 baseline; external `resolve` revalidates the exact P022 candidate structure and does not claim file integrity. Neither path starts Wine, Proton, UMU, or a game. See [runtime pinning](RUNTIME-PINNING.md) for examples and status semantics.
+
+## P029 backup/recovery commands
+
+The existing prefix family gains nested backup, restore and recovery commands, documented with exact approval strings in [backup/recovery](BACKUP-RECOVERY.md). backup create and recovery run require --confirm; restore apply requires restore:ID:BACKUP; recovery pin requires pin:BACKUP and an expected P027 revision. backup deletion requires delete:BACKUP. P029 refusals return 4. These operations do not initialize GTK, start the daemon or run runtimes.
+
+## P029A canonical parser repair
+
+The executable now parses the same typed prefix operation tree used by dispatch. `prefix recover` remains the P028 creation-reconciliation command; `prefix recovery <status|run|release|pin>` handles P029 snapshots. Top-level, topic and nested help expose the new groups. `prefix backup deletions` reports incomplete retirement evidence without unlinking anything. Restore-plan JSON now includes current P027 selection and saved-reference assessment; it never mutates pins. See [backup/recovery](BACKUP-RECOVERY.md) for approval strings and exit codes.
+
+
+P029B adds `prefix recovery rollback-plan --id ID` and `prefix recovery rollback --id ID --expected-revision REV --confirm TOKEN`. Use the exact token printed by the plan. Only published, uncommitted schema-2 restores qualify; unsupported states return a blocked result. `recovery release` archives completed rollback evidence and displaced data.
+
+P029B also adds read-only `prefix backup deletion-plan --backup-id ID` and `prefix backup deletion-journals`. `prefix backup deletion-resume --backup-id ID --expected-revision REV --confirm TOKEN` resumes a verified interrupted deletion; use the exact token from the plan. `prefix recovery history --id ID` lists archived restore/rollback journals, and `prefix recovery pins` lists pin-journal markers. These history reports state their evidence limits and do not claim current payload or pin integrity unless separately verified. Legacy partial deletion remains blocked.

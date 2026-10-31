@@ -413,6 +413,23 @@ impl PrefixFilesystem for LinuxPrefixFilesystem {
         self.root.join("data").join(id.as_str())
     }
 
+    fn backup_recovery_pending(&self, id: &PrefixId) -> Result<bool, PrefixError> {
+        let Some(app) = open_path_directory(&self.data_dir, false, true)? else {
+            return Ok(false);
+        };
+        let Some(root) = child_dir(&app, OsStr::new("backups"), false)? else {
+            return Ok(false);
+        };
+        verify_private_dir(&root)?;
+        let Some(restores) = child_dir(&root, OsStr::new("restores"), false)? else {
+            return Ok(false);
+        };
+        verify_private_dir(&restores)?;
+        // Even completed restores retain preserved original data. P029 cleanup
+        // must explicitly reconcile this evidence before P028 may mutate it.
+        Ok(child_dir(&restores, OsStr::new(id.as_str()), false)?.is_some())
+    }
+
     fn free_bytes(&self) -> Option<u64> {
         self.reject_external_alias().ok()?;
         if let Some(layout) = self.layout(false).ok().flatten() {
@@ -773,3 +790,6 @@ mod tests {
         ));
     }
 }
+
+#[path = "backup.rs"]
+pub mod backup;

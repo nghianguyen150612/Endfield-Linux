@@ -1626,7 +1626,7 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "  prefix <list|show|plan|create|validate|init|recover|remove|delete>  Manage isolated Wine prefix directories"
+        "  prefix <list|show|plan|create|validate|init|recover|remove|delete>  Manage isolated Wine prefix directories\n  prefix <backup|restore|recovery> <command>  Offline snapshots and explicit recovery"
     )?;
     writeln!(
         output,
@@ -1757,7 +1757,7 @@ fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_prefix_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} prefix <list|show|plan|create|validate|init|recover|remove|delete>\n"
+        "Usage: {APPLICATION_NAME} prefix <list|show|plan|create|validate|init|recover|remove|delete>\n       {APPLICATION_NAME} prefix <backup|restore|recovery> <command>\n"
     )?;
     writeln!(
         output,
@@ -1774,6 +1774,10 @@ fn write_prefix_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
         "Remove drops only registry ownership and preserves data. Delete removes data only after --confirm-path exactly matches the previewed managed target."
+    )?;
+    writeln!(
+        output,
+        "Backup list/pending and restore plan are read-only. Backup create and recovery run require --confirm; restore apply requires --expected-revision and --confirm restore:ID:BACKUP. Recovery pin separately requires --expected-pin-revision and --confirm pin:BACKUP. Use nested --help for every command. Prefix recover handles P028 creation; prefix recovery handles snapshot transactions."
     )?;
     writeln!(
         output,

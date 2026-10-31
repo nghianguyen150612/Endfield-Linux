@@ -165,3 +165,7 @@ P025 provides qualified local tar.gz installation with P024 artifact verificatio
 
 
 P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification remains pending, and no game compatibility claim is made.
+
+## P029 draft prefix snapshots
+
+P029 adds headless bounded snapshots, full inventory verification, staged restore with preserved originals, and separately approved runtime-pin recovery. P029B adds journaled resume for verified snapshot deletion and limited explicit rollback for a published restore that has not committed its prefix registry update. See [backup and recovery](docs/BACKUP-RECOVERY.md) for commands, rejected filesystem objects and qualification gaps. This is not real-prefix or gameplay qualification.

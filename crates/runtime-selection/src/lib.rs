@@ -595,6 +595,92 @@ impl PinStore {
     pub fn load(&self) -> Result<PinRegistry, SelectionError> {
         self.with_lock(false, None)
     }
+    /// Observe one atomically published registry without creating directories,
+    /// lock files, changing permissions, or persisting schema migration.
+    /// The returned revision is an observation; mutations still require CAS.
+    pub fn load_read_only(&self) -> Result<PinRegistry, SelectionError> {
+        #[cfg(unix)]
+        {
+            use std::{
+                ffi::CString,
+                os::{
+                    fd::{AsRawFd, FromRawFd},
+                    unix::{ffi::OsStrExt, fs::MetadataExt},
+                },
+                path::Component,
+            };
+            if !self.path.is_absolute()
+                || self
+                    .path
+                    .components()
+                    .any(|c| matches!(c, Component::ParentDir))
+            {
+                return Err(SelectionError::UnsafePath);
+            }
+            let parent = self.path.parent().ok_or(SelectionError::UnsafePath)?;
+            let mut directory = File::open("/")?;
+            for part in parent.components() {
+                let Component::Normal(name) = part else {
+                    continue;
+                };
+                let name = CString::new(name.as_bytes()).map_err(|_| SelectionError::UnsafePath)?;
+                let fd = unsafe {
+                    libc::openat(
+                        directory.as_raw_fd(),
+                        name.as_ptr(),
+                        libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                    )
+                };
+                if fd < 0 {
+                    let e = std::io::Error::last_os_error();
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        return Ok(PinRegistry::default());
+                    }
+                    return Err(SelectionError::UnsafePath);
+                }
+                directory = unsafe { File::from_raw_fd(fd) };
+            }
+            let m = directory.metadata()?;
+            if m.uid() != unsafe { libc::geteuid() } || m.mode() & 0o077 != 0 {
+                return Err(SelectionError::UnsafePath);
+            }
+            let name = CString::new(
+                self.path
+                    .file_name()
+                    .ok_or(SelectionError::UnsafePath)?
+                    .as_bytes(),
+            )
+            .map_err(|_| SelectionError::UnsafePath)?;
+            let fd = unsafe {
+                libc::openat(
+                    directory.as_raw_fd(),
+                    name.as_ptr(),
+                    libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+                )
+            };
+            if fd < 0 {
+                let e = std::io::Error::last_os_error();
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return Ok(PinRegistry::default());
+                }
+                return Err(SelectionError::UnsafePath);
+            }
+            let file = unsafe { File::from_raw_fd(fd) };
+            let m = file.metadata()?;
+            if !m.is_file()
+                || m.nlink() != 1
+                || m.uid() != unsafe { libc::geteuid() }
+                || m.mode() & 0o7777 != 0o600
+            {
+                return Err(SelectionError::UnsafePath);
+            }
+            Self::read_opened(file)
+        }
+        #[cfg(not(unix))]
+        {
+            self.read()
+        }
+    }
     pub fn set(
         &self,
         pin: RuntimePin,
@@ -739,7 +825,9 @@ impl PinStore {
             use std::os::unix::fs::OpenOptionsExt;
             options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
         }
-        let mut file = options.open(&self.path)?;
+        Self::read_opened(options.open(&self.path)?)
+    }
+    fn read_opened(mut file: File) -> Result<PinRegistry, SelectionError> {
         let opened = file.metadata()?;
         if !opened.is_file() || opened.len() > MAX_REGISTRY_BYTES {
             return Err(SelectionError::RegistryCorrupt);
@@ -985,6 +1073,52 @@ mod tests {
             )
         );
     }
+    #[test]
+    fn read_only_snapshot_never_creates_locks_or_changes_metadata() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing/pins.json");
+        let store = PinStore::new(&path);
+        assert_eq!(store.load_read_only().unwrap().revision, 0);
+        assert!(!path.parent().unwrap().exists());
+        let pin = RuntimePin::new(
+            "test",
+            RuntimePinScope::Machine { machine: machine() },
+            runtime("proton-a"),
+            None,
+            1,
+        )
+        .unwrap();
+        store.set(pin, 0, false).unwrap();
+        let lock = path.with_extension("lock");
+        fs::remove_file(&lock).unwrap();
+        let before = fs::read(&path).unwrap();
+        let metadata = fs::metadata(&path).unwrap();
+        assert_eq!(store.load_read_only().unwrap().revision, 1);
+        assert!(!lock.exists());
+        assert_eq!(before, fs::read(&path).unwrap());
+        assert_eq!(metadata.mode(), fs::metadata(&path).unwrap().mode());
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(matches!(
+            store.load_read_only(),
+            Err(SelectionError::UnsafePath)
+        ));
+        assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o644);
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        let alias = dir.path().join("alias");
+        symlink(path.parent().unwrap(), &alias).unwrap();
+        assert!(matches!(
+            PinStore::new(alias.join("pins.json")).load_read_only(),
+            Err(SelectionError::UnsafePath)
+        ));
+        let file_alias = dir.path().join("symlink.json");
+        symlink(&path, &file_alias).unwrap();
+        assert!(PinStore::new(file_alias).load_read_only().is_err());
+        fs::write(&path, b"corrupt").unwrap();
+        assert!(store.load_read_only().is_err());
+        assert!(!lock.exists());
+    }
+
     #[test]
     fn pin_contract_keeps_provenance_and_rejects_invalid_runtime_or_adapter() {
         let scope = RuntimePinScope::Machine { machine: machine() };

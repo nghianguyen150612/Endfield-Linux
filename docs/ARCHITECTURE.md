@@ -370,3 +370,12 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P027 runtime selection
 
 `crates/runtime-selection` is a portable library for strict versioned machine/profile pin records, XDG-backed atomic persistence, revision conflicts, and deterministic non-executable resolution. The headless `runtime pin` CLI uses exact P025 managed identities and P026 full audits, or explicit P022 external candidates with a canonical location and bounded structural fingerprint. List/show are metadata-only. Profile keys bind to a domain-separated machine-id digest. Stale profile pins block machine fallback. See [runtime pinning](RUNTIME-PINNING.md).
+
+## P029 headless snapshots
+
+The P028 prefix-management crate owns the snapshot API; its Linux adapter reuses existing dirfd, ownership, locking and CAS contracts. Planning and verification remain observational. Restore exchanges fully verified staging with live managed data, then separately commits the P028 registry, retaining the original. P027 pin restoration is an independent approved public-API CAS transaction with its own evidence. No executable, daemon protocol or C17 ABI change is added. See [backup/recovery](BACKUP-RECOVERY.md).
+
+
+P029B adds a limited rollback transition to the existing prefix backup adapter. A schema-2 journal records original content evidence; a durable intent precedes exchange and a completion marker follows revalidation. The prefix registry is still the original record in this supported phase, so it is checked under the lock without a registry write. No cross-registry atomicity is claimed.
+
+Snapshot deletion uses a separate durable schema-1 journal under `backups/deletion-journals/<backup-id>`. It records the complete verified manifest, original per-entry identities, source record, original metadata hashes, parent/root/payload identities, mount ID and registry revision. An explicit clearing marker authorizes deletion replay. Recovery validates the exact remaining subset and syncs each parent after unlink; completion is recorded outside the removed snapshot. Old partial deletions without this evidence stay blocked. The journal's checksum detects accidental corruption but is not an authenticity mechanism.

@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::io::{Read, Write};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -120,18 +121,14 @@ fn subprocess_daemon_and_cli_complete_ping_status_malformed_frame_and_sigterm() 
 
     let client_capacity =
         endfield_unix_ipc::MAX_SIMULTANEOUS_CLIENTS + endfield_unix_ipc::MAX_QUEUED_CLIENTS;
-    let mut slow_clients = Vec::with_capacity(client_capacity);
-    for index in 0..client_capacity {
-        let mut client = UnixStream::connect(daemon.socket_path())
-            .expect("connect a bounded-concurrency test client");
-        if index < endfield_unix_ipc::MAX_SIMULTANEOUS_CLIENTS {
-            client
-                .write_all(&[0, 0])
-                .expect("hold a worker with an incomplete frame");
-        }
-        slow_clients.push(client);
-    }
-    thread::sleep(Duration::from_millis(50));
+    let process_id = i32::try_from(daemon.child.id()).expect("daemon pid fits i32");
+    let baseline_fds = wait_for_stable_daemon_fds(process_id);
+    let slow_clients = fill_daemon_capacity(
+        process_id,
+        &daemon.socket_path(),
+        baseline_fds,
+        client_capacity,
+    );
     let saturated = UnixStream::connect(daemon.socket_path())
         .expect("connect one client beyond the application capacity");
     saturated
@@ -207,6 +204,99 @@ fn subprocess_daemon_and_cli_complete_ping_status_malformed_frame_and_sigterm() 
     sigint_daemon.stop(Signal::SIGINT);
     let unavailable = run_cli(&cli, &runtime_dir, &["service", "ping"]);
     assert_eq!(unavailable.status.code(), Some(75));
+}
+
+fn daemon_fd_count(process_id: i32) -> usize {
+    fs::read_dir(format!("/proc/{process_id}/fd"))
+        .expect("Linux IPC saturation test inspects its owned daemon's open descriptors")
+        .count()
+}
+
+fn wait_for_stable_daemon_fds(process_id: i32) -> usize {
+    let deadline = Instant::now() + READY_LIMIT;
+    let mut last = None;
+    let mut stable = 0;
+    loop {
+        let observed = daemon_fd_count(process_id);
+        if last == Some(observed) {
+            stable += 1;
+            if stable == 3 {
+                return observed;
+            }
+        } else {
+            stable = 0;
+            last = Some(observed);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "daemon fd count did not stabilize before saturation: observed {observed}"
+        );
+        thread::yield_now();
+    }
+}
+
+fn fill_daemon_capacity(
+    process_id: i32,
+    socket_path: &Path,
+    baseline: usize,
+    capacity: usize,
+) -> Vec<UnixStream> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut held = Vec::with_capacity(capacity);
+    let mut stable_full = 0;
+    while Instant::now() < deadline {
+        held.retain(|client| !client_peer_closed(client));
+        let observed = daemon_fd_count(process_id);
+        if held.len() == capacity && observed == baseline + capacity {
+            stable_full += 1;
+            if stable_full == 3 {
+                return held;
+            }
+            thread::yield_now();
+            continue;
+        }
+        stable_full = 0;
+        if held.len() == capacity {
+            thread::yield_now();
+            continue;
+        }
+
+        let mut candidate =
+            UnixStream::connect(socket_path).expect("connect a bounded-concurrency test client");
+        if held.len() < endfield_unix_ipc::MAX_SIMULTANEOUS_CLIENTS {
+            let _ = candidate.write_all(&[0, 0]);
+        }
+        loop {
+            held.retain(|client| !client_peer_closed(client));
+            let observed = daemon_fd_count(process_id);
+            if observed == baseline + held.len() + 1 {
+                held.push(candidate);
+                break;
+            }
+            if client_peer_closed(&candidate) || Instant::now() >= deadline {
+                break;
+            }
+            thread::yield_now();
+        }
+    }
+    panic!(
+        "daemon did not retain bounded capacity before the test deadline: expected {capacity}, observed {}, process fds {}/{}",
+        held.len(),
+        daemon_fd_count(process_id),
+        baseline
+    );
+}
+
+fn client_peer_closed(client: &UnixStream) -> bool {
+    let mut descriptor = libc::pollfd {
+        fd: client.as_raw_fd(),
+        events: libc::POLLIN | libc::POLLRDHUP,
+        revents: 0,
+    };
+    let result = unsafe { libc::poll(&mut descriptor, 1, 0) };
+    result > 0
+        && descriptor.revents & (libc::POLLHUP | libc::POLLERR | libc::POLLNVAL | libc::POLLRDHUP)
+            != 0
 }
 
 fn make_runtime_dir(directory: &TempDir) -> PathBuf {

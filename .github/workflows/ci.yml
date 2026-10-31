@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/p028-isolated-prefix-management]
   pull_request:
-    branches: [main]
+    branches: [main, feat/p028-isolated-prefix-management]
 
 permissions:
   contents: read
@@ -91,11 +91,20 @@ jobs:
       - name: Run P027 runtime pin contracts and persistence tests
         run: cargo test --locked -p endfield-unix-runtime-selection --all-targets
 
+      - name: Run P029 snapshot, restore, deletion, rollback, and fault-injection tests
+        run: cargo test --locked -p endfield-unix-prefix-management backup::tests
+
+      - name: Run P029B durable deletion and rollback recovery tests
+        run: cargo test --locked -p endfield-unix-prefix-management backup::recovery_tests
+
       - name: Run P028 isolated prefix lifecycle and filesystem safety tests
         run: cargo test --locked -p endfield-unix-prefix-management --all-targets
 
       - name: Run actual P025 install and P027/P028 CLI smoke in an isolated XDG root
         run: cargo test --locked -p endfield-unix --test runtime_install_cli -- --test-threads=1 --nocapture
+
+      - name: Run actual P029 backup restore recovery and pin CAS CLI qualification
+        run: cargo test --locked -p endfield-unix --test prefix_backup_cli -- --test-threads=1 --nocapture
 
       - name: Run headless installed Wine and Proton discovery smoke
         run: |

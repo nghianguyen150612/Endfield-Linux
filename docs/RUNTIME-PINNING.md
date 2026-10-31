@@ -63,3 +63,16 @@ Managed and external pinning, typed P021 evidence evaluation, and the actual CLI
 ## P028 prefix association
 
 P028 consumes the explicit machine/profile selection without changing this registry. Each created prefix records its exact P027 runtime reference, pin ID/revision, scope source, and adapter preference. Plan/create revalidate managed identity and the P026 baseline or revalidate an external reference through P022. A changed pin does not migrate an existing prefix, and a blocking profile pin does not fall back to the machine pin. Prefix deletion never removes the runtime installation or pin. See [isolated prefix management](PREFIX-MANAGEMENT.md).
+
+## P029 association recovery
+
+Prefix snapshot restoration preserves its exact historical association and never calls PinStore mutation APIs. Separately approved recovery reconstructs only that association’s original pin scope through public P027 CAS APIs after exact P025/P026/P022 revalidation. It is not a full registry import. Independent journals handle interrupted pin commits; there is no cross-registry atomicity. See [backup/recovery](BACKUP-RECOVERY.md).
+
+## P029A observational pin snapshots
+
+`PinStore::load_read_only` observes one bounded, checksummed registry using no-follow descriptor-relative access on Unix. It creates no parent directories or locks, changes no permissions and does not persist migration. Unsafe ownership, mode, aliases and malformed content are rejected. A missing registry returns the empty typed snapshot. Restore planning uses this API and P027 resolution with existing exact P025/P026/P022 validation; a present blocking profile pin never falls back. The observed revision does not reserve state: mutation still requires P027 CAS. Existing `load` and mutation contracts are unchanged.
+
+
+P029B limited rollback checks the original prefix record while holding its registry lock and does not write the P027 registry. The saved association is retained exactly; separate pin recovery remains independently approved.
+
+P029B deletion replay is scoped to backup snapshots and never mutates runtime installations or P027 pins. Deletion journals that reference a snapshot conflict with restore and pin recovery, and any observed conflict blocks replay. Read-only `prefix recovery pins` reports journal markers only; it does not infer that the current pin still matches saved state.
