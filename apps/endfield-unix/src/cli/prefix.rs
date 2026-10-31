@@ -89,6 +89,8 @@ pub enum Operation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum BackupOperation {
+    /// Inspect preserved, incomplete deletion transactions without removing bytes.
+    Deletions,
     Pending,
     Recover {
         #[arg(long)]
@@ -838,6 +840,7 @@ fn run_backup(op: BackupOperation, out: &mut impl Write) -> Result<u8, Failure> 
     use prefixes::backup::BackupId;
     let b = backup_store()?;
     match op {
+        BackupOperation::Deletions => json_output(out, &b.deletions()?),
         BackupOperation::Pending => json_output(out, &b.pending_backups()?),
         BackupOperation::Recover {
             backup_id,
@@ -897,10 +900,26 @@ fn run_restore(op: RestoreOperation, out: &mut impl Write) -> Result<u8, Failure
     match op {
         RestoreOperation::Plan { id, backup_id } => {
             let id = prefixes::PrefixId::new(id)?;
-            json_output(
-                out,
-                &b.restore_plan(&id, &BackupId::new(backup_id)?, &authorized_scope(&id)?)?,
-            )
+            let mut plan =
+                b.restore_plan(&id, &BackupId::new(backup_id)?, &authorized_scope(&id)?)?;
+            let paths = endfield_unix_storage::AppPaths::discover()
+                .map_err(|e| Failure::Runtime(e.to_string()))?;
+            let registry = pins::PinStore::for_app(&paths).load_read_only().ok();
+            plan.assess_selection(registry.as_ref(), super::runtime_pin::validate_reference);
+            plan.saved_adapter_status = if plan.backup_runtime.adapter_preference
+                == Some(pins::AdapterPreference::UmuProton)
+            {
+                format!(
+                    "{:?}; no execution authorization",
+                    endfield_unix_runtime_linux::UmuProvider::default()
+                        .scan()
+                        .declaration
+                        .availability()
+                )
+            } else {
+                "runtime identity assessed; adapter execution unqualified".into()
+            };
+            json_output(out, &plan)
         }
         RestoreOperation::Apply {
             id,

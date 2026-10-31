@@ -90,6 +90,23 @@ pub struct BackupPlan {
     pub bytes: u64,
     pub available: u64,
 }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum SelectionAssessmentState {
+    Selected,
+    NoPin,
+    Blocked,
+    Unverifiable,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct RestoreSelectionAssessment {
+    pub state: SelectionAssessmentState,
+    pub pin_registry_revision: Option<u64>,
+    pub source: String,
+    pub matches_saved_association: Option<bool>,
+    pub saved_runtime_valid: bool,
+    pub automatic_fallback: bool,
+    pub diagnostic: Option<String>,
+}
 #[derive(Clone, Debug, Serialize)]
 pub struct RestorePlan {
     pub backup: BackupId,
@@ -97,6 +114,8 @@ pub struct RestorePlan {
     pub backup_runtime: BackupRuntimeReference,
     pub original_lifecycle: PrefixLifecycleState,
     pub current_selection_status: String,
+    pub current_selection: Option<RestoreSelectionAssessment>,
+    pub saved_adapter_status: String,
     pub recovery_strategy: String,
     pub destination: PrefixRecord,
     pub registry_revision: u64,
@@ -104,6 +123,79 @@ pub struct RestorePlan {
     pub replaces_existing_data: bool,
     pub confirmation: String,
 }
+impl RestorePlan {
+    /// Assessment only. A stale saved reference is retained; no pin is mutated
+    /// and no replacement runtime is selected for the restored prefix.
+    pub fn assess_selection(
+        &mut self,
+        registry: Option<&endfield_unix_runtime_selection::PinRegistry>,
+        mut validate: impl FnMut(&crate::PinnedRuntimeReference) -> Result<(), String>,
+    ) {
+        use endfield_unix_runtime_selection::{ResolutionState, resolve};
+        let saved = validate(&self.backup_runtime.runtime);
+        let mut assessment = RestoreSelectionAssessment {
+            state: SelectionAssessmentState::Unverifiable,
+            pin_registry_revision: None,
+            source: "unknown".into(),
+            matches_saved_association: None,
+            saved_runtime_valid: saved.is_ok(),
+            automatic_fallback: false,
+            diagnostic: saved.err().map(|s| s.chars().take(256).collect()),
+        };
+        if let Some(registry) = registry {
+            let (machine, profile) = match &self.destination.scope {
+                PrefixScope::Machine { machine } => (machine, None),
+                PrefixScope::Profile { machine, profile } => (machine, Some(profile)),
+            };
+            let report = resolve(registry, machine, profile, None, &mut validate);
+            assessment.pin_registry_revision = Some(report.registry_revision);
+            assessment.source = format!("{:?}", report.source);
+            assessment.state = match &report.state {
+                ResolutionState::Selected => SelectionAssessmentState::Selected,
+                ResolutionState::NoPin => SelectionAssessmentState::NoPin,
+                ResolutionState::Stale(reason) => {
+                    assessment.diagnostic = Some(reason.chars().take(256).collect());
+                    SelectionAssessmentState::Blocked
+                }
+            };
+            if let Some(runtime) = report.runtime {
+                let pin = registry
+                    .pins
+                    .iter()
+                    .find(|p| Some(&p.pin_id) == report.pin_id.as_ref());
+                let source_matches = matches!(
+                    (report.source, self.backup_runtime.selection_source),
+                    (
+                        endfield_unix_runtime_selection::SelectionSource::MachinePin,
+                        crate::RuntimeSelectionSource::MachinePin
+                    ) | (
+                        endfield_unix_runtime_selection::SelectionSource::ProfilePin,
+                        crate::RuntimeSelectionSource::ProfilePin
+                    )
+                );
+                assessment.matches_saved_association = Some(
+                    runtime == self.backup_runtime.runtime
+                        && report.pin_id.as_deref() == Some(self.backup_runtime.pin_id.as_str())
+                        && source_matches
+                        && pin.is_some_and(|p| {
+                            p.adapter_preference == self.backup_runtime.adapter_preference
+                        }),
+                );
+            }
+        }
+        self.current_selection_status = format!(
+            "{:?}; saved runtime {}; pins unchanged",
+            assessment.state,
+            if assessment.saved_runtime_valid {
+                "valid"
+            } else {
+                "blocked"
+            }
+        );
+        self.current_selection = Some(assessment);
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RestoreTransaction {
@@ -119,6 +211,20 @@ pub enum RecoveryAction {
     InspectPreservedStaging,
     ResumeStagedRestore,
     FinalizePublishedRestore,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum DeletionState {
+    Incomplete,
+    Unverifiable,
+    Unsafe,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct DeletionInspection {
+    pub backup: BackupId,
+    pub state: DeletionState,
+    pub remaining_entries: Option<usize>,
+    pub original_entries: Option<usize>,
+    pub detail: String,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct RecoveryReport {
@@ -442,6 +548,77 @@ impl BackupStore {
         )?;
         self.verify(id, scope)
     }
+    /// Read-only inspection of retired or partially removed snapshots. This
+    /// never resumes unlink, invents a manifest, or follows inventory paths.
+    pub fn deletions(&self) -> Result<Vec<DeletionInspection>, BackupError> {
+        let Some(root) = self.sub("deleting", false)? else {
+            return Ok(vec![]);
+        };
+        let mut reports = vec![];
+        for name in names(&root)? {
+            let backup = BackupId::new(&name)?;
+            let dir = open_at(&root, &name, libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+            verify_private_dir(&dir)?;
+            if mount_id(&dir)? != mount_id(&root)? {
+                return Err(PrefixError::Blocked.into());
+            }
+            let mut report = DeletionInspection {
+                backup: backup.clone(),
+                state: DeletionState::Unverifiable,
+                remaining_entries: None,
+                original_entries: None,
+                detail: "Preserved for manual inspection; automatic deletion resume is unsupported"
+                    .into(),
+            };
+            if names(&dir)?
+                .iter()
+                .any(|n| !["intent.json", "manifest.json", "payload"].contains(&n.as_str()))
+            {
+                report.state = DeletionState::Unsafe;
+            } else if let Ok(m) = read_json::<BackupManifest>(&dir, "manifest.json") {
+                if m.schema_version == 1
+                    && m.id == backup
+                    && m.source.validate().is_ok()
+                    && m.source.owner_uid == crate::current_uid()
+                    && total(&m.inventory).ok() == Some(m.payload_bytes)
+                {
+                    report.original_entries = Some(m.inventory.len());
+                    if let Ok(payload) =
+                        open_at(&dir, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)
+                    {
+                        if mount_id(&payload)? != mount_id(&dir)? {
+                            return Err(PrefixError::Blocked.into());
+                        }
+                        match scan(&payload, None) {
+                            Ok(remaining) => {
+                                report.remaining_entries = Some(remaining.len());
+                                let subset = remaining.iter().all(|e| {
+                                    m.inventory.iter().any(|old| {
+                                        old.path == e.path
+                                            && old.directory == e.directory
+                                            && if e.directory {
+                                                e.mode == old.mode || e.mode == old.mode | 0o700
+                                            } else {
+                                                old == e
+                                            }
+                                    })
+                                });
+                                report.state = if subset {
+                                    DeletionState::Incomplete
+                                } else {
+                                    DeletionState::Unsafe
+                                };
+                            }
+                            Err(_) => report.state = DeletionState::Unsafe,
+                        }
+                    }
+                }
+            }
+            reports.push(report);
+        }
+        Ok(reports)
+    }
+
     /// Deletion is journaled by moving the fully verified snapshot to deleting/.
     /// A partial unlink is retained there and requires inspection, never guessing.
     pub fn delete(
@@ -543,8 +720,13 @@ impl BackupStore {
             integrity: BackupIntegrity::Verified,
             backup_runtime: m.source.runtime,
             original_lifecycle: m.source.lifecycle,
-            current_selection_status: "not assessed; no active pin will change; validate the stored association separately".into(),
-            recovery_strategy: "same-mount exchange; preserve original payload; journaled registry finalization".into(),
+            current_selection_status:
+                "unverifiable until a P027 snapshot and runtime validator are supplied".into(),
+            current_selection: None,
+            saved_adapter_status: "not assessed; no execution authorization".into(),
+            recovery_strategy:
+                "same-mount exchange; preserve original payload; journaled registry finalization"
+                    .into(),
             destination: p.source,
             registry_revision: p.registry_revision,
             bytes: m.payload_bytes,
@@ -621,6 +803,44 @@ impl BackupStore {
         self.checkpoint("restore-published")?;
         self.finalize(id, &tx, &journal, scope)
     }
+    fn validate_restore_journal(
+        &self,
+        id: &PrefixId,
+        tx: &File,
+        j: &RestoreTransaction,
+    ) -> Result<(), BackupError> {
+        j.original.validate()?;
+        if j.schema_version != 1
+            || j.original.id != *id
+            || j.original.owner_uid != crate::current_uid()
+            || j.original.lifecycle != PrefixLifecycleState::Created
+            || j.expected_revision < j.original.generation
+            || Some(j.staged) == j.original.filesystem_identity
+            || j.original
+                .filesystem_identity
+                .is_none_or(|old| old.device != j.staged.device)
+            || j.expected_revision.checked_add(1).is_none()
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let intent: PrefixRecord = read_json(tx, "intent.json")?;
+        if intent != j.original
+            || names(tx)?.iter().any(|name| {
+                !["intent.json", "staged.json", "payload", "completed.json"]
+                    .contains(&name.as_str())
+            })
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        if has_file(tx, "completed.json")? {
+            let completed: FilesystemIdentity = read_json(tx, "completed.json")?;
+            if completed != j.staged {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        }
+        Ok(())
+    }
+
     fn finalize(
         &self,
         id: &PrefixId,
@@ -628,6 +848,7 @@ impl BackupStore {
         journal: &RestoreTransaction,
         scope: &PrefixScope,
     ) -> Result<RecoveryReport, BackupError> {
+        self.validate_restore_journal(id, tx, journal)?;
         if journal.schema_version != 1
             || journal.original.id != *id
             || &journal.original.scope != scope
@@ -647,6 +868,9 @@ impl BackupStore {
             return Err(BackupError::RecoveryBlocked);
         }
         let snap = self.prefixes.load_snapshot()?;
+        if has_file(tx, "completed.json")? && snap.registry.revision == journal.expected_revision {
+            return Err(BackupError::RecoveryBlocked);
+        }
         let mut replacement = m.source;
         replacement.filesystem_identity = Some(journal.staged);
         replacement.generation = journal
@@ -759,7 +983,18 @@ impl BackupStore {
             desired
         };
         self.checkpoint("pin-intent")?;
+        let completion = if has_file(&tx, "completed.json")? {
+            Some(read_json::<u64>(&tx, "completed.json")?)
+        } else {
+            None
+        };
+        if completion.is_some_and(|r| Some(r) != expected.checked_add(1)) {
+            return Err(BackupError::RecoveryBlocked);
+        }
         let current = pins.load().map_err(|_| BackupError::RuntimeBlocked)?;
+        if completion.is_some() && current.revision == expected {
+            return Err(BackupError::RecoveryBlocked);
+        }
         let resulting_revision = expected
             .checked_add(1)
             .ok_or(BackupError::RecoveryBlocked)?;
@@ -846,6 +1081,7 @@ impl BackupStore {
         if journal.schema_version != 1 || journal.original.id != *id {
             return Err(BackupError::RecoveryBlocked);
         }
+        self.validate_restore_journal(id, &tx, &journal)?;
         journal.original.validate()?;
         let live = self.fs.inspect_directory(id)?;
         let payload = open_at(&tx, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0).ok();
@@ -896,6 +1132,12 @@ impl BackupStore {
             .transaction_dir(id, false)?
             .ok_or(BackupError::RecoveryBlocked)?;
         let journal: RestoreTransaction = read_json(&tx, "staged.json")?;
+        self.validate_restore_journal(id, &tx, &journal)?;
+        if has_file(&tx, "completed.json")?
+            && self.fs.inspect_directory(id)? != Some(journal.staged)
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
         if journal.schema_version != 1
             || journal.original.id != *id
             || &journal.original.scope != scope
@@ -999,6 +1241,10 @@ fn delete_verified_tree(
         }
         unlink_at(dir, &name, flags)?;
         dir.sync_all()?;
+        #[cfg(test)]
+        if std::env::var("ENDFIELD_P029_EXIT_AT").ok().as_deref() == Some("delete-unlink") {
+            unsafe { libc::_exit(91) }
+        }
     }
     Ok(())
 }
@@ -1133,6 +1379,11 @@ fn walk(
                 hash.update(&buffer[..n]);
                 if let Some(t) = &mut target {
                     t.write_all(&buffer[..n])?;
+                    #[cfg(test)]
+                    if std::env::var("ENDFIELD_P029_EXIT_AT").ok().as_deref() == Some("copy-chunk")
+                    {
+                        unsafe { libc::_exit(91) }
+                    }
                 }
             }
             let after = f.metadata()?;

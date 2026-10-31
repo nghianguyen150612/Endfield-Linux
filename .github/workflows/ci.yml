@@ -100,6 +100,9 @@ jobs:
       - name: Run actual P025 install and P027/P028 CLI smoke in an isolated XDG root
         run: cargo test --locked -p endfield-unix --test runtime_install_cli -- --test-threads=1 --nocapture
 
+      - name: Run actual P029 backup restore recovery and pin CAS CLI qualification
+        run: cargo test --locked -p endfield-unix --test prefix_backup_cli -- --test-threads=1 --nocapture
+
       - name: Run headless installed Wine and Proton discovery smoke
         run: |
           ./target/debug/endfield-unix diagnose runtimes | tee /tmp/endfield-runtime-discovery.txt
