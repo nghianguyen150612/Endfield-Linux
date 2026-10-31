@@ -163,7 +163,11 @@ fn crash_child() {
     let scope = PrefixScope::machine(crate::MachineId::from_digest("a".repeat(64)).unwrap());
     let rev = b.prefixes.load_snapshot().unwrap().registry.revision;
     let backup = std::env::var("ENDFIELD_P029_CHILD_BACKUP").unwrap();
-    if backup == "create" {
+    if let Some(id) = backup.strip_prefix("delete:") {
+        let id = BackupId::new(id).unwrap();
+        b.delete(&id, &scope, &format!("delete:{}", id.as_str()))
+            .unwrap();
+    } else if backup == "create" {
         b.create(&id, &scope, rev, true).unwrap();
     } else {
         let backup = BackupId::new(backup).unwrap();
@@ -259,4 +263,186 @@ fn changed_completion_evidence_is_never_reported_as_completed() {
     assert!(b.recovery_status(&id).is_err());
     assert!(b.recover(&id, &scope, rev + 1, true).is_err());
     assert!(b.fs.data_dir.join("backups/restores/game/payload").is_dir());
+}
+
+#[test]
+fn restore_assessment_reports_changed_missing_and_blocking_profile_pins_without_fallback() {
+    use endfield_unix_runtime_selection::{PinRegistry, ProfileKey};
+    let (tmp, b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let store = PinStore::new(tmp.path().join("pins/registry.json"));
+    let machine = match &scope {
+        PrefixScope::Machine { machine } => machine.clone(),
+        _ => unreachable!(),
+    };
+    let pin = RuntimePin::new(
+        m.source.runtime.pin_id.clone(),
+        RuntimePinScope::Machine {
+            machine: machine.clone(),
+        },
+        m.source.runtime.runtime.clone(),
+        m.source.runtime.adapter_preference,
+        1,
+    )
+    .unwrap();
+    let registry = store.set(pin, 0, false).unwrap();
+    let mut plan = b.restore_plan(&id, &m.id, &scope).unwrap();
+    plan.assess_selection(Some(&registry), |_| Ok(()));
+    let a = plan.current_selection.as_ref().unwrap();
+    assert_eq!(a.state, SelectionAssessmentState::Selected);
+    assert_eq!(a.matches_saved_association, Some(true));
+    plan.assess_selection(Some(&PinRegistry::default()), |_| Ok(()));
+    assert_eq!(
+        plan.current_selection.as_ref().unwrap().state,
+        SelectionAssessmentState::NoPin
+    );
+    plan.assess_selection(None, |_| Err("saved runtime removed".into()));
+    assert!(!plan.current_selection.as_ref().unwrap().saved_runtime_valid);
+    let profile = ProfileKey::new("game-profile").unwrap();
+    let mut changed = m.source.runtime.runtime.clone();
+    if let crate::PinnedRuntimeReference::Managed(ref mut r) = changed {
+        r.build = "different".into();
+    }
+    let pin = RuntimePin::new(
+        "blocking-profile",
+        RuntimePinScope::Profile {
+            machine: machine.clone(),
+            profile: profile.clone(),
+        },
+        changed,
+        None,
+        2,
+    )
+    .unwrap();
+    let registry = store.set(pin, 1, false).unwrap();
+    plan.destination.scope = PrefixScope::profile(machine, profile);
+    let original = plan.backup_runtime.clone();
+    plan.assess_selection(Some(&registry), |r| {
+        if r == &original.runtime {
+            Ok(())
+        } else {
+            Err("changed profile runtime".into())
+        }
+    });
+    let a = plan.current_selection.unwrap();
+    assert_eq!(a.state, SelectionAssessmentState::Blocked);
+    assert_eq!(a.source, "ProfilePin");
+    assert_eq!(a.matches_saved_association, Some(false));
+    assert!(!a.automatic_fallback);
+    assert_eq!(store.load_read_only().unwrap().revision, 2);
+    assert_eq!(original, m.source.runtime);
+}
+#[test]
+fn corrupt_restore_intent_and_ambiguous_completion_block_before_any_publication() {
+    for name in ["intent.json", "completed.json"] {
+        let (_tmp, mut b, id, scope, rev) = fixture();
+        fs::write(b.fs.target_path(&id).join("save"), b"original").unwrap();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+        b.fault = Some("restore-staged");
+        assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
+        b.fault = None;
+        let path = b.fs.data_dir.join("backups/restores/game").join(name);
+        fs::write(&path, b"{}").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        let registry = b.fs.load_registry_bytes().unwrap();
+        assert!(b.recover(&id, &scope, rev, true).is_err());
+        assert_eq!(registry, b.fs.load_registry_bytes().unwrap());
+        assert_eq!(
+            fs::read(b.fs.target_path(&id).join("save")).unwrap(),
+            b"original"
+        );
+    }
+}
+#[test]
+fn staged_directory_replacement_with_symlink_is_never_followed() {
+    let (tmp, mut b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.fault = Some("restore-staged");
+    assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
+    b.fault = None;
+    let tx = b.fs.data_dir.join("backups/restores/game");
+    fs::rename(tx.join("payload"), tx.join("unexpected-preserved-payload")).unwrap();
+    let external = tmp.path().join("external");
+    fs::create_dir(&external).unwrap();
+    fs::write(external.join("keep"), b"external").unwrap();
+    std::os::unix::fs::symlink(&external, tx.join("payload")).unwrap();
+    assert!(b.recover(&id, &scope, rev, true).is_err());
+    assert_eq!(fs::read(external.join("keep")).unwrap(), b"external");
+}
+#[test]
+fn partial_deletion_inspection_is_read_only_and_flags_missing_or_modified_evidence() {
+    let (_tmp, mut b, id, scope, rev) = fixture();
+    fs::write(b.fs.target_path(&id).join("save"), b"snapshot").unwrap();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    b.fault = Some("delete-retired");
+    assert!(
+        b.delete(&m.id, &scope, &format!("delete:{}", m.id.as_str()))
+            .is_err()
+    );
+    b.fault = None;
+    let root = b.fs.data_dir.join("backups/deleting").join(m.id.as_str());
+    let manifest = fs::read(root.join("manifest.json")).unwrap();
+    fs::remove_file(root.join("payload/save")).unwrap();
+    assert_eq!(b.deletions().unwrap()[0].state, DeletionState::Incomplete);
+    assert_eq!(manifest, fs::read(root.join("manifest.json")).unwrap());
+    fs::write(root.join("payload/unexpected"), b"changed").unwrap();
+    assert_eq!(b.deletions().unwrap()[0].state, DeletionState::Unsafe);
+    fs::write(root.join("manifest.json"), b"{}").unwrap();
+    assert_eq!(b.deletions().unwrap()[0].state, DeletionState::Unverifiable);
+    assert!(b.deletions().is_ok());
+    assert!(root.join("payload/unexpected").exists());
+}
+
+#[test]
+fn process_exit_mid_copy_and_mid_unlink_preserves_source_and_inspectable_evidence() {
+    for (mode, fault) in [
+        ("create", "copy-chunk"),
+        ("restore", "copy-chunk"),
+        ("delete", "delete-unlink"),
+    ] {
+        let (_tmp, b, id, scope, rev) = fixture();
+        let source = b.fs.target_path(&id);
+        fs::write(source.join("a"), b"first").unwrap();
+        fs::write(source.join("b"), b"second").unwrap();
+        let child_arg = match mode {
+            "create" => "create".into(),
+            "restore" => b.create(&id, &scope, rev, true).unwrap().id.0,
+            "delete" => format!(
+                "delete:{}",
+                b.create(&id, &scope, rev, true).unwrap().id.as_str()
+            ),
+            _ => unreachable!(),
+        };
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "linux_fs::backup::recovery_tests::crash_child",
+                "--nocapture",
+            ])
+            .env("ENDFIELD_P029_CHILD_DATA", &b.fs.data_dir)
+            .env("ENDFIELD_P029_CHILD_BACKUP", child_arg)
+            .env("ENDFIELD_P029_EXIT_AT", fault)
+            .status()
+            .unwrap();
+        assert_eq!(result.code(), Some(91));
+        assert_eq!(fs::read(source.join("a")).unwrap(), b"first");
+        assert_eq!(fs::read(source.join("b")).unwrap(), b"second");
+        match mode {
+            "create" => {
+                assert!(b.list().unwrap().is_empty());
+                assert_eq!(b.pending_backups().unwrap().len(), 1);
+            }
+            "restore" => {
+                assert!(b.recover(&id, &scope, rev, true).is_err());
+            }
+            "delete" => {
+                let report = b.deletions().unwrap();
+                assert_eq!(report[0].state, DeletionState::Incomplete);
+                assert_eq!(report[0].remaining_entries, Some(1));
+            }
+            _ => unreachable!(),
+        }
+    }
 }

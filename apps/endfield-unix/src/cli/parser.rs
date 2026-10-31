@@ -489,6 +489,12 @@ mod tests {
             BackupOperation as B, Operation as O, RecoveryOperation as R, RestoreOperation as S,
         };
         let cases = vec![
+            (
+                vec!["backup", "deletions"],
+                O::Backup {
+                    operation: B::Deletions,
+                },
+            ),
             (vec!["backup", "list"], O::Backup { operation: B::List }),
             (
                 vec!["backup", "pending"],
@@ -683,7 +689,15 @@ mod tests {
             (
                 "backup",
                 &[
-                    "list", "pending", "plan", "create", "show", "verify", "recover", "delete",
+                    "list",
+                    "pending",
+                    "deletions",
+                    "plan",
+                    "create",
+                    "show",
+                    "verify",
+                    "recover",
+                    "delete",
                 ][..],
             ),
             ("restore", &["plan", "apply"][..]),
