@@ -41,7 +41,7 @@ Backup takes repeated source inventories and hashes around copying, verifies sta
 
 ## Restore transaction
 
-`restore plan` verifies the entire snapshot and existing destination; it reports existing-data replacement, bytes, revision, source metadata and the exact confirmation string. The associated runtime is restored even if it later becomes stale; the P028 `validate` command reports readiness with the existing P025/P026/P022 revalidation contracts. The plan currently does not calculate a current P027 selection/readiness report; this is a remaining P029 gap.
+`restore plan` verifies the entire snapshot and existing destination; it reports existing-data replacement, bytes, revision, source metadata and the exact confirmation string. The associated runtime is restored even if it later becomes stale; the P028 `validate` command reports readiness with the existing P025/P026/P022 revalidation contracts. P029A assesses the current P027 machine/profile selection through a read-only, no-follow registry observation. JSON reports the observed pin revision, selection source/state, whether its exact runtime/pin/adapter association matches the saved one, independent validation of the saved reference, and saved-adapter availability. A corrupt or unsafe pin registry reports Unverifiable. A blocking profile pin stays blocked without machine fallback. This is an observation, not launch authorization or a reservation of that revision. Prefix-only restoration still leaves every P027 pin unchanged.
 
 Apply checks the prefix revision and exact `restore:<prefix-id>:<backup-id>` confirmation. It durably writes original-record intent, copies into private transaction payload, fully verifies it and records staged device/inode identity. After process-use, registry and destination checks, Linux renameat2 RENAME_EXCHANGE swaps the verified payload and live directory. This requires the same mount and kernel support. No cross-filesystem fallback is attempted. The original directory now remains at `restores/<id>/payload`; it was never deleted.
 
@@ -62,6 +62,7 @@ A separate private intent and completion marker journal the P027 CAS. Repeating 
 ```sh
 endfield-unix prefix backup list
 endfield-unix prefix backup pending
+endfield-unix prefix backup deletions
 endfield-unix prefix backup plan --id game
 endfield-unix prefix backup create --id game --expected-revision REV --confirm
 endfield-unix prefix backup show --backup-id BACKUP
@@ -80,8 +81,14 @@ These commands are headless and do not start the daemon. Parser errors use exit 
 
 After interruption, inspect `backup pending` and `recovery status`. Fully completed backup staging can be verified and published with `backup recover`. Incomplete/corrupt staging remains preserved and blocked for manual inspection. Restore staging with a durable verified journal can resume; publication with an uncommitted registry can finalize. Missing/corrupt journals and altered identities block. Never replace registry metadata, move a payload over the live prefix, or recursively delete preserved data to bypass that result.
 
-Snapshot deletion verifies the snapshot, refuses restore/pin-recovery evidence, durably retires it into `deleting/`, rechecks identity and inventory, then removes only no-follow verified application-owned entries. Partial deletion is retained in deleting and blocked for manual inspection; automated deletion-resume and a CLI listing of deleting/history/pin journals remain unsupported. Source prefixes, runtime installations and P027 pins are preserved. There is no automatic discard of incomplete staging.
+Snapshot deletion verifies the snapshot, refuses restore/pin-recovery evidence, durably retires it into `deleting/`, rechecks identity and inventory, then removes only no-follow verified application-owned entries. Partial deletion is retained in deleting and blocked for manual inspection; `backup deletions` now provides read-only inspection of retired snapshots: Incomplete for a safe remaining subset, Unsafe for changed/unexpected entries, and Unverifiable for missing/corrupt manifest evidence. It never follows manifest paths or resumes unlink. Automated deletion-resume and CLI listings of history/pin journals remain unsupported. Source prefixes, runtime installations and P027 pins are preserved. There is no automatic discard of incomplete staging.
 
 ## Qualification limits
 
 Synthetic tests include binary/hidden/nested roundtrip, empty and distinct snapshots, read-only queries, corruption, scope/revision/confirmation failures, unsupported links/sparse files, quotas, staged publication recovery, original preservation, explicit pin CAS recovery, pin byte preservation, archival and deletion retirement. Test-only child processes call _exit at seven durable backup/restore boundaries and recover with OS-released locks. These are interruption tests, not power-loss/storage-device fault tests. Full mount-race, adversarial replacement, non-owned UID, real ENOSPC and every mid-copy/unlink boundary are not yet qualified. See the P029 manifest for current gate evidence and acceptance gaps.
+
+## P029A parser and acceptance hardening
+
+P029A is remediation within P029, not a new milestone. The canonical parser now directly consumes `prefix::Operation` rather than maintaining a second P028-only enum. The earlier temporary module harness did not cover that canonical tree; it did not qualify the actual executable. P029A adds canonical parser mappings/help tests and actual-binary integration covering read-only queries, backup create/verify/delete, restore approval/revisions, journal completion/release and separate P027 CAS recovery. Restricted /proc environments must assert the documented refusal, never bypass process-use assessment.
+
+Recovery validates the original intent against the staged journal, checks allowed journal entries and completion-marker identity before publication or registry mutations, and rejects premature completion evidence. Additional child-process exits interrupt individual copy chunks and unlinks. Preserved originals and incomplete staging/deletion remain available for inspection. No automatic rollback is claimed.

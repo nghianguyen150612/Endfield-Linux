@@ -67,3 +67,7 @@ P028 consumes the explicit machine/profile selection without changing this regis
 ## P029 association recovery
 
 Prefix snapshot restoration preserves its exact historical association and never calls PinStore mutation APIs. Separately approved recovery reconstructs only that association’s original pin scope through public P027 CAS APIs after exact P025/P026/P022 revalidation. It is not a full registry import. Independent journals handle interrupted pin commits; there is no cross-registry atomicity. See [backup/recovery](BACKUP-RECOVERY.md).
+
+## P029A observational pin snapshots
+
+`PinStore::load_read_only` observes one bounded, checksummed registry using no-follow descriptor-relative access on Unix. It creates no parent directories or locks, changes no permissions and does not persist migration. Unsafe ownership, mode, aliases and malformed content are rejected. A missing registry returns the empty typed snapshot. Restore planning uses this API and P027 resolution with existing exact P025/P026/P022 validation; a present blocking profile pin never falls back. The observed revision does not reserve state: mutation still requires P027 CAS. Existing `load` and mutation contracts are unchanged.

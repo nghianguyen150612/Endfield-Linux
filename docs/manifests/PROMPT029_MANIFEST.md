@@ -53,8 +53,55 @@ Initial hosted [run 41148857178](https://github.com/nghianguyen150612/Endfield-L
 
 Required hosted Rust/GTK/CLI/GCC/Clang jobs have not completed. Full actual-binary integration results are not locally available. No pass is inferred from queueing a workflow.
 
-The supported snapshot subset excludes Initialized prefixes, all symlinks (including internal Wine drive links), hardlinks, detected sparse files, xattrs/ACLs, special files and cross-mount operations. Full POSIX metadata and full P027 historical registry restoration are unsupported. Restore planning exposes saved metadata but does not evaluate current P027 selection status. Per-operation quotas do not provide retention management.
+The supported snapshot subset excludes Initialized prefixes, all symlinks (including internal Wine drive links), hardlinks, detected sparse files, xattrs/ACLs, special files and cross-mount operations. Full POSIX metadata and full P027 historical registry restoration are unsupported. P029A now evaluates current P027 selection and saved-reference validity without changing pins; see the remediation evidence below. Per-operation quotas do not provide retention management.
 
-Incomplete copy, missing/corrupt journal and partial deletion remain explicitly blocked for manual inspection. Automated deletion-resume, automatic rollback of publication, deletion of preserved originals and a CLI inventory of all historical/deleting/pin-recovery journals are not implemented. Safe completion recovery is supported; rollback is not mislabeled as completion.
+Incomplete copy, missing/corrupt journal and partial deletion remain explicitly blocked for manual inspection. Automated deletion-resume, automatic rollback of publication, deletion of preserved originals and CLI inventories of history/pin-recovery journals are not implemented. P029A adds read-only inspection of deleting/ remnants. Safe completion recovery is supported; rollback is not mislabeled as completion.
 
 The wider requested matrix is not fully qualified: adversarial rename/mount races, alternate UID ownership, physical ENOSPC, arbitrary mid-copy/mid-unlink crashes, every power-loss ordering, all runtime-family/profile/UMU combinations and real prefixes need further coverage. Hashing and advisory locks assume cooperative offline same-user access. These limitations and unresolved required gates keep P029 Draft and prevent an acceptance or P030-readiness claim.
+
+## P029A remediation and qualification evidence
+
+P029A is remediation inside P029, not a new roadmap milestone. It continues Draft PR #2 and the existing feature branch. No P028/P029 merge, P030 work or runtime/game execution is authorized or performed.
+
+### Confirmed original failure and repair
+
+Original run [41149525366](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41149525366) completed with Rust-job failure at the actual CLI integration step: `actual_cli_plan_apply_and_preserve_existing_install` and `p029_empty_headless_queries_leave_xdg_absent` both received parser exit 2. GCC and Clang jobs passed; later Rust-job gates were skipped. The canonical `parser.rs` still derived a separate P028-only PrefixArgs. It now consumes `prefix::Operation` directly and maps that boxed operation to PrefixManagement dispatch. This removes the duplicate tree rather than adding another set of P029 mappings. All documented leaves and full-path nested help have canonical-parser and actual-binary coverage; P028 recover remains distinct from P029 recovery. Exit codes and canonical stderr/approval contracts are preserved.
+
+The parser-only repair at `9bc733b838590c3e7c7c320e42b3ac01f51d990c` passed all three hosted jobs in [41158569674](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41158569674). Its actual executable passed both formerly failing tests. It is not used as final-HEAD qualification for subsequent changes.
+
+### Additional safety work
+
+- P027 adds an observational load_read_only API sharing its existing bounded/schema/checksum decoder. Unix access opens ancestors and the registry without following symlinks, validates private ownership/mode and rejects aliases; no directories/locks, permission changes or persisted migrations occur. Existing load/mutation APIs remain unchanged.
+- Restore plans report the current selection source, pin revision and state; exact saved-association comparison; independently revalidated saved reference; and adapter assessment. P027 resolution retains blocking-profile semantics with no fallback. An absent registry reports NoPin; unsafe/corrupt registry evidence reports Unverifiable. Prefix restoration does not implicitly write pin state.
+- `prefix backup deletions` inspects partial retirement evidence without mutation. Remaining supported entries are compared with the saved inventory. Missing/corrupt evidence is Unverifiable; changed or unsafe entries are Unsafe. Automatic deletion resume remains blocked, and no original-prefix bytes are removed.
+- Recovery compares intent and staged records and validates completion markers before namespace or registry changes. A correctly shaped but premature completion marker cannot hide an uncommitted prefix registry. Missing/corrupt/ambiguous journals remain blocked for inspection.
+- New tests replace staging with a symlink and interrupt real child processes in a copy chunk and after individual unlink, supplementing the seven existing durable-boundary exits. Unsafe objects remain unsupported; no force flag is introduced.
+
+### Genuine local qualification
+
+Code commit: `88397f2ebbb23829ba61ef4d5f1ce4a8d36dab82`. Environment: genuine Ubuntu 24.04 container, Rust 1.85.0, GTK 4.14.5, libadwaita 1.5.0, GCC 13, Clang 18. Native libraries were installed and the real canonical executable linked; no substitute CLI harness or fabricated pkg-config libraries qualify these results. Dev/test debug information was disabled and Cargo build concurrency was bounded locally, without changing features or assertions. GTK smoke ran under Xvfb/D-Bus with Cairo rendering and produced a real screenshot.
+
+| Check | Result |
+| --- | --- |
+| Rust 1.85 format check | Passed |
+| Workspace build, locked | Passed |
+| Workspace Clippy, all targets, warnings denied | Passed |
+| Prefix-management all targets | Passed, 42 tests |
+| runtime_install_cli actual executable suite | Passed, both original tests |
+| prefix_backup_cli actual executable suite | Passed, 2 tests; positive workflow exercised locally |
+| Full workspace with serialized harness (`-- --test-threads=1`) | Passed, 763 tests |
+| Default full-workspace test command | Two attempts failed at the documented unchanged IPC over-capacity race; retained as failure evidence |
+| Isolated unchanged IPC integration retry | Passed |
+| GTK ignored smoke under Xvfb/D-Bus | Passed, screenshot generated |
+| GCC C17 / Clang C17 ABI | Both passed |
+| Cargo metadata and repository-specific assertions | Passed |
+| Canonical user-unit static validation | Passed |
+| git diff --check | Passed |
+
+Actual executable observations: backup list/pending/deletions returned `[]`, exit 0, no stdout noise, empty stderr and no XDG creation. Every documented nested help path returned exit 0; missing required arguments returned parser exit 2. Missing/wrong approvals, registry conflicts, altered journal evidence and stale runtime recovery returned operation exit 4 with typed stdout diagnostics and the existing canonical stderr summary. Successful backup verify/delete, restore apply, completed recovery replay/release and pin CAS returned exit 0. Pin recovery produced revision 3, replayed idempotently, then rejected intervening revision changes and exact runtime modifications. Prefix-only restoration preserved P027 bytes. The original managed directory remained in preserved history. The synthetic runtime script's execution sentinel remained absent.
+
+Final post-documentation HEAD must have its own hosted run; exact final SHA and run/job links are recorded in PR #2 and the completion report, avoiding a self-referential commit hash in this file. Earlier successful repair runs do not substitute for that final run. Superseded queued runs may be cancelled so only the final qualification target consumes runner capacity.
+
+### Remaining limits
+
+The documented IPC timing race is unresolved and can still fail a default-threaded gate. Partial-deletion auto-resume, automatic rollback, cleanup of preserved originals, full POSIX metadata, Initialized prefixes, symlinks/hardlinks/sparse files/xattrs/special files and cross-mount publication remain unsupported or blocked. The full adversarial mount/rename, alternate-UID, physical ENOSPC and power-loss matrix is not claimed. Synthetic successful tests do not qualify real Wine prefixes, physical Arch/Dell devices or Endfield compatibility. Keep PR #2 Draft; this remediation does not authorize merging or starting P030.

@@ -241,3 +241,7 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P029 backup/recovery commands
 
 The existing prefix family gains nested backup, restore and recovery commands, documented with exact approval strings in [backup/recovery](BACKUP-RECOVERY.md). backup create and recovery run require --confirm; restore apply requires restore:ID:BACKUP; recovery pin requires pin:BACKUP and an expected P027 revision. backup deletion requires delete:BACKUP. P029 refusals return 4. These operations do not initialize GTK, start the daemon or run runtimes.
+
+## P029A canonical parser repair
+
+The executable now parses the same typed prefix operation tree used by dispatch. `prefix recover` remains the P028 creation-reconciliation command; `prefix recovery <status|run|release|pin>` handles P029 snapshots. Top-level, topic and nested help expose the new groups. `prefix backup deletions` reports incomplete retirement evidence without unlinking anything. Restore-plan JSON now includes current P027 selection and saved-reference assessment; it never mutates pins. See [backup/recovery](BACKUP-RECOVERY.md) for approval strings and exit codes.
