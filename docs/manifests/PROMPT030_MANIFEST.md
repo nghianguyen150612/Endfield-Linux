@@ -5,7 +5,7 @@
 - Verified remote `main`: `43171ac19bc3e4bc51dc25d3e87f730c1ab17778`.
 - P028 PR [#1](https://github.com/nghianguyen150612/Endfield-Linux/pull/1) and P029 PR [#2](https://github.com/nghianguyen150612/Endfield-Linux/pull/2) are merged.
 - P030 branch: `feat/p030-compatibility-diagnostics`.
-- PR and final-head SHA: pending Draft PR creation and hosted qualification.
+- Draft PR: [#3](https://github.com/nghianguyen150612/Endfield-Linux/pull/3). The implementation source head qualified by hosted CI is `861058f889a5e7438b1dbf7e42981e1d35e8e0dd`. This follow-up manifest update is documentation-only; the resulting PR head is checked separately.
 - Merge status: intentionally unmerged. P031 has not started.
 
 ## Implementation
@@ -35,9 +35,9 @@ The full `cargo +1.85.0 check --locked --workspace`, `clippy --locked --workspac
 
 ## Hosted and physical qualification
 
-- Hosted checks: pending final-head CI for the Draft PR. P030 remains draft until the final head passes.
-- Actual-binary compatibility CLI suite: pending hosted run with genuine GTK dependencies.
-- GTK screenshot smoke: pending hosted run.
-- GCC/Clang C17 hosted gates: pending hosted run; only GCC ran locally.
+- Hosted CI for implementation head `861058f889a5e7438b1dbf7e42981e1d35e8e0dd` passed in [Rust CI run 41206762591](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41206762591). The run qualified workspace check, Clippy, build, tests, actual P030 CLI integration, P021–P029 regression gates, GTK smoke, metadata, and GCC/Clang C17 ABI jobs.
+- Actual-binary compatibility CLI suite and GTK screenshot smoke: passed on the hosted runner with genuine GTK dependencies.
+- GCC and Clang C17 ABI hosted gates: passed. Clang is unavailable locally.
+- The current PR head includes only this qualification-manifest update after the qualified implementation commit. Check the latest PR run for final-head status.
 - RTX 5070 desktop and Dell Vostro 3510 physical observations: unverified. Optional read-only procedures are documented in [COMPATIBILITY-DIAGNOSTICS.md](../COMPATIBILITY-DIAGNOSTICS.md).
 - Wine/Proton execution, prefix initialization, DXVK/VKD3D-Proton requirements, Endfield launch, rendering, and performance: not tested and not claimed.
