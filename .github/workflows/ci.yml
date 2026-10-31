@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/p028-isolated-prefix-management]
   pull_request:
-    branches: [main]
+    branches: [main, feat/p028-isolated-prefix-management]
 
 permissions:
   contents: read
@@ -90,6 +90,9 @@ jobs:
 
       - name: Run P027 runtime pin contracts and persistence tests
         run: cargo test --locked -p endfield-unix-runtime-selection --all-targets
+
+      - name: Run P029 snapshot roundtrip and durable-boundary fault injection
+        run: cargo test --locked -p endfield-unix-prefix-management backup::tests
 
       - name: Run P028 isolated prefix lifecycle and filesystem safety tests
         run: cargo test --locked -p endfield-unix-prefix-management --all-targets

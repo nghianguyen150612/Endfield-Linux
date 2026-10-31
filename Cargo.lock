@@ -328,6 +328,7 @@ dependencies = [
  "libc",
  "nix",
  "relm4",
+ "serde",
  "serde_json",
  "sha2",
  "tar",

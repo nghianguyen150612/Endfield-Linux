@@ -19,6 +19,7 @@ use thiserror::Error;
 
 mod linux_fs;
 pub use linux_fs::LinuxPrefixFilesystem;
+pub use linux_fs::backup;
 
 pub const REGISTRY_SCHEMA_VERSION: u32 = 1;
 pub const MAX_REGISTRY_BYTES: usize = 4 * 1024 * 1024;
@@ -508,6 +509,9 @@ pub trait PrefixFilesystem: Send + Sync {
     fn prefix_in_use(&self, id: &PrefixId) -> Result<Option<bool>, PrefixError>;
     fn target_path(&self, id: &PrefixId) -> PathBuf;
     fn free_bytes(&self) -> Option<u64>;
+    fn backup_recovery_pending(&self, _id: &PrefixId) -> Result<bool, PrefixError> {
+        Ok(false)
+    }
 }
 
 pub struct PrefixStore {
@@ -653,6 +657,9 @@ impl PrefixStore {
         self.fs.prepare(true)?;
         let _registry_guard = self.fs.lock_registry()?;
         let _prefix_guard = self.fs.lock_prefix(&id)?;
+        if self.fs.backup_recovery_pending(&id)? {
+            return Err(PrefixError::RecoveryRequired);
+        }
         let snapshot = self.load_snapshot()?;
         if let Some(record) = snapshot.registry.record(&id) {
             if record.ownership != PrefixOwnership::EndfieldUnixManaged
@@ -727,6 +734,9 @@ impl PrefixStore {
         self.fs.prepare(true)?;
         let _registry_guard = self.fs.lock_registry()?;
         let _prefix_guard = self.fs.lock_prefix(id)?;
+        if self.fs.backup_recovery_pending(id)? {
+            return Err(PrefixError::RecoveryRequired);
+        }
         let snapshot = self.load_snapshot()?;
         if snapshot.registry.revision != expected_revision {
             return Err(PrefixError::RevisionConflict);
@@ -780,6 +790,9 @@ impl PrefixStore {
         self.fs.prepare(true)?;
         let _registry_guard = self.fs.lock_registry()?;
         let _prefix_guard = self.fs.lock_prefix(id)?;
+        if self.fs.backup_recovery_pending(id)? {
+            return Err(PrefixError::RecoveryRequired);
+        }
         let snapshot = self.load_snapshot()?;
         if snapshot.registry.revision != expected_revision {
             return Err(PrefixError::RevisionConflict);
@@ -811,6 +824,9 @@ impl PrefixStore {
         self.fs.prepare(true)?;
         let _registry_guard = self.fs.lock_registry()?;
         let _prefix_guard = self.fs.lock_prefix(id)?;
+        if self.fs.backup_recovery_pending(id)? {
+            return Err(PrefixError::RecoveryRequired);
+        }
         let snapshot = self.load_snapshot()?;
         if snapshot.registry.revision != expected_revision {
             return Err(PrefixError::RevisionConflict);
@@ -1052,7 +1068,7 @@ mod tests {
         }
     }
 
-    fn fixture() -> (TempDir, PrefixStore, PrefixScope, PrefixRuntimeAssociation) {
+    pub(crate) fn fixture() -> (TempDir, PrefixStore, PrefixScope, PrefixRuntimeAssociation) {
         let temporary = tempfile::tempdir().unwrap();
         let paths = endfield_unix_storage::AppPaths::from_base_dirs(
             temporary.path().join("config"),

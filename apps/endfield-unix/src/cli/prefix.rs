@@ -8,6 +8,21 @@ use std::{
 
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum Operation {
+    /// Offline managed-prefix snapshots.
+    Backup {
+        #[command(subcommand)]
+        operation: BackupOperation,
+    },
+    /// Explicit staged prefix restoration; never changes P027 pins.
+    Restore {
+        #[command(subcommand)]
+        operation: RestoreOperation,
+    },
+    /// Inspect or finalize P029 interrupted restore publication.
+    Recovery {
+        #[command(subcommand)]
+        operation: RecoveryOperation,
+    },
     /// List registered prefixes and revalidate their stored runtime associations.
     List,
     /// Inspect one registered prefix.
@@ -72,6 +87,65 @@ pub enum Operation {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
+pub enum BackupOperation {
+    List,
+    Plan {
+        #[arg(long)]
+        id: String,
+    },
+    Create {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long)]
+        confirm: bool,
+    },
+    Show {
+        #[arg(long)]
+        backup_id: String,
+    },
+    Verify {
+        #[arg(long)]
+        backup_id: String,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
+pub enum RestoreOperation {
+    Plan {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        backup_id: String,
+    },
+    Apply {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        backup_id: String,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long)]
+        confirm: String,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
+pub enum RecoveryOperation {
+    Status {
+        #[arg(long)]
+        id: String,
+    },
+    Run {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long)]
+        confirm: bool,
+    },
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum ScopeArg {
     Machine,
@@ -82,9 +156,15 @@ pub enum ScopeArg {
 enum Failure {
     Prefix(prefixes::PrefixError),
     Runtime(String),
+    Backup(prefixes::backup::BackupError),
     Output(io::Error),
 }
 
+impl From<prefixes::backup::BackupError> for Failure {
+    fn from(value: prefixes::backup::BackupError) -> Self {
+        Self::Backup(value)
+    }
+}
 impl From<prefixes::PrefixError> for Failure {
     fn from(value: prefixes::PrefixError) -> Self {
         Self::Prefix(value)
@@ -102,6 +182,7 @@ pub fn run(operation: Operation, out: &mut impl Write) -> io::Result<u8> {
         Err(Failure::Output(error)) => Err(error),
         Err(failure) => {
             let (category, message, code) = match failure {
+                Failure::Backup(error) => ("backup_recovery_blocked", error.to_string(), 4),
                 Failure::Runtime(reason) => ("runtime_selection_blocked", reason, 4),
                 Failure::Prefix(error) => {
                     let code = match &error {
@@ -121,6 +202,9 @@ pub fn run(operation: Operation, out: &mut impl Write) -> io::Result<u8> {
 
 fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, Failure> {
     match operation {
+        Operation::Backup { operation } => run_backup(operation, out),
+        Operation::Restore { operation } => run_restore(operation, out),
+        Operation::Recovery { operation } => run_recovery(operation, out),
         Operation::List => {
             let store = store()?;
             let mut runtime_validations =
@@ -689,5 +773,117 @@ fn prefix_error_category(error: &prefixes::PrefixError) -> &'static str {
         prefixes::PrefixError::InvalidState => "invalid_lifecycle_state",
         prefixes::PrefixError::Io(_) => "filesystem_error",
         prefixes::PrefixError::Storage(_) => "storage_paths_unavailable",
+    }
+}
+
+fn backup_store() -> Result<prefixes::backup::BackupStore, Failure> {
+    let paths =
+        endfield_unix_storage::AppPaths::discover().map_err(|e| Failure::Runtime(e.to_string()))?;
+    Ok(prefixes::backup::BackupStore::for_app(&paths))
+}
+fn authorized_scope(id: &prefixes::PrefixId) -> Result<prefixes::PrefixScope, Failure> {
+    let item = store()?.show(id, |_| Ok(()))?;
+    check_machine(&item.record.scope)?;
+    Ok(item.record.scope)
+}
+fn check_machine(scope: &prefixes::PrefixScope) -> Result<(), Failure> {
+    let current = pins::current_machine_id().map_err(|e| Failure::Runtime(e.to_string()))?;
+    let recorded = match scope {
+        prefixes::PrefixScope::Machine { machine }
+        | prefixes::PrefixScope::Profile { machine, .. } => machine,
+    };
+    if &current != recorded {
+        return Err(prefixes::PrefixError::InvalidScope.into());
+    }
+    Ok(())
+}
+fn json_output(out: &mut impl Write, value: &impl serde::Serialize) -> Result<u8, Failure> {
+    let text = serde_json::to_string_pretty(value).map_err(|e| Failure::Runtime(e.to_string()))?;
+    writeln!(out, "{text}")?;
+    Ok(0)
+}
+fn run_backup(op: BackupOperation, out: &mut impl Write) -> Result<u8, Failure> {
+    use prefixes::backup::BackupId;
+    let b = backup_store()?;
+    match op {
+        BackupOperation::List => json_output(out, &b.list()?),
+        BackupOperation::Plan { id } => {
+            let id = prefixes::PrefixId::new(id)?;
+            json_output(out, &b.plan(&id, &authorized_scope(&id)?)?)
+        }
+        BackupOperation::Create {
+            id,
+            expected_revision,
+            confirm,
+        } => {
+            let id = prefixes::PrefixId::new(id)?;
+            json_output(
+                out,
+                &b.create(&id, &authorized_scope(&id)?, expected_revision, confirm)?,
+            )
+        }
+        BackupOperation::Show { backup_id } => {
+            let m = b.show(&BackupId::new(backup_id)?)?;
+            check_machine(&m.source.scope)?;
+            json_output(out, &m)
+        }
+        BackupOperation::Verify { backup_id } => {
+            let id = BackupId::new(backup_id)?;
+            let m = b.show(&id)?;
+            check_machine(&m.source.scope)?;
+            json_output(out, &b.verify(&id, &m.source.scope)?)
+        }
+    }
+}
+fn run_restore(op: RestoreOperation, out: &mut impl Write) -> Result<u8, Failure> {
+    use prefixes::backup::BackupId;
+    let b = backup_store()?;
+    match op {
+        RestoreOperation::Plan { id, backup_id } => {
+            let id = prefixes::PrefixId::new(id)?;
+            json_output(
+                out,
+                &b.restore_plan(&id, &BackupId::new(backup_id)?, &authorized_scope(&id)?)?,
+            )
+        }
+        RestoreOperation::Apply {
+            id,
+            backup_id,
+            expected_revision,
+            confirm,
+        } => {
+            let id = prefixes::PrefixId::new(id)?;
+            json_output(
+                out,
+                &b.restore(
+                    &id,
+                    &BackupId::new(backup_id)?,
+                    &authorized_scope(&id)?,
+                    expected_revision,
+                    &confirm,
+                )?,
+            )
+        }
+    }
+}
+fn run_recovery(op: RecoveryOperation, out: &mut impl Write) -> Result<u8, Failure> {
+    let b = backup_store()?;
+    match op {
+        RecoveryOperation::Status { id } => {
+            let id = prefixes::PrefixId::new(id)?;
+            authorized_scope(&id)?;
+            json_output(out, &b.recovery_status(&id)?)
+        }
+        RecoveryOperation::Run {
+            id,
+            expected_revision,
+            confirm,
+        } => {
+            let id = prefixes::PrefixId::new(id)?;
+            json_output(
+                out,
+                &b.recover(&id, &authorized_scope(&id)?, expected_revision, confirm)?,
+            )
+        }
     }
 }
