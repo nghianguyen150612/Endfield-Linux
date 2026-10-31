@@ -92,3 +92,7 @@ Synthetic tests include binary/hidden/nested roundtrip, empty and distinct snaps
 P029A is remediation within P029, not a new milestone. The canonical parser now directly consumes `prefix::Operation` rather than maintaining a second P028-only enum. The earlier temporary module harness did not cover that canonical tree; it did not qualify the actual executable. P029A adds canonical parser mappings/help tests and actual-binary integration covering read-only queries, backup create/verify/delete, restore approval/revisions, journal completion/release and separate P027 CAS recovery. Restricted /proc environments must assert the documented refusal, never bypass process-use assessment.
 
 Recovery validates the original intent against the staged journal, checks allowed journal entries and completion-marker identity before publication or registry mutations, and rejects premature completion evidence. Additional child-process exits interrupt individual copy chunks and unlinks. Preserved originals and incomplete staging/deletion remain available for inspection. No automatic rollback is claimed.
+
+## P029B investigation status
+
+P029B remains incomplete. A synthetic Wine-style tree with internal and external `dosdevices` symlinks was rejected without following either link. Existing snapshots do not provide the durable deletion intent or preserved-original content evidence needed to safely infer deletion replay or rollback. Neither operation has been enabled. See [the P029B investigation record](manifests/PROMPT029B_MANIFEST.md).
