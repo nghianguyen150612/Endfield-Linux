@@ -29,11 +29,14 @@ fn run(root: &Path, args: &[&str]) -> Output {
 fn expect(root: &Path, args: &[&str], code: i32) -> Output {
     let r = run(root, args);
     assert_eq!(r.status.code(), Some(code), "{args:?}");
-    assert!(
-        r.stderr.is_empty(),
-        "{}",
-        String::from_utf8_lossy(&r.stderr)
-    );
+    // Preserve the existing canonical dispatch contract: operation diagnostics
+    // are on stdout and nonzero operation status adds this stderr summary.
+    let stderr = if code == 0 {
+        ""
+    } else {
+        "endfield-unix: runtime verification completed; see report.\n"
+    };
+    assert_eq!(String::from_utf8_lossy(&r.stderr), stderr, "{args:?}");
     r
 }
 fn json(root: &Path, args: &[&str]) -> Value {
@@ -64,7 +67,10 @@ fn every_documented_p029_command_is_recognized_by_the_actual_parser() {
         expect(root, &["prefix", group, "--help"], 0);
         for leaf in leaves {
             let r = expect(root, &["prefix", group, leaf, "--help"], 0);
-            assert!(String::from_utf8_lossy(&r.stdout).contains("Usage:"));
+            assert!(
+                String::from_utf8_lossy(&r.stdout)
+                    .contains(&format!("Usage: endfield-unix prefix {group} {leaf}"))
+            );
         }
     }
     for leaf in ["list", "pending", "deletions"] {
@@ -198,8 +204,11 @@ fn actual_backup_restore_recovery_and_pin_cas_or_documented_use_refusal() {
             "--confirm",
         ],
     );
-    assert!(result.stderr.is_empty());
     if result.status.code() == Some(4) {
+        assert_eq!(
+            String::from_utf8_lossy(&result.stderr),
+            "endfield-unix: runtime verification completed; see report.\n"
+        );
         let msg = String::from_utf8_lossy(&result.stdout);
         assert!(
             msg.contains("prefix use could not be checked safely")
@@ -212,6 +221,7 @@ fn actual_backup_restore_recovery_and_pin_cas_or_documented_use_refusal() {
         return;
     }
     assert_eq!(result.status.code(), Some(0));
+    assert!(result.stderr.is_empty());
     let m: Value = serde_json::from_slice(&result.stdout).unwrap();
     let id = m["id"].as_str().unwrap();
     json(root, &["prefix", "backup", "show", "--backup-id", id]);

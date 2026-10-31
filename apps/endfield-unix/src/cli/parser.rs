@@ -465,7 +465,11 @@ fn nested_prefix_help(arguments: &[OsString]) -> Option<String> {
     for component in path {
         command = command.find_subcommand(component.to_str()?)?.clone();
     }
-    Some(command.render_help().to_string())
+    let invocation = std::iter::once(APPLICATION_NAME.to_owned())
+        .chain(path.iter().map(|part| part.to_string_lossy().into_owned()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(command.bin_name(invocation).render_help().to_string())
 }
 
 #[cfg(test)]

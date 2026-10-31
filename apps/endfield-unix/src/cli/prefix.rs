@@ -91,7 +91,9 @@ pub enum Operation {
 pub enum BackupOperation {
     /// Inspect preserved, incomplete deletion transactions without removing bytes.
     Deletions,
+    /// List unfinished snapshot staging without resuming or deleting it.
     Pending,
+    /// Verify and publish complete staging after explicit approval.
     Recover {
         #[arg(long)]
         backup_id: String,
@@ -100,17 +102,21 @@ pub enum BackupOperation {
         #[arg(long)]
         confirm: bool,
     },
+    /// Remove one verified snapshot with an exact delete:BACKUP confirmation.
     Delete {
         #[arg(long)]
         backup_id: String,
         #[arg(long)]
         confirm: String,
     },
+    /// List published snapshots without creating storage.
     List,
+    /// Inspect identity, integrity, storage and revisions without changing data.
     Plan {
         #[arg(long)]
         id: String,
     },
+    /// Create an offline bounded snapshot with approval and the prefix revision.
     Create {
         #[arg(long)]
         id: String,
@@ -119,10 +125,12 @@ pub enum BackupOperation {
         #[arg(long)]
         confirm: bool,
     },
+    /// Show a versioned snapshot manifest and its original association.
     Show {
         #[arg(long)]
         backup_id: String,
     },
+    /// Rehash the complete payload and reject changed or unsafe entries.
     Verify {
         #[arg(long)]
         backup_id: String,
@@ -130,12 +138,14 @@ pub enum BackupOperation {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum RestoreOperation {
+    /// Inspect identity, integrity, storage and revisions without changing data.
     Plan {
         #[arg(long)]
         id: String,
         #[arg(long)]
         backup_id: String,
     },
+    /// Publish verified staging with exact restore:ID:BACKUP confirmation.
     Apply {
         #[arg(long)]
         id: String,
@@ -149,6 +159,7 @@ pub enum RestoreOperation {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum RecoveryOperation {
+    /// Archive completed recovery evidence while preserving original bytes.
     Release {
         #[arg(long)]
         id: String,
@@ -166,10 +177,12 @@ pub enum RecoveryOperation {
         #[arg(long)]
         confirm: String,
     },
+    /// Inspect restore journal state without resuming or modifying it.
     Status {
         #[arg(long)]
         id: String,
     },
+    /// Resume only a journaled, identified transaction with approval and revision.
     Run {
         #[arg(long)]
         id: String,
