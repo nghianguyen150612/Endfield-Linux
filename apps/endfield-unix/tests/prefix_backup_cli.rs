@@ -443,6 +443,22 @@ fn actual_backup_restore_recovery_and_pin_cas_or_documented_use_refusal() {
         0,
     );
     assert_eq!(pin_removed, fs::read(&pin_path).unwrap());
+    let history = root.join("data/endfield-unix/backups/history");
+    let originals = fs::read_dir(&history)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(originals.len(), 1);
+    assert_eq!(
+        fs::read(originals[0].path().join("payload/preserve")).unwrap(),
+        b"original stays"
+    );
+    let registry_state: Value = serde_json::from_slice(&fs::read(&registry).unwrap()).unwrap();
+    assert_eq!(
+        registry_state["records"][0]["lifecycle"]["state"],
+        "created"
+    );
+    assert!(registry_state["records"][0]["initialization_evidence"].is_null());
     let second = json(
         root,
         &[
