@@ -117,6 +117,7 @@ pub struct RestoreTransaction {
 pub enum RecoveryAction {
     None,
     InspectPreservedStaging,
+    ResumeStagedRestore,
     FinalizePublishedRestore,
 }
 #[derive(Clone, Debug, Serialize)]
@@ -779,7 +780,12 @@ impl BackupStore {
                 return Err(BackupError::RecoveryBlocked);
             }
         }
-        if !has_file(&tx, "completed.json")? {
+        if has_file(&tx, "completed.json")? {
+            let completed: u64 = read_json(&tx, "completed.json")?;
+            if completed != resulting_revision {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        } else {
             write_json(&tx, "completed.json", &resulting_revision)?;
         }
         Ok(resulting_revision)
@@ -828,30 +834,49 @@ impl BackupStore {
                 original_preserved: false,
             });
         };
-        if has_file(&tx, "completed.json")? {
-            return Ok(RecoveryReport {
-                action: RecoveryAction::None,
-                original_preserved: true,
-            });
-        }
         let journal: RestoreTransaction = match read_json(&tx, "staged.json") {
             Ok(j) => j,
             Err(_) => {
                 return Ok(RecoveryReport {
                     action: RecoveryAction::InspectPreservedStaging,
-                    original_preserved: true,
+                    original_preserved: false,
                 });
             }
         };
-        Ok(RecoveryReport {
-            action: if self.fs.inspect_directory(id)? == Some(journal.staged) {
-                RecoveryAction::FinalizePublishedRestore
+        if journal.schema_version != 1 || journal.original.id != *id {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        journal.original.validate()?;
+        let live = self.fs.inspect_directory(id)?;
+        let payload = open_at(&tx, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0).ok();
+        let payload_identity = payload.as_ref().map(identity).transpose()?;
+        let original_preserved = live == journal.original.filesystem_identity
+            || payload_identity == journal.original.filesystem_identity;
+        let action = if live == Some(journal.staged)
+            && payload_identity == journal.original.filesystem_identity
+        {
+            if has_file(&tx, "completed.json")? {
+                let completed: FilesystemIdentity = read_json(&tx, "completed.json")?;
+                if completed != journal.staged {
+                    return Err(BackupError::RecoveryBlocked);
+                }
+                RecoveryAction::None
             } else {
-                RecoveryAction::InspectPreservedStaging
-            },
-            original_preserved: true,
+                RecoveryAction::FinalizePublishedRestore
+            }
+        } else if live == journal.original.filesystem_identity
+            && payload_identity == Some(journal.staged)
+        {
+            RecoveryAction::ResumeStagedRestore
+        } else {
+            RecoveryAction::InspectPreservedStaging
+        };
+        Ok(RecoveryReport {
+            action,
+            original_preserved,
         })
     }
+
     pub fn recover(
         &self,
         id: &PrefixId,
@@ -937,6 +962,9 @@ fn delete_verified_tree(
             return Err(BackupError::RecoveryBlocked);
         }
         let flags = if m.is_dir() {
+            // Retirement already durably records deletion intent. Grant only
+            // owner traversal/write rights to remove an otherwise readonly tree.
+            f.set_permissions(fs::Permissions::from_mode((m.mode() & 0o777) | 0o700))?;
             delete_verified_tree(&f, mount, depth + 1, &path, inventory)?;
             libc::AT_REMOVEDIR
         } else if m.is_file() && m.nlink() == 1 {

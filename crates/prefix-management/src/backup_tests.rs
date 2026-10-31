@@ -244,3 +244,19 @@ fn byte_and_entry_accounting_is_bounded_without_allocating_payload() {
     assert!(matches!(total(&[e.clone()]), Err(BackupError::Quota)));
     assert!(matches!(total(&[e.clone(), e]), Err(BackupError::Quota)));
 }
+
+#[test]
+fn changed_completion_evidence_is_never_reported_as_completed() {
+    let (_tmp, b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.restore(&id, &m.id, &scope, rev, &p.confirmation).unwrap();
+    fs::write(
+        b.fs.data_dir.join("backups/restores/game/completed.json"),
+        b"{}",
+    )
+    .unwrap();
+    assert!(b.recovery_status(&id).is_err());
+    assert!(b.recover(&id, &scope, rev + 1, true).is_err());
+    assert!(b.fs.data_dir.join("backups/restores/game/payload").is_dir());
+}
