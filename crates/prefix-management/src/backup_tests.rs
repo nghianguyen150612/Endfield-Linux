@@ -163,7 +163,10 @@ fn crash_child() {
     let scope = PrefixScope::machine(crate::MachineId::from_digest("a".repeat(64)).unwrap());
     let rev = b.prefixes.load_snapshot().unwrap().registry.revision;
     let backup = std::env::var("ENDFIELD_P029_CHILD_BACKUP").unwrap();
-    if let Some(id) = backup.strip_prefix("delete:") {
+    if backup == "rollback" {
+        let plan = b.rollback_plan(&id, &scope).unwrap();
+        b.rollback(&id, &scope, rev, &plan.confirmation).unwrap();
+    } else if let Some(id) = backup.strip_prefix("delete:") {
         let id = BackupId::new(id).unwrap();
         b.delete(&id, &scope, &format!("delete:{}", id.as_str()))
             .unwrap();
@@ -495,4 +498,227 @@ fn synthetic_wine_layout_rejects_links_without_following_or_modifying_targets() 
     assert!(b.create(&id, &scope, rev, true).is_err());
     assert_eq!(fs::read(&external).unwrap(), b"preserve external bytes");
     assert!(b.list().unwrap().is_empty());
+}
+
+#[test]
+fn new_restore_journals_detect_changed_original_before_and_after_exchange() {
+    for fault in ["restore-staged", "restore-published"] {
+        let (_tmp, mut b, id, scope, rev) = fixture();
+        let live = b.fs.target_path(&id);
+        fs::write(live.join("data"), b"snapshot").unwrap();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        fs::write(live.join("data"), b"original").unwrap();
+        let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+        b.fault = Some(fault);
+        assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
+        b.fault = None;
+        let tx = b.fs.data_dir.join("backups/restores/game");
+        let changed = if fault == "restore-staged" {
+            live.join("data")
+        } else {
+            tx.join("payload/data")
+        };
+        fs::write(&changed, b"modified").unwrap();
+        let registry = b.fs.load_registry_bytes().unwrap();
+        assert!(b.recover(&id, &scope, rev, true).is_err());
+        assert_eq!(registry, b.fs.load_registry_bytes().unwrap());
+        assert_eq!(fs::read(&changed).unwrap(), b"modified");
+    }
+}
+
+#[test]
+fn legacy_restore_journal_remains_eligible_for_forward_recovery() {
+    let (_tmp, mut b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.fault = Some("restore-staged");
+    assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
+    b.fault = None;
+    let path = b.fs.data_dir.join("backups/restores/game/staged.json");
+    let mut journal: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    journal["schema_version"] = 1.into();
+    journal
+        .as_object_mut()
+        .unwrap()
+        .remove("original_inventory");
+    fs::write(&path, serde_json::to_vec(&journal).unwrap()).unwrap();
+    b.recover(&id, &scope, rev, true).unwrap();
+}
+
+#[test]
+fn rollback_of_published_uncommitted_restore_is_explicit_preserves_both_trees_and_replays() {
+    for fault in [
+        "rollback-intent",
+        "rollback-published",
+        "rollback-completed",
+    ] {
+        let (tmp, mut b, id, scope, rev) = fixture();
+        let live = b.fs.target_path(&id);
+        fs::write(live.join("save"), b"snapshot").unwrap();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        let pin_path = tmp.path().join("pins/runtime-pins.json");
+        let machine = match &scope {
+            PrefixScope::Machine { machine } => machine.clone(),
+            _ => unreachable!(),
+        };
+        let pin = RuntimePin::new(
+            m.source.runtime.pin_id.clone(),
+            RuntimePinScope::Machine { machine },
+            m.source.runtime.runtime.clone(),
+            m.source.runtime.adapter_preference,
+            1,
+        )
+        .unwrap();
+        PinStore::new(&pin_path).set(pin, 0, false).unwrap();
+        let pin_bytes = fs::read(&pin_path).unwrap();
+        fs::write(live.join("save"), b"original").unwrap();
+        let plan = b.restore_plan(&id, &m.id, &scope).unwrap();
+        b.fault = Some("restore-published");
+        assert!(
+            b.restore(&id, &m.id, &scope, rev, &plan.confirmation)
+                .is_err()
+        );
+        b.fault = None;
+        let plan = b.rollback_plan(&id, &scope).unwrap();
+        let registry = b.fs.load_registry_bytes().unwrap();
+        assert!(
+            b.rollback(&id, &scope, rev + 1, &plan.confirmation)
+                .is_err()
+        );
+        assert!(b.rollback(&id, &scope, rev, "wrong").is_err());
+        b.fault = Some(fault);
+        assert!(b.rollback(&id, &scope, rev, &plan.confirmation).is_err());
+        b.fault = None;
+        assert!(b.recover(&id, &scope, rev, true).is_err());
+        b.rollback(&id, &scope, rev, &plan.confirmation).unwrap();
+        b.rollback(&id, &scope, rev, &plan.confirmation).unwrap();
+        assert!(matches!(
+            b.recovery_status(&id).unwrap().action,
+            RecoveryAction::RollbackCompleted
+        ));
+        assert_eq!(registry, b.fs.load_registry_bytes().unwrap());
+        assert_eq!(pin_bytes, fs::read(&pin_path).unwrap());
+        assert_eq!(fs::read(live.join("save")).unwrap(), b"original");
+        assert_eq!(
+            fs::read(b.fs.data_dir.join("backups/restores/game/payload/save")).unwrap(),
+            b"snapshot"
+        );
+        b.release(&id, &scope, rev, "release:game").unwrap();
+        let paths: Vec<_> = fs::read_dir(b.fs.data_dir.join("backups/history"))
+            .unwrap()
+            .collect();
+        assert_eq!(paths.len(), 1);
+        assert_eq!(
+            fs::read(paths[0].as_ref().unwrap().path().join("payload/save")).unwrap(),
+            b"snapshot"
+        );
+        assert!(!tmp.path().join("config").exists());
+    }
+}
+
+#[test]
+fn rollback_rejects_modified_original_and_committed_restore() {
+    let (_tmp, mut b, id, scope, rev) = fixture();
+    fs::write(b.fs.target_path(&id).join("save"), b"original").unwrap();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let plan = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.fault = Some("restore-published");
+    assert!(
+        b.restore(&id, &m.id, &scope, rev, &plan.confirmation)
+            .is_err()
+    );
+    b.fault = None;
+    fs::write(
+        b.fs.data_dir.join("backups/restores/game/payload/save"),
+        b"changed",
+    )
+    .unwrap();
+    assert!(b.rollback_plan(&id, &scope).is_err());
+    assert!(b.recover(&id, &scope, rev, true).is_err());
+}
+
+#[test]
+fn process_exit_during_rollback_replays_without_pin_or_registry_changes() {
+    for fault in [
+        "rollback-intent",
+        "rollback-published",
+        "rollback-completed",
+    ] {
+        let (_tmp, mut b, id, scope, rev) = fixture();
+        let live = b.fs.target_path(&id);
+        fs::write(live.join("save"), b"backup").unwrap();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        fs::write(live.join("save"), b"original").unwrap();
+        let plan = b.restore_plan(&id, &m.id, &scope).unwrap();
+        b.fault = Some("restore-published");
+        assert!(
+            b.restore(&id, &m.id, &scope, rev, &plan.confirmation)
+                .is_err()
+        );
+        b.fault = None;
+        let before = b.fs.load_registry_bytes().unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "linux_fs::backup::recovery_tests::crash_child",
+                "--nocapture",
+            ])
+            .env("ENDFIELD_P029_CHILD_DATA", &b.fs.data_dir)
+            .env("ENDFIELD_P029_CHILD_BACKUP", "rollback")
+            .env("ENDFIELD_P029_EXIT_AT", fault)
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(91));
+        let plan = b.rollback_plan(&id, &scope).unwrap();
+        b.rollback(&id, &scope, rev, &plan.confirmation).unwrap();
+        assert_eq!(before, b.fs.load_registry_bytes().unwrap());
+        assert_eq!(fs::read(live.join("save")).unwrap(), b"original");
+        assert_eq!(
+            fs::read(b.fs.data_dir.join("backups/restores/game/payload/save")).unwrap(),
+            b"backup"
+        );
+    }
+}
+
+#[test]
+fn rollback_refuses_schema_one_journals_and_ambiguous_completion_markers() {
+    for case in ["legacy", "orphan-marker"] {
+        let (_tmp, mut b, id, scope, rev) = fixture();
+        let m = b.create(&id, &scope, rev, true).unwrap();
+        let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+        b.fault = Some("restore-published");
+        assert!(b.restore(&id, &m.id, &scope, rev, &p.confirmation).is_err());
+        b.fault = None;
+        let tx = b.transaction_dir(&id, false).unwrap().unwrap();
+        if case == "legacy" {
+            let path = b.fs.data_dir.join("backups/restores/game/staged.json");
+            let mut journal: serde_json::Value =
+                serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            journal["schema_version"] = 1.into();
+            journal
+                .as_object_mut()
+                .unwrap()
+                .remove("original_inventory");
+            fs::write(path, serde_json::to_vec(&journal).unwrap()).unwrap();
+        } else {
+            write_json(&tx, "rollback-completed.json", &"unexpected").unwrap();
+        }
+        let before = b.fs.load_registry_bytes().unwrap();
+        assert!(b.rollback_plan(&id, &scope).is_err());
+        if case == "orphan-marker" {
+            assert!(b.recover(&id, &scope, rev, true).is_err());
+        }
+        assert_eq!(before, b.fs.load_registry_bytes().unwrap());
+    }
+}
+
+#[test]
+fn committed_restore_is_not_eligible_for_rollback() {
+    let (_tmp, b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let p = b.restore_plan(&id, &m.id, &scope).unwrap();
+    b.restore(&id, &m.id, &scope, rev, &p.confirmation).unwrap();
+    let before = b.fs.load_registry_bytes().unwrap();
+    assert!(b.rollback_plan(&id, &scope).is_err());
+    assert_eq!(before, b.fs.load_registry_bytes().unwrap());
 }

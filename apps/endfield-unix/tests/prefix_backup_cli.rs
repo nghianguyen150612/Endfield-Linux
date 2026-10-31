@@ -62,7 +62,17 @@ fn every_documented_p029_command_is_recognized_by_the_actual_parser() {
             ][..],
         ),
         ("restore", &["plan", "apply"][..]),
-        ("recovery", &["status", "run", "release", "pin"][..]),
+        (
+            "recovery",
+            &[
+                "status",
+                "run",
+                "release",
+                "pin",
+                "rollback-plan",
+                "rollback",
+            ][..],
+        ),
     ] {
         expect(root, &["prefix", group, "--help"], 0);
         for leaf in leaves {
