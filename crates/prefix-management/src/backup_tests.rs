@@ -463,3 +463,36 @@ fn premature_completion_with_valid_shape_cannot_hide_an_uncommitted_registry() {
     assert!(b.recover(&id, &scope, rev, true).is_err());
     assert_eq!(before, b.fs.load_registry_bytes().unwrap());
 }
+
+#[test]
+fn synthetic_wine_layout_rejects_links_without_following_or_modifying_targets() {
+    use std::os::unix::fs::symlink;
+    let (tmp, b, id, scope, rev) = fixture();
+    let root = b.fs.target_path(&id);
+    for name in [
+        "drive_c/Program Files",
+        "drive_c/users",
+        "drive_c/windows",
+        "dosdevices",
+    ] {
+        fs::create_dir_all(root.join(name)).unwrap();
+    }
+    for name in ["system.reg", "user.reg", "userdef.reg"] {
+        fs::write(root.join(name), b"synthetic registry fixture").unwrap();
+    }
+    let external = tmp.path().join("external-target");
+    fs::write(&external, b"preserve external bytes").unwrap();
+    symlink("../drive_c", root.join("dosdevices/c:")).unwrap();
+    symlink(&external, root.join("dosdevices/z:")).unwrap();
+    assert!(b.create(&id, &scope, rev, true).is_err());
+    assert_eq!(fs::read(&external).unwrap(), b"preserve external bytes");
+    assert_eq!(
+        fs::read_link(root.join("dosdevices/c:")).unwrap(),
+        std::path::Path::new("../drive_c")
+    );
+    assert_eq!(fs::read_link(root.join("dosdevices/z:")).unwrap(), external);
+    fs::remove_file(root.join("dosdevices/c:")).unwrap();
+    assert!(b.create(&id, &scope, rev, true).is_err());
+    assert_eq!(fs::read(&external).unwrap(), b"preserve external bytes");
+    assert!(b.list().unwrap().is_empty());
+}
