@@ -1,4 +1,4 @@
-# Prefix snapshots and recovery (P029 draft)
+# Prefix snapshots and recovery (P029)
 
 P029 extends the P028 headless library and `endfield-unix prefix` CLI. It never executes Wine, Proton, UMU, wineboot or a game. This implementation is restricted to registered **Created**, uninitialized prefixes on the same machine and exact profile scope. Initialized-prefix evidence restoration is unsupported and blocked, rather than fabricated. Physical-device and real-prefix qualification remain UNVERIFIED.
 
@@ -122,3 +122,6 @@ endfield-unix prefix recovery rollback --id game --expected-revision REV --confi
 ```
 
 Rollback is not automatic. The saved original and displaced restored payload are retained, and no P027 pin is changed. If interrupted after intent, run rollback again with the exact token and unchanged revision; forward recovery refuses the active rollback intent. `recovery release` archives a completed rollback while retaining the displaced tree. A valid schema-2 inventory and the exact original registry record are required. Any P027 pin-recovery journal referencing the snapshot blocks rollback, even if marked complete. Legacy schema-1 journals, completed/registry-committed restores and ambiguous evidence fail closed. Hashes detect changes, not malicious same-user tampering or publisher authenticity.
+## P030 metadata-only recovery observation
+
+P030 calls `BackupStore::compatibility_recovery_observation` for an explicitly selected registered prefix. It reads bounded restore intent/staged/completion and rollback markers, pending snapshot-deletion and P027 pin-recovery markers, and directory identities. Deletion markers are checked from bounded intent metadata; the observer does not call backup verification, inventory scanning, payload hashing, or prefix-content readers. Pending or inconsistent markers block positive readiness findings. The command does not mutate or replay P029 journals. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).

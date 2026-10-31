@@ -63,3 +63,6 @@ headlessly, without Vulkan/display initialization or the daemon. Unsupported
 utilization windows and missing sensors remain explicit partial data. Suspended
 and unknown-power devices are skipped conservatively. No live samples are
 persisted or included in default support reports. See [GPU-TELEMETRY-LINUX.md](GPU-TELEMETRY-LINUX.md) for source semantics, limitations, tests, and manual physical-device checks.
+## P030 compatibility interpretation
+
+`diagnose compatibility` reuses the P013 PCI, DRM, kernel-binding, and ash-based Vulkan report. It preserves BDF correlation, access and loader states, device type, Vulkan API version, driver-provided identity strings, and bounded extension/feature observations. It does not infer the future game's GPU, userspace/kernel driver consistency, DXVK/VKD3D-Proton presence, Direct3D support, or performance. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).

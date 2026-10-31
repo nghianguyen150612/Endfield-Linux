@@ -9,6 +9,7 @@ GTK4 desktop / CLI ──> Rust application services ──> portable domain con
                                   │                             │
                                   ├──> platform adapters        └──> C17 planner
                                   ├──> runtime-linux adapter ──> portable runtime contracts
+                                  ├──> compatibility adapter ──> portable evidence assessment
                                   ├──> storage crate and shared IPC client
                                   └──> session daemon client
 ```
@@ -24,6 +25,14 @@ on the portable runtime contracts and libc's bounded no-follow file-open
 flags. It is independent of GTK, Vulkan, Wayland/X11 discovery, storage, IPC,
 daemon, and process execution. The portable runtime crate itself remains
 Linux-independent.
+
+P030 adds `endfield-unix-compatibility-diagnostics`, a portable serde-only
+assessment crate. It accepts normalized evidence and returns deterministic
+typed findings; it does not acquire observations. The application CLI adapter
+reuses P027 read-only resolution, P022/P025/P026 identity validation, P013
+Linux GPU/Vulkan probing, P028 prefix inspection, and P029 metadata-only
+recovery observation. Linux, filesystem, GTK, Vulkan, and P029 types stay
+outside the portable assessment crate.
 
 ## P002 workspace and entry point
 
