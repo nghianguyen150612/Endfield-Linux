@@ -957,7 +957,13 @@ fn run_recovery(op: RecoveryOperation, out: &mut impl Write) -> Result<u8, Failu
                 &confirm,
                 |association| {
                     super::runtime_pin::validate_reference(&association.runtime)?;
-                    if association.adapter_preference == Some(pins::AdapterPreference::UmuProton) {
+                    if association.adapter_preference == Some(pins::AdapterPreference::UmuProton)
+                        && endfield_unix_runtime_linux::UmuProvider::default()
+                            .scan()
+                            .declaration
+                            .availability()
+                            != endfield_unix_runtime::ProviderAvailability::Available
+                    {
                         // Pinning does not install UMU or substitute an adapter.
                         return Err(
                             "UMU adapter availability has not been established for recovery".into(),

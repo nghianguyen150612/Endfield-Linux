@@ -93,6 +93,11 @@ pub struct BackupPlan {
 #[derive(Clone, Debug, Serialize)]
 pub struct RestorePlan {
     pub backup: BackupId,
+    pub integrity: BackupIntegrity,
+    pub backup_runtime: BackupRuntimeReference,
+    pub original_lifecycle: PrefixLifecycleState,
+    pub current_selection_status: String,
+    pub recovery_strategy: String,
     pub destination: PrefixRecord,
     pub registry_revision: u64,
     pub bytes: u64,
@@ -118,6 +123,15 @@ pub enum RecoveryAction {
 pub struct RecoveryReport {
     pub action: RecoveryAction,
     pub original_preserved: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BackupOwner {
+    schema_version: u32,
+    uid: u32,
+    parent: FilesystemIdentity,
+    root: FilesystemIdentity,
 }
 
 pub struct BackupStore {
@@ -159,10 +173,33 @@ impl BackupStore {
         let Some(app) = open_path_directory(&self.fs.data_dir, create, true)? else {
             return Ok(None);
         };
-        let Some(root) = child_dir(&app, OsStr::new("backups"), create)? else {
-            return Ok(None);
+        let root = match child_dir(&app, OsStr::new("backups"), false)? {
+            Some(root) => root,
+            None if !create => return Ok(None),
+            None => {
+                let root = exclusive_dir(&app, "backups")?;
+                write_json(
+                    &root,
+                    "owner.json",
+                    &BackupOwner {
+                        schema_version: 1,
+                        uid: crate::current_uid(),
+                        parent: identity(&app)?,
+                        root: identity(&root)?,
+                    },
+                )?;
+                root
+            }
         };
         verify_private_dir(&root)?;
+        let owner: BackupOwner = read_json(&root, "owner.json")?;
+        if owner.schema_version != 1
+            || owner.uid != crate::current_uid()
+            || owner.parent != identity(&app)?
+            || owner.root != identity(&root)?
+        {
+            return Err(PrefixError::Blocked.into());
+        }
         if mount_id(&app)? != mount_id(&root)? {
             return Err(PrefixError::Blocked.into());
         }
@@ -338,6 +375,9 @@ impl BackupStore {
             return Err(PrefixError::InvalidScope.into());
         }
         let d = self.snapshot(id)?;
+        if names(&d)? != ["intent.json", "manifest.json", "payload"] {
+            return Err(BackupError::Integrity(BackupIntegrity::Unsafe));
+        }
         let payload = open_at(&d, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
         verify_private_dir(&payload)?;
         if mount_id(&payload)? != mount_id(&d)? || scan(&payload, None)? != m.inventory {
@@ -453,7 +493,7 @@ impl BackupStore {
         if scan(&payload, None)? != m.inventory {
             return Err(BackupError::Integrity(BackupIntegrity::Corrupt));
         }
-        delete_verified_tree(&payload, mount_id(&retired)?, 0)?;
+        delete_verified_tree(&payload, mount_id(&retired)?, 0, "", &m.inventory)?;
         unlink_at(&retired, "payload", libc::AT_REMOVEDIR)?;
         for name in ["intent.json", "manifest.json"] {
             let f = open_at(&retired, name, libc::O_RDONLY, 0)?;
@@ -499,6 +539,11 @@ impl BackupStore {
         }
         Ok(RestorePlan {
             backup: backup.clone(),
+            integrity: BackupIntegrity::Verified,
+            backup_runtime: m.source.runtime,
+            original_lifecycle: m.source.lifecycle,
+            current_selection_status: "not assessed; no active pin will change; validate the stored association separately".into(),
+            recovery_strategy: "same-mount exchange; preserve original payload; journaled registry finalization".into(),
             destination: p.source,
             registry_revision: p.registry_revision,
             bytes: m.payload_bytes,
@@ -631,7 +676,12 @@ impl BackupStore {
                 return Err(BackupError::RecoveryBlocked);
             }
         }
-        if !has_file(tx, "completed.json")? {
+        if has_file(tx, "completed.json")? {
+            let completed: FilesystemIdentity = read_json(tx, "completed.json")?;
+            if completed != journal.staged {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        } else {
             write_json(tx, "completed.json", &journal.staged)?;
         }
         Ok(RecoveryReport {
@@ -854,20 +904,64 @@ impl BackupStore {
     }
 }
 
-fn delete_verified_tree(dir: &File, mount: u64, depth: usize) -> Result<(), BackupError> {
+fn delete_verified_tree(
+    dir: &File,
+    mount: u64,
+    depth: usize,
+    parent: &str,
+    inventory: &[InventoryEntry],
+) -> Result<(), BackupError> {
     if depth > 64 || mount_id(dir)? != mount {
         return Err(BackupError::RecoveryBlocked);
     }
     for name in names(dir)? {
-        let f = open_at(dir, &name, libc::O_RDONLY, 0)?;
+        let mut f = open_at(dir, &name, libc::O_RDONLY, 0)?;
         let m = f.metadata()?;
+        let path = if parent.is_empty() {
+            name.clone()
+        } else {
+            format!("{parent}/{name}")
+        };
+        let expected = inventory
+            .iter()
+            .find(|e| e.path == path)
+            .ok_or(BackupError::RecoveryBlocked)?;
+        if expected.directory != m.is_dir()
+            || expected.mode != m.mode() & 0o777
+            || expected.modified_seconds != m.mtime()
+            || expected.modified_nanoseconds != m.mtime_nsec()
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
         if m.uid() != crate::current_uid() || mount_id(&f)? != mount {
             return Err(BackupError::RecoveryBlocked);
         }
         let flags = if m.is_dir() {
-            delete_verified_tree(&f, mount, depth + 1)?;
+            delete_verified_tree(&f, mount, depth + 1, &path, inventory)?;
             libc::AT_REMOVEDIR
         } else if m.is_file() && m.nlink() == 1 {
+            if m.len() != expected.size {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let mut hash = Sha256::new();
+            let mut remaining = m.len();
+            let mut buffer = [0u8; 65536];
+            loop {
+                let n = f.read(&mut buffer)?;
+                if n == 0 {
+                    break;
+                }
+                remaining = remaining
+                    .checked_sub(n as u64)
+                    .ok_or(BackupError::RecoveryBlocked)?;
+                hash.update(&buffer[..n]);
+            }
+            if remaining != 0
+                || format!("{:x}", hash.finalize()) != expected.sha256
+                || !unchanged(&m, &f.metadata()?)
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
             0
         } else {
             return Err(BackupError::RecoveryBlocked);

@@ -216,3 +216,31 @@ fn process_exit_releases_locks_and_published_restore_recovers() {
         );
     }
 }
+
+#[test]
+fn corrupt_manifest_unexpected_payload_and_adoption_are_blocked() {
+    let (_tmp, b, id, scope, rev) = fixture();
+    let m = b.create(&id, &scope, rev, true).unwrap();
+    let root = b.fs.data_dir.join("backups/snapshots").join(m.id.as_str());
+    fs::write(root.join("payload/unexpected"), b"unexpected").unwrap();
+    assert!(b.verify(&m.id, &scope).is_err());
+    fs::remove_file(root.join("payload/unexpected")).unwrap();
+    fs::write(root.join("manifest.json"), b"{bad").unwrap();
+    assert!(b.verify(&m.id, &scope).is_err());
+    fs::remove_file(b.fs.data_dir.join("backups/owner.json")).unwrap();
+    assert!(b.list().is_err());
+}
+#[test]
+fn byte_and_entry_accounting_is_bounded_without_allocating_payload() {
+    let e = InventoryEntry {
+        path: "file".into(),
+        directory: false,
+        size: u64::MAX,
+        mode: 0o600,
+        sha256: "a".repeat(64),
+        modified_seconds: 0,
+        modified_nanoseconds: 0,
+    };
+    assert!(matches!(total(&[e.clone()]), Err(BackupError::Quota)));
+    assert!(matches!(total(&[e.clone(), e]), Err(BackupError::Quota)));
+}
