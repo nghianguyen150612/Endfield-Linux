@@ -271,6 +271,9 @@ where
     if let Some(help) = nested_prefix_help(&arguments) {
         return Ok(Command::HelpOutput(help));
     }
+    if let Some(help) = nested_diagnose_help(&arguments) {
+        return Ok(Command::HelpOutput(help));
+    }
     let mut parser = parser_command();
     let parser_arguments =
         iter::once(OsString::from(APPLICATION_NAME)).chain(arguments.iter().cloned());
@@ -483,6 +486,22 @@ fn runtime_install_help(arguments: &[OsString]) -> Option<String> {
 fn nested_prefix_help(arguments: &[OsString]) -> Option<String> {
     let (help_flag, path) = arguments.split_last()?;
     if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "prefix" {
+        return None;
+    }
+    let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
+    for component in path {
+        command = command.find_subcommand(component.to_str()?)?.clone();
+    }
+    let invocation = std::iter::once(APPLICATION_NAME.to_owned())
+        .chain(path.iter().map(|part| part.to_string_lossy().into_owned()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(command.bin_name(invocation).render_help().to_string())
+}
+
+fn nested_diagnose_help(arguments: &[OsString]) -> Option<String> {
+    let (help_flag, path) = arguments.split_last()?;
+    if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "diagnose" {
         return None;
     }
     let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
@@ -809,6 +828,19 @@ mod tests {
             match parse(args(values)) {
                 Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
                 other => panic!("expected nested prefix help for {values:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn nested_diagnose_help_is_a_successful_output_command() {
+        for values in [
+            &["diagnose", "--help"][..],
+            &["diagnose", "compatibility", "--help"][..],
+        ] {
+            match parse(args(values)) {
+                Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
+                other => panic!("expected nested diagnose help for {values:?}, got {other:?}"),
             }
         }
     }

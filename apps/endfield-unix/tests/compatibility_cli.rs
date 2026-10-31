@@ -61,7 +61,7 @@ fn candidate_id(root: &Path, runtime_root: &Path, label: &str) -> String {
 }
 
 fn make_external_proton(root: &Path, label: &str, version: &str) -> PathBuf {
-    let runtime = root.join("runtimes").join(label);
+    let runtime = root.join(label);
     fs::create_dir_all(&runtime).unwrap();
     fs::write(runtime.join("proton"), b"synthetic inert Proton launcher").unwrap();
     fs::set_permissions(runtime.join("proton"), fs::Permissions::from_mode(0o700)).unwrap();
