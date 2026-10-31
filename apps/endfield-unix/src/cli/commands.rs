@@ -34,6 +34,11 @@ pub enum Command {
     DiagnoseHardware,
     DiagnoseGpu,
     DiagnoseDisplay,
+    DiagnoseCompatibility {
+        profile: Option<String>,
+        prefix_id: Option<String>,
+        json: bool,
+    },
     DiagnoseRuntimes {
         family: Option<endfield_unix_runtime::RuntimeFamily>,
         roots: Vec<std::path::PathBuf>,

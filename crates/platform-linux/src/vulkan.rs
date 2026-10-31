@@ -25,6 +25,15 @@ pub struct VulkanDriverIdentity {
     /// Raw Vulkan `VkDriverId`; it is not a kernel driver version.
     pub driver_id: i32,
     pub name: String,
+    /// Driver-provided text. It is not normalized into a driver version.
+    pub driver_info: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VulkanMetadataStatus {
+    Available,
+    Partial,
+    Unavailable,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,6 +48,13 @@ pub struct VulkanPhysicalDevice {
     pub driver_identity: Option<VulkanDriverIdentity>,
     pub device_type: VulkanDeviceType,
     pub api_version: Option<(u32, u32, u32)>,
+    /// Bounded device-extension names returned by Vulkan, without inferring
+    /// DXVK/VKD3D-Proton availability or game requirements.
+    pub supported_extensions: Vec<String>,
+    pub extensions_status: VulkanMetadataStatus,
+    /// A bounded set of core Vulkan 1.0 feature flags observed as supported.
+    pub supported_features: Vec<String>,
+    pub features_status: VulkanMetadataStatus,
     /// Vulkan heap sizes are reported with Vulkan semantics. They are not
     /// silently converted into dedicated VRAM capacity.
     pub device_local_heap_bytes: Vec<u64>,
@@ -174,14 +190,20 @@ impl VulkanBackend for SystemVulkanBackend {
                 ash::vk::PhysicalDeviceType::CPU => VulkanDeviceType::Cpu,
                 _ => VulkanDeviceType::Other,
             };
+            let (supported_extensions, extensions_status, invalid_extensions) =
+                read_device_extensions(&instance, *physical);
+            malformed |= invalid_extensions;
             let (pci_identity, driver_identity, invalid_extended_properties) =
                 read_extended_device_properties(
                     &instance,
                     *physical,
                     core_properties2,
                     properties2_khr.as_ref(),
+                    &supported_extensions,
                 );
             malformed |= invalid_extended_properties;
+            let supported_features = read_core_features(&instance, *physical);
+            let features_status = VulkanMetadataStatus::Available;
             let memory = unsafe { instance.get_physical_device_memory_properties(*physical) };
             let reported_heap_count =
                 usize::try_from(memory.memory_heap_count).unwrap_or(usize::MAX);
@@ -214,6 +236,10 @@ impl VulkanBackend for SystemVulkanBackend {
                 driver_identity,
                 device_type,
                 api_version,
+                supported_extensions,
+                extensions_status,
+                supported_features,
+                features_status,
                 device_local_heap_bytes,
             });
         }
@@ -240,24 +266,144 @@ impl VulkanBackend for SystemVulkanBackend {
     }
 }
 
+fn read_device_extensions(
+    instance: &ash::Instance,
+    physical: ash::vk::PhysicalDevice,
+) -> (Vec<String>, VulkanMetadataStatus, bool) {
+    let Ok(extensions) = (unsafe { instance.enumerate_device_extension_properties(physical) })
+    else {
+        return (Vec::new(), VulkanMetadataStatus::Unavailable, false);
+    };
+    let mut malformed = extensions.len() > 256;
+    let mut names = Vec::with_capacity(extensions.len().min(256));
+    for extension in extensions.iter().take(256) {
+        let name = extension
+            .extension_name_as_c_str()
+            .ok()
+            .and_then(|value| value.to_str().ok());
+        match name {
+            Some(name)
+                if !name.is_empty()
+                    && name.len() <= 256
+                    && name.is_ascii()
+                    && name
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_') =>
+            {
+                names.push(name.to_owned());
+            }
+            _ => malformed = true,
+        }
+    }
+    names.sort_unstable();
+    names.dedup();
+    let status = if malformed {
+        VulkanMetadataStatus::Partial
+    } else {
+        VulkanMetadataStatus::Available
+    };
+    (names, status, malformed)
+}
+
+fn read_core_features(instance: &ash::Instance, physical: ash::vk::PhysicalDevice) -> Vec<String> {
+    // These are generic Vulkan core feature observations. No feature is
+    // interpreted as a Direct3D or Endfield requirement.
+    let features = unsafe { instance.get_physical_device_features(physical) };
+    let supported = [
+        (features.robust_buffer_access, "robustBufferAccess"),
+        (features.full_draw_index_uint32, "fullDrawIndexUint32"),
+        (features.image_cube_array, "imageCubeArray"),
+        (features.independent_blend, "independentBlend"),
+        (features.geometry_shader, "geometryShader"),
+        (features.tessellation_shader, "tessellationShader"),
+        (features.sample_rate_shading, "sampleRateShading"),
+        (features.dual_src_blend, "dualSrcBlend"),
+        (features.logic_op, "logicOp"),
+        (features.multi_draw_indirect, "multiDrawIndirect"),
+        (
+            features.draw_indirect_first_instance,
+            "drawIndirectFirstInstance",
+        ),
+        (features.depth_clamp, "depthClamp"),
+        (features.depth_bias_clamp, "depthBiasClamp"),
+        (features.fill_mode_non_solid, "fillModeNonSolid"),
+        (features.depth_bounds, "depthBounds"),
+        (features.wide_lines, "wideLines"),
+        (features.large_points, "largePoints"),
+        (features.alpha_to_one, "alphaToOne"),
+        (features.multi_viewport, "multiViewport"),
+        (features.sampler_anisotropy, "samplerAnisotropy"),
+        (features.texture_compression_bc, "textureCompressionBC"),
+        (features.occlusion_query_precise, "occlusionQueryPrecise"),
+        (
+            features.pipeline_statistics_query,
+            "pipelineStatisticsQuery",
+        ),
+        (
+            features.vertex_pipeline_stores_and_atomics,
+            "vertexPipelineStoresAndAtomics",
+        ),
+        (
+            features.fragment_stores_and_atomics,
+            "fragmentStoresAndAtomics",
+        ),
+        (
+            features.shader_tessellation_and_geometry_point_size,
+            "shaderTessellationAndGeometryPointSize",
+        ),
+        (
+            features.shader_image_gather_extended,
+            "shaderImageGatherExtended",
+        ),
+        (
+            features.shader_storage_image_extended_formats,
+            "shaderStorageImageExtendedFormats",
+        ),
+        (
+            features.shader_storage_image_multisample,
+            "shaderStorageImageMultisample",
+        ),
+        (
+            features.shader_storage_image_read_without_format,
+            "shaderStorageImageReadWithoutFormat",
+        ),
+        (
+            features.shader_storage_image_write_without_format,
+            "shaderStorageImageWriteWithoutFormat",
+        ),
+        (features.shader_int64, "shaderInt64"),
+        (features.shader_float64, "shaderFloat64"),
+        (features.shader_int16, "shaderInt16"),
+        (features.sparse_binding, "sparseBinding"),
+        (features.sparse_residency_buffer, "sparseResidencyBuffer"),
+        (
+            features.variable_multisample_rate,
+            "variableMultisampleRate",
+        ),
+        (features.inherited_queries, "inheritedQueries"),
+    ];
+    supported
+        .into_iter()
+        .filter(|(feature, _)| *feature != ash::vk::FALSE)
+        .map(|(_, name)| name.to_owned())
+        .collect()
+}
+
 fn read_extended_device_properties(
     instance: &ash::Instance,
     physical: ash::vk::PhysicalDevice,
     core_properties2: bool,
     properties2_khr: Option<&ash::khr::get_physical_device_properties2::Instance>,
+    supported_extensions: &[String],
 ) -> (Option<PciBdf>, Option<VulkanDriverIdentity>, bool) {
     // Query an extension structure only after confirming that the device
     // advertises the corresponding extension. Missing data remains optional.
-    let Ok(extensions) = (unsafe { instance.enumerate_device_extension_properties(physical) })
-    else {
-        return (None, None, false);
-    };
-    let supports_pci_bus_info = extensions.iter().any(|extension| {
-        extension.extension_name_as_c_str().ok() == Some(ash::vk::EXT_PCI_BUS_INFO_NAME)
-    });
-    let supports_driver_properties = extensions.iter().any(|extension| {
-        extension.extension_name_as_c_str().ok() == Some(ash::vk::KHR_DRIVER_PROPERTIES_NAME)
-    });
+    let supports_pci_bus_info = supported_extensions
+        .iter()
+        .any(|extension| extension == "VK_EXT_pci_bus_info");
+    let supports_driver_properties = supported_extensions
+        .iter()
+        .any(|extension| extension == "VK_KHR_driver_properties");
     if !supports_pci_bus_info && !supports_driver_properties {
         return (None, None, false);
     }
@@ -323,6 +469,19 @@ fn read_extended_device_properties(
                 Some(VulkanDriverIdentity {
                     driver_id: driver.driver_id.as_raw(),
                     name: name.to_owned(),
+                    driver_info: driver
+                        .driver_info_as_c_str()
+                        .ok()
+                        .and_then(|value| value.to_str().ok())
+                        .filter(|value| {
+                            !value.is_empty()
+                                && value.len() <= 256
+                                && !value.chars().any(char::is_control)
+                                && !value
+                                    .chars()
+                                    .any(|character| matches!(character, '/' | '\\'))
+                        })
+                        .map(str::to_owned),
                 })
             }
             _ => {

@@ -116,6 +116,18 @@ enum DiagnoseArgs {
     Gpu,
     /// Inspect local Linux display outputs, session protocols, and DRM connectors.
     Display,
+    /// Assess selected runtime, GPU/driver, Vulkan, and an optional managed prefix.
+    Compatibility {
+        /// Select the machine/profile pin using P027 precedence.
+        #[arg(long, value_name = "PROFILE_ID")]
+        profile: Option<String>,
+        /// Inspect one explicitly registered Endfield-Unix managed prefix.
+        #[arg(long, value_name = "PREFIX_ID")]
+        prefix_id: Option<String>,
+        /// Emit the versioned report as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Discover installed Wine and Proton files without executing them.
     Runtimes {
         /// Restrict the output to a runtime family.
@@ -329,6 +341,18 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Display,
         }) => Command::DiagnoseDisplay,
+        Some(SubcommandArgs::Diagnose {
+            command:
+                DiagnoseArgs::Compatibility {
+                    profile,
+                    prefix_id,
+                    json,
+                },
+        }) => Command::DiagnoseCompatibility {
+            profile,
+            prefix_id,
+            json,
+        },
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Runtimes { family, roots },
         }) => Command::DiagnoseRuntimes {
@@ -1001,6 +1025,38 @@ mod tests {
     #[test]
     fn diagnose_display_is_a_typed_local_command() {
         assert_command(&["diagnose", "display"], Command::DiagnoseDisplay);
+    }
+
+    #[test]
+    fn diagnose_compatibility_maps_profile_prefix_and_json_options() {
+        assert_command(
+            &["diagnose", "compatibility"],
+            Command::DiagnoseCompatibility {
+                profile: None,
+                prefix_id: None,
+                json: false,
+            },
+        );
+        assert_command(
+            &[
+                "diagnose",
+                "compatibility",
+                "--profile",
+                "desktop",
+                "--prefix-id",
+                "game",
+                "--json",
+            ],
+            Command::DiagnoseCompatibility {
+                profile: Some("desktop".into()),
+                prefix_id: Some("game".into()),
+                json: true,
+            },
+        );
+        assert!(matches!(
+            parse(args(&["diagnose", "compatibility", "--help"])),
+            Ok(Command::HelpOutput(help)) if help.contains("--prefix-id") && help.contains("--json")
+        ));
     }
 
     #[test]

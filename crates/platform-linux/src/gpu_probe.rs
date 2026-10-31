@@ -700,6 +700,14 @@ fn validate_vulkan_devices(
                     .name
                     .chars()
                     .any(|character| matches!(character, '/' | '\\'))
+                || identity.driver_info.as_ref().is_some_and(|info| {
+                    info.is_empty()
+                        || info.len() > 256
+                        || info.chars().any(char::is_control)
+                        || info
+                            .chars()
+                            .any(|character| matches!(character, '/' | '\\'))
+                })
         }) {
             device.driver_identity = None;
             *status = VulkanLoaderStatus::Degraded;
@@ -707,6 +715,65 @@ fn validate_vulkan_devices(
                 "linux-vulkan",
                 DiagnosticCategory::MalformedSourceData,
                 "Vulkan returned invalid driver identity metadata",
+            ));
+        }
+        if device.supported_extensions.len() > 256 {
+            device.supported_extensions.truncate(256);
+            device.extensions_status = crate::VulkanMetadataStatus::Partial;
+            *status = VulkanLoaderStatus::Degraded;
+            diagnostics.push((
+                "linux-vulkan",
+                DiagnosticCategory::MalformedSourceData,
+                "Vulkan extension count exceeded its limit",
+            ));
+        }
+        let old_extensions = device.supported_extensions.len();
+        device.supported_extensions.retain(|extension| {
+            !extension.is_empty()
+                && extension.len() <= 256
+                && extension.is_ascii()
+                && extension
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        });
+        device.supported_extensions.sort_unstable();
+        device.supported_extensions.dedup();
+        if device.supported_extensions.len() != old_extensions {
+            device.extensions_status = crate::VulkanMetadataStatus::Partial;
+            *status = VulkanLoaderStatus::Degraded;
+            diagnostics.push((
+                "linux-vulkan",
+                DiagnosticCategory::MalformedSourceData,
+                "Vulkan returned invalid or duplicate extension metadata",
+            ));
+        }
+        if device.supported_features.len() > 64
+            || device.supported_features.iter().any(|feature| {
+                feature.is_empty()
+                    || feature.len() > 64
+                    || !feature.is_ascii()
+                    || !feature
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            })
+        {
+            device.features_status = crate::VulkanMetadataStatus::Partial;
+            device.supported_features.retain(|feature| {
+                !feature.is_empty()
+                    && feature.len() <= 64
+                    && feature.is_ascii()
+                    && feature
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            });
+            device.supported_features.truncate(64);
+            device.supported_features.sort_unstable();
+            device.supported_features.dedup();
+            *status = VulkanLoaderStatus::Degraded;
+            diagnostics.push((
+                "linux-vulkan",
+                DiagnosticCategory::MalformedSourceData,
+                "Vulkan returned invalid feature metadata",
             ));
         }
         valid
@@ -945,6 +1012,10 @@ mod tests {
             driver_identity: None,
             device_type,
             api_version: Some((1, 3, 0)),
+            supported_extensions: Vec::new(),
+            extensions_status: crate::VulkanMetadataStatus::Unavailable,
+            supported_features: Vec::new(),
+            features_status: crate::VulkanMetadataStatus::Available,
             device_local_heap_bytes: vec![8 * 1024 * 1024 * 1024],
         }
     }
@@ -1097,6 +1168,7 @@ mod tests {
         device.driver_identity = Some(VulkanDriverIdentity {
             driver_id: 13,
             name: "Mesa lavapipe".to_owned(),
+            driver_info: Some("Mesa 25.0".to_owned()),
         });
         let mut status = VulkanLoaderStatus::Enumerated;
         let mut diagnostics = Vec::new();
@@ -1109,6 +1181,20 @@ mod tests {
             "Mesa lavapipe"
         );
 
+        let mut malformed_features =
+            vk("Synthetic device", 0x8086, 7, VulkanDeviceType::Integrated);
+        malformed_features.supported_features = vec!["unsupported/feature-name".into()];
+        let mut status = VulkanLoaderStatus::Enumerated;
+        let mut diagnostics = Vec::new();
+        let valid =
+            validate_vulkan_devices(vec![malformed_features], &mut status, &mut diagnostics);
+        assert_eq!(status, VulkanLoaderStatus::Degraded);
+        assert_eq!(
+            valid[0].features_status,
+            crate::VulkanMetadataStatus::Partial
+        );
+        assert!(valid[0].supported_features.is_empty());
+
         let mut invalid = vk(
             "Synthetic device",
             0x10de,
@@ -1118,6 +1204,7 @@ mod tests {
         invalid.driver_identity = Some(VulkanDriverIdentity {
             driver_id: -1,
             name: "\u{1b}bad".to_owned(),
+            driver_info: None,
         });
         let mut status = VulkanLoaderStatus::Enumerated;
         let mut diagnostics = Vec::new();

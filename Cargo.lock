@@ -308,6 +308,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "ed25519-dalek",
+ "endfield-unix-compatibility-diagnostics",
  "endfield-unix-diagnostics",
  "endfield-unix-domain",
  "endfield-unix-ipc",
@@ -333,6 +334,13 @@ dependencies = [
  "sha2",
  "tar",
  "tempfile",
+]
+
+[[package]]
+name = "endfield-unix-compatibility-diagnostics"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
