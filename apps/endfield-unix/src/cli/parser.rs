@@ -116,6 +116,18 @@ enum DiagnoseArgs {
     Gpu,
     /// Inspect local Linux display outputs, session protocols, and DRM connectors.
     Display,
+    /// Assess selected runtime, GPU/driver, Vulkan, and an optional managed prefix.
+    Compatibility {
+        /// Select the machine/profile pin using P027 precedence.
+        #[arg(long, value_name = "PROFILE_ID")]
+        profile: Option<String>,
+        /// Inspect one explicitly registered Endfield-Unix managed prefix.
+        #[arg(long, value_name = "PREFIX_ID")]
+        prefix_id: Option<String>,
+        /// Emit the versioned report as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Discover installed Wine and Proton files without executing them.
     Runtimes {
         /// Restrict the output to a runtime family.
@@ -259,6 +271,9 @@ where
     if let Some(help) = nested_prefix_help(&arguments) {
         return Ok(Command::HelpOutput(help));
     }
+    if let Some(help) = nested_diagnose_help(&arguments) {
+        return Ok(Command::HelpOutput(help));
+    }
     let mut parser = parser_command();
     let parser_arguments =
         iter::once(OsString::from(APPLICATION_NAME)).chain(arguments.iter().cloned());
@@ -329,6 +344,18 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Display,
         }) => Command::DiagnoseDisplay,
+        Some(SubcommandArgs::Diagnose {
+            command:
+                DiagnoseArgs::Compatibility {
+                    profile,
+                    prefix_id,
+                    json,
+                },
+        }) => Command::DiagnoseCompatibility {
+            profile,
+            prefix_id,
+            json,
+        },
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Runtimes { family, roots },
         }) => Command::DiagnoseRuntimes {
@@ -459,6 +486,22 @@ fn runtime_install_help(arguments: &[OsString]) -> Option<String> {
 fn nested_prefix_help(arguments: &[OsString]) -> Option<String> {
     let (help_flag, path) = arguments.split_last()?;
     if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "prefix" {
+        return None;
+    }
+    let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
+    for component in path {
+        command = command.find_subcommand(component.to_str()?)?.clone();
+    }
+    let invocation = std::iter::once(APPLICATION_NAME.to_owned())
+        .chain(path.iter().map(|part| part.to_string_lossy().into_owned()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(command.bin_name(invocation).render_help().to_string())
+}
+
+fn nested_diagnose_help(arguments: &[OsString]) -> Option<String> {
+    let (help_flag, path) = arguments.split_last()?;
+    if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "diagnose" {
         return None;
     }
     let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
@@ -790,6 +833,19 @@ mod tests {
     }
 
     #[test]
+    fn nested_diagnose_help_is_a_successful_output_command() {
+        for values in [
+            &["diagnose", "--help"][..],
+            &["diagnose", "compatibility", "--help"][..],
+        ] {
+            match parse(args(values)) {
+                Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
+                other => panic!("expected nested diagnose help for {values:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
     fn prefix_commands_parse_explicit_scope_revision_and_deletion_confirmation() {
         assert_command(
             &[
@@ -1001,6 +1057,38 @@ mod tests {
     #[test]
     fn diagnose_display_is_a_typed_local_command() {
         assert_command(&["diagnose", "display"], Command::DiagnoseDisplay);
+    }
+
+    #[test]
+    fn diagnose_compatibility_maps_profile_prefix_and_json_options() {
+        assert_command(
+            &["diagnose", "compatibility"],
+            Command::DiagnoseCompatibility {
+                profile: None,
+                prefix_id: None,
+                json: false,
+            },
+        );
+        assert_command(
+            &[
+                "diagnose",
+                "compatibility",
+                "--profile",
+                "desktop",
+                "--prefix-id",
+                "game",
+                "--json",
+            ],
+            Command::DiagnoseCompatibility {
+                profile: Some("desktop".into()),
+                prefix_id: Some("game".into()),
+                json: true,
+            },
+        );
+        assert!(matches!(
+            parse(args(&["diagnose", "compatibility", "--help"])),
+            Ok(Command::HelpOutput(help)) if help.contains("--prefix-id") && help.contains("--json")
+        ));
     }
 
     #[test]

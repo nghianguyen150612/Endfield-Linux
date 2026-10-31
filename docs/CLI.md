@@ -17,6 +17,7 @@
 | `endfield-unix diagnose platform` | Inspect validated Linux distribution, running kernel, architecture, environment hints, and runtime-directory availability | No |
 | `endfield-unix diagnose hardware` | Inspect Linux CPU topology, process affinity, memory, cgroup v2 limits, scheduling queries, and readable frequency/power interfaces | No |
 | `endfield-unix diagnose gpu` | Inspect PCI graphics devices, DRM nodes, kernel drivers, and Vulkan physical devices | No |
+| `endfield-unix diagnose compatibility [--profile ID] [--prefix-id ID] [--json]` | Explain selected runtime, driver, Vulkan, and one registered managed-prefix evidence | No |
 | `endfield-unix diagnose display` | Inspect local Wayland/X11 sessions, output modes, and DRM connectors | No |
 | `endfield-unix diagnose runtimes [--family wine|proton] [--root /absolute/path]` | Discover installed Wine/Proton files under documented roots and explicit additional directories | No |
 | `endfield-unix diagnose umu` | Inspect local UMU availability and Proton candidate count without execution | No |
@@ -250,3 +251,6 @@ The executable now parses the same typed prefix operation tree used by dispatch.
 P029B adds `prefix recovery rollback-plan --id ID` and `prefix recovery rollback --id ID --expected-revision REV --confirm TOKEN`. Use the exact token printed by the plan. Only published, uncommitted schema-2 restores qualify; unsupported states return a blocked result. `recovery release` archives completed rollback evidence and displaced data.
 
 P029B also adds read-only `prefix backup deletion-plan --backup-id ID` and `prefix backup deletion-journals`. `prefix backup deletion-resume --backup-id ID --expected-revision REV --confirm TOKEN` resumes a verified interrupted deletion; use the exact token from the plan. `prefix recovery history --id ID` lists archived restore/rollback journals, and `prefix recovery pins` lists pin-journal markers. These history reports state their evidence limits and do not claim current payload or pin integrity unless separately verified. Legacy partial deletion remains blocked.
+## P030 compatibility diagnostics
+
+`endfield-unix diagnose compatibility [--profile PROFILE_ID] [--prefix-id PREFIX_ID] [--json]` emits a bounded read-only assessment using the actual CLI parser and dispatch. It runs headless without the daemon. `--profile` follows P027 machine/profile precedence; a stale profile pin blocks fallback. `--prefix-id` inspects exactly one registered managed prefix. `--json` selects schema v1; successful partial reports exit 0, invalid arguments exit 2, output errors exit 74, and serialization/limit failures exit 70. Static findings are not game-compatibility results. See [COMPATIBILITY-DIAGNOSTICS.md](COMPATIBILITY-DIAGNOSTICS.md) for the report and privacy contract.

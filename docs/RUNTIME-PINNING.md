@@ -76,3 +76,6 @@ Prefix snapshot restoration preserves its exact historical association and never
 P029B limited rollback checks the original prefix record while holding its registry lock and does not write the P027 registry. The saved association is retained exactly; separate pin recovery remains independently approved.
 
 P029B deletion replay is scoped to backup snapshots and never mutates runtime installations or P027 pins. Deletion journals that reference a snapshot conflict with restore and pin recovery, and any observed conflict blocks replay. Read-only `prefix recovery pins` reports journal markers only; it does not infer that the current pin still matches saved state.
+## P030 read-only selection diagnostics
+
+`diagnose compatibility [--profile ID]` resolves the existing machine/profile preference through `PinStore::load_read_only` and P027 `resolve`. The report records the selection source, pin identity and observed registry revision. A stale profile selection remains blocking and does not fall back to a machine pin or system Wine. No pin or registry revision is written. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).

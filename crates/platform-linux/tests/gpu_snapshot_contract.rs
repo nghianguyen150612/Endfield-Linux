@@ -4,7 +4,7 @@ use endfield_unix_platform_linux::{
     DeviceNodeAccess, DrmNodeKind, DrmNodeObservation, LinuxDataSource, LinuxGpuDataSource,
     LinuxGpuProbe, OsReleaseFile, PciAttribute, PlatformProfileField, RawKernelIdentity,
     RawSchedulerState, RuntimeDirectoryMetadata, VulkanBackend, VulkanDeviceType, VulkanFacts,
-    VulkanLoaderStatus, VulkanPhysicalDevice,
+    VulkanLoaderStatus, VulkanMetadataStatus, VulkanPhysicalDevice,
 };
 use std::path::{Path, PathBuf};
 
@@ -249,6 +249,10 @@ impl VulkanBackend for SyntheticVulkan {
                     driver_identity: None,
                     device_type: VulkanDeviceType::Discrete,
                     api_version: Some((1, 3, 280)),
+                    supported_extensions: Vec::new(),
+                    extensions_status: VulkanMetadataStatus::Unavailable,
+                    supported_features: Vec::new(),
+                    features_status: VulkanMetadataStatus::Available,
                     device_local_heap_bytes: vec![8_000_000_000],
                 },
                 VulkanPhysicalDevice {
@@ -259,6 +263,10 @@ impl VulkanBackend for SyntheticVulkan {
                     driver_identity: None,
                     device_type: VulkanDeviceType::Integrated,
                     api_version: Some((1, 3, 280)),
+                    supported_extensions: Vec::new(),
+                    extensions_status: VulkanMetadataStatus::Unavailable,
+                    supported_features: Vec::new(),
+                    features_status: VulkanMetadataStatus::Available,
                     device_local_heap_bytes: vec![16_000_000_000],
                 },
             ],
@@ -313,6 +321,10 @@ impl VulkanBackend for MalformedVulkan {
                 driver_identity: None,
                 device_type: VulkanDeviceType::Discrete,
                 api_version: Some((1, 3, 0)),
+                supported_extensions: Vec::new(),
+                extensions_status: VulkanMetadataStatus::Unavailable,
+                supported_features: Vec::new(),
+                features_status: VulkanMetadataStatus::Available,
                 device_local_heap_bytes: vec![1],
             }],
         }
@@ -333,6 +345,10 @@ impl VulkanBackend for SoftwareVulkan {
                 driver_identity: None,
                 device_type: VulkanDeviceType::Cpu,
                 api_version: Some((1, 3, 0)),
+                supported_extensions: Vec::new(),
+                extensions_status: VulkanMetadataStatus::Unavailable,
+                supported_features: Vec::new(),
+                features_status: VulkanMetadataStatus::Available,
                 device_local_heap_bytes: vec![1024 * 1024 * 1024],
             }],
         }

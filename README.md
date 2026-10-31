@@ -39,6 +39,14 @@ returns an explicit unsupported result, and no prefix command launches Wine,
 Proton, UMU, or Endfield. External prefixes remain outside the ownership
 boundary. See [prefix management](docs/PREFIX-MANAGEMENT.md).
 
+P029 adds bounded prefix snapshots, restore, and recovery journals. Its merged
+implementation passed hosted qualification in [CI run 41186534556](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41186534556).
+P030 adds read-only runner, GPU/driver, Vulkan, and explicitly selected managed
+prefix diagnostics through `diagnose compatibility`. P030 remains in draft
+qualification; static observations do not prove successful initialization,
+Endfield launch, or rendering. See
+[compatibility diagnostics](docs/COMPATIBILITY-DIAGNOSTICS.md).
+
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
 ## Documentation
@@ -71,6 +79,8 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [P023 UMU integration and safe launch-plan preparation](docs/UMU-INTEGRATION.md)
 - [P027 runtime pinning and explicit selection](docs/RUNTIME-PINNING.md)
 - [P028 isolated prefix management](docs/PREFIX-MANAGEMENT.md)
+- [P029 prefix snapshots and recovery](docs/BACKUP-RECOVERY.md)
+- [P030 compatibility diagnostics](docs/COMPATIBILITY-DIAGNOSTICS.md)
 - [Authenticated local IPC protocol and Linux transport](docs/IPC.md)
 - [Rust and C17 architecture decision](docs/adr/0001-rust-c17-architecture.md)
 - [Cross-platform boundary decision](docs/adr/0002-cross-platform-boundaries.md)
