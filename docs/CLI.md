@@ -248,3 +248,5 @@ The executable now parses the same typed prefix operation tree used by dispatch.
 
 
 P029B adds `prefix recovery rollback-plan --id ID` and `prefix recovery rollback --id ID --expected-revision REV --confirm TOKEN`. Use the exact token printed by the plan. Only published, uncommitted schema-2 restores qualify; unsupported states return a blocked result. `recovery release` archives completed rollback evidence and displaced data.
+
+P029B also adds read-only `prefix backup deletion-plan --backup-id ID` and `prefix backup deletion-journals`. `prefix backup deletion-resume --backup-id ID --expected-revision REV --confirm TOKEN` resumes a verified interrupted deletion; use the exact token from the plan. `prefix recovery history --id ID` lists archived restore/rollback journals, and `prefix recovery pins` lists pin-journal markers. These history reports state their evidence limits and do not claim current payload or pin integrity unless separately verified. Legacy partial deletion remains blocked.

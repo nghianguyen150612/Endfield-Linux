@@ -14,6 +14,7 @@ backups/
   restores/<prefix-id>/{intent.json,staged.json,payload/,completed.json}
   history/<prefix-id>-<restored-inode>/...
   pin-recovery/<backup-id>-<expected-pin-revision>/{intent.json,completed.json}
+  deletion-journals/<backup-id>/{intent.json,clearing.json,completed.json}
   deleting/<backup-id>/...
 ```
 
@@ -67,6 +68,9 @@ endfield-unix prefix backup plan --id game
 endfield-unix prefix backup create --id game --expected-revision REV --confirm
 endfield-unix prefix backup show --backup-id BACKUP
 endfield-unix prefix backup verify --backup-id BACKUP
+endfield-unix prefix backup deletion-journals
+endfield-unix prefix backup deletion-plan --backup-id BACKUP
+endfield-unix prefix backup deletion-resume --backup-id BACKUP --expected-revision REV --confirm EXACT_TOKEN
 endfield-unix prefix backup recover --id game --backup-id BACKUP --confirm
 endfield-unix prefix restore plan --id game --backup-id BACKUP
 endfield-unix prefix restore apply --id game --backup-id BACKUP --expected-revision REV --confirm restore:game:BACKUP
@@ -74,6 +78,8 @@ endfield-unix prefix recovery status --id game
 endfield-unix prefix recovery run --id game --expected-revision REV --confirm
 endfield-unix prefix recovery release --id game --expected-revision REV --confirm release:game
 endfield-unix prefix recovery pin --backup-id BACKUP --expected-pin-revision PIN_REV --confirm pin:BACKUP
+endfield-unix prefix recovery history --id game
+endfield-unix prefix recovery pins
 endfield-unix prefix backup delete --backup-id BACKUP --confirm delete:BACKUP
 ```
 
@@ -81,7 +87,15 @@ These commands are headless and do not start the daemon. Parser errors use exit 
 
 After interruption, inspect `backup pending` and `recovery status`. Fully completed backup staging can be verified and published with `backup recover`. Incomplete/corrupt staging remains preserved and blocked for manual inspection. Restore staging with a durable verified journal can resume; publication with an uncommitted registry can finalize. Missing/corrupt journals and altered identities block. Never replace registry metadata, move a payload over the live prefix, or recursively delete preserved data to bypass that result.
 
-Snapshot deletion verifies the snapshot, refuses restore/pin-recovery evidence, durably retires it into `deleting/`, rechecks identity and inventory, then removes only no-follow verified application-owned entries. Partial deletion is retained in deleting and blocked for manual inspection; `backup deletions` now provides read-only inspection of retired snapshots: Incomplete for a safe remaining subset, Unsafe for changed/unexpected entries, and Unverifiable for missing/corrupt manifest evidence. It never follows manifest paths or resumes unlink. Automated deletion-resume and CLI listings of history/pin journals remain unsupported. Source prefixes, runtime installations and P027 pins are preserved. There is no automatic discard of incomplete staging.
+Snapshot deletion verifies the snapshot and refuses restore or pin-recovery conflicts. Before retirement, it writes an independent schema-1 deletion intent containing the complete verified manifest, exact source record and registry revision, parent/root/payload device and inode identities, Linux mount ID, metadata-file identities and hashes, and every payload entry's device/inode identity. The intent is private, bounded to the metadata quota, flushed before retirement, and checksummed for accidental corruption. The checksum is not authentication against same-user edits.
+
+The read-only `backup deletion-plan` validates ownership, scope, registry revision, mount and directory identities, metadata bytes, and the complete payload before clearing begins. Explicit `backup deletion-resume` requires that revision and the exact identity-bound token printed by the plan. A durable `clearing.json` is written and synced before chmod or unlink. During replay, missing entries are accepted only after that marker; every remaining path must be a recorded inventory member with its original device/inode identity, permitted type, owner, mode and metadata. Remaining regular files are rehashed. Directory mode changes are limited to the original mode or the owner-access bits the deletion code adds. Unknown entries, changed identities or bytes, links, mount changes, missing/corrupt evidence, competing transactions and registry revision changes block without further removal.
+
+After the last payload entry, recovery validates the empty payload, removes the original metadata, then the retired root. A crash after any unlink, after the final root removal, or before/after the completion marker is replayable. Repeated approved resume is idempotent. Completed deletion journals remain as evidence and prevent accidental reuse of that backup ID. Creating or restoring a backup with a pending deletion journal is blocked. Older P029 deletion remnants with no independent journal remain inspection-only through `backup deletions`; the application does not infer authorization from a missing manifest or a partial tree. Deletion touches only application-owned backup snapshots. It never removes source prefixes, runtime installations or P027 pins.
+
+Deletion recovery is bounded by the existing 100,000-entry, depth-64, 8 GiB payload and 32 MiB metadata limits. A deletion intent that exceeds the metadata bound is refused before the journal directory is created and before retirement. Linux mount IDs can change across reboot or mount namespaces; a mismatch blocks replay and requires inspection. A malicious same-user writer can race after validation because the filesystem does not provide conditional unlink-by-inode; the workflow assumes offline cooperative access and rechecks descriptors and names immediately before removal.
+
+Use `backup deletion-journals` for durable-journal state and `backup deletions` for older retired remnants. The former reports PendingRetirement, Retired, Clearing or Completed, or a blocked issue without modifying storage. Neither command creates XDG state. There is no automatic pruning or silent discard of incomplete staging.
 
 ## Qualification limits
 
@@ -95,7 +109,9 @@ Recovery validates the original intent against the staged journal, checks allowe
 
 ## P029B investigation status
 
-P029B remains incomplete. A synthetic Wine-style tree with internal and external `dosdevices` symlinks was rejected without following either link. Legacy transactions lack the durable deletion intent and preserved-original content evidence needed to safely infer deletion replay or rollback. Deletion replay remains unsupported. New schema-2 restore transactions support explicitly approved rollback only after filesystem publication and before the prefix registry commit. They retain and recheck an inventory of the preserved original; schema-1 and committed restore rollback are blocked. See the investigation record for the journal, retention and qualification limits. See [the P029B investigation record](manifests/PROMPT029B_MANIFEST.md).
+P029B adds bounded deletion replay for both empty and nonempty schema-1 snapshots. It uses an independent, content- and identity-bound journal, explicit confirmation and revision checks, per-unlink fsyncs and durable clearing/completion markers. Legacy deletions without this intent remain blocked. Restore journals use schema 2 to persist original inventory evidence before publication. Explicit rollback is supported only for a published schema-2 restore whose prefix registry is still at the exact pre-commit record and revision. Both trees are rechecked, exchanged under durable rollback intent and retained. Legacy and registry-committed rollback are blocked. There is no automatic rollback or original-data cleanup.
+
+The P029B fault suite injects process exits across empty and nonempty deletion transitions and rollback transitions, then repeats recovery. The IPC saturation test waits until the daemon process retains all sixteen intended test sockets before asserting rejection of the seventeenth; a local run passed after this synchronization change. This does not prove absence of every scheduler or kernel fault. Current final-head qualification, hosted CI and remaining limits are recorded in [the P029B manifest](manifests/PROMPT029B_MANIFEST.md).
 
 
 ### P029B limited rollback commands

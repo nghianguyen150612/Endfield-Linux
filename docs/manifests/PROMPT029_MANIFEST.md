@@ -119,4 +119,4 @@ The final local repeats at that same HEAD passed format, build, warning-denied w
 The subsequent commit only records this evidence. It must receive its own hosted qualification before delivery; final post-evidence HEAD/run links are reported in PR #2 and the completion report. P029A is ready for review as remediation within Draft PR #2, subject to those final gates and the documented unsupported/physical-device limits. This does not authorize merging or claim every broader P029 acceptance scenario is qualified.
 
 
-P029B continues this milestone with schema-2 restore evidence and limited explicit pre-commit rollback; deletion replay and final qualification are still outstanding. See [P029B manifest](PROMPT029B_MANIFEST.md).
+Current P029B work supersedes the earlier limitations recorded above: it adds independent, identity/content-checked snapshot deletion replay and explicit pre-commit schema-2 restore rollback. Legacy deletion remnants and unsupported rollback states remain blocked. See [P029B manifest](PROMPT029B_MANIFEST.md) for current behavior, final-head checks and remaining qualification limits.

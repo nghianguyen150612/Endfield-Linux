@@ -70,3 +70,5 @@ The same library now exposes backup/recovery types and Linux operations. P028 mu
 
 
 P029B introduces optional explicit rollback only for schema-2 restores published before their registry commit. The original record and revision must still match, and both filesystem trees are verified. Legacy and already committed restores remain blocked. See [backup/recovery](BACKUP-RECOVERY.md).
+
+P029B also journals deletion before retiring a snapshot. Resume applies only to snapshots whose saved manifest, per-entry filesystem identities, metadata hashes, root/payload identities, mount and registry revision still validate. A durable clearing marker precedes any unlink; replay accepts only already-removed entries plus unchanged, individually verified remaining entries. Legacy partial deletions without this evidence stay read-only and blocked. Prefix lifecycle and P028 registry ownership contracts do not change.

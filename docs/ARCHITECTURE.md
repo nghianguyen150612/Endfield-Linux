@@ -377,3 +377,5 @@ The P028 prefix-management crate owns the snapshot API; its Linux adapter reuses
 
 
 P029B adds a limited rollback transition to the existing prefix backup adapter. A schema-2 journal records original content evidence; a durable intent precedes exchange and a completion marker follows revalidation. The prefix registry is still the original record in this supported phase, so it is checked under the lock without a registry write. No cross-registry atomicity is claimed.
+
+Snapshot deletion uses a separate durable schema-1 journal under `backups/deletion-journals/<backup-id>`. It records the complete verified manifest, original per-entry identities, source record, original metadata hashes, parent/root/payload identities, mount ID and registry revision. An explicit clearing marker authorizes deletion replay. Recovery validates the exact remaining subset and syncs each parent after unlink; completion is recorded outside the removed snapshot. Old partial deletions without this evidence stay blocked. The journal's checksum detects accidental corruption but is not an authenticity mechanism.

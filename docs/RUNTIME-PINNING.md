@@ -74,3 +74,5 @@ Prefix snapshot restoration preserves its exact historical association and never
 
 
 P029B limited rollback checks the original prefix record while holding its registry lock and does not write the P027 registry. The saved association is retained exactly; separate pin recovery remains independently approved.
+
+P029B deletion replay is scoped to backup snapshots and never mutates runtime installations or P027 pins. Deletion journals that reference a snapshot conflict with restore and pin recovery, and any observed conflict blocks replay. Read-only `prefix recovery pins` reports journal markers only; it does not infer that the current pin still matches saved state.
