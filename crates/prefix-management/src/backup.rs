@@ -204,6 +204,9 @@ pub struct RestoreTransaction {
     pub original: PrefixRecord,
     pub expected_revision: u64,
     pub staged: FilesystemIdentity,
+    /// Present in schema 2; schema 1 journals have no original-content evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_inventory: Option<Vec<InventoryEntry>>,
 }
 #[derive(Clone, Debug, Serialize)]
 pub enum RecoveryAction {
@@ -211,7 +214,18 @@ pub enum RecoveryAction {
     InspectPreservedStaging,
     ResumeStagedRestore,
     FinalizePublishedRestore,
+    RollbackInProgress,
+    RollbackCompleted,
 }
+#[derive(Clone, Debug, Serialize)]
+pub struct RollbackPlan {
+    pub prefix: PrefixId,
+    pub backup: BackupId,
+    pub expected_revision: u64,
+    pub confirmation: String,
+    pub already_exchanged: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum DeletionState {
     Incomplete,
@@ -774,6 +788,7 @@ impl BackupStore {
         let tx = exclusive_dir(&roots, id.as_str())?;
         write_json(&tx, "intent.json", &plan.destination)?;
         self.checkpoint("restore-intent")?;
+        let original_inventory = scan(&self.source(id)?, None)?;
         let payload = exclusive_dir(&tx, "payload")?;
         let snap = self.snapshot(backup)?;
         let src = open_at(&snap, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
@@ -782,11 +797,12 @@ impl BackupStore {
             return Err(BackupError::Integrity(BackupIntegrity::Corrupt));
         }
         let journal = RestoreTransaction {
-            schema_version: 1,
+            schema_version: 2,
             backup: backup.clone(),
             original: plan.destination,
             expected_revision: expected,
             staged: identity(&payload)?,
+            original_inventory: Some(original_inventory),
         };
         write_json(&tx, "staged.json", &journal)?;
         self.checkpoint("restore-staged")?;
@@ -794,6 +810,14 @@ impl BackupStore {
         let (current, revision) = self.record(id)?;
         if current != journal.original || revision != expected {
             return Err(PrefixError::RevisionConflict.into());
+        }
+        if scan(&self.source(id)?, None)?
+            != *journal
+                .original_inventory
+                .as_ref()
+                .ok_or(BackupError::RecoveryBlocked)?
+        {
+            return Err(BackupError::RecoveryBlocked);
         }
         let l = self.fs.layout(false)?.ok_or(PrefixError::Blocked)?;
         if mount_id(&payload)? != l.root_mount {
@@ -810,7 +834,12 @@ impl BackupStore {
         j: &RestoreTransaction,
     ) -> Result<(), BackupError> {
         j.original.validate()?;
-        if j.schema_version != 1
+        if !matches!(j.schema_version, 1 | 2)
+            || (j.schema_version == 1 && j.original_inventory.is_some())
+            || (j.schema_version == 2 && j.original_inventory.is_none())
+            || j.original_inventory
+                .as_ref()
+                .is_some_and(|entries| total(entries).is_err())
             || j.original.id != *id
             || j.original.owner_uid != crate::current_uid()
             || j.original.lifecycle != PrefixLifecycleState::Created
@@ -826,9 +855,21 @@ impl BackupStore {
         let intent: PrefixRecord = read_json(tx, "intent.json")?;
         if intent != j.original
             || names(tx)?.iter().any(|name| {
-                !["intent.json", "staged.json", "payload", "completed.json"]
-                    .contains(&name.as_str())
+                ![
+                    "intent.json",
+                    "staged.json",
+                    "payload",
+                    "completed.json",
+                    "rollback-intent.json",
+                    "rollback-completed.json",
+                ]
+                .contains(&name.as_str())
             })
+        {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        if (has_file(tx, "rollback-completed.json")? && !has_file(tx, "rollback-intent.json")?)
+            || (has_file(tx, "rollback-intent.json")? && has_file(tx, "completed.json")?)
         {
             return Err(BackupError::RecoveryBlocked);
         }
@@ -849,7 +890,10 @@ impl BackupStore {
         scope: &PrefixScope,
     ) -> Result<RecoveryReport, BackupError> {
         self.validate_restore_journal(id, tx, journal)?;
-        if journal.schema_version != 1
+        if has_file(tx, "rollback-intent.json")? {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        if !matches!(journal.schema_version, 1 | 2)
             || journal.original.id != *id
             || &journal.original.scope != scope
         {
@@ -862,6 +906,11 @@ impl BackupStore {
             || self.fs.inspect_directory(id)? != Some(journal.staged)
         {
             return Err(BackupError::RecoveryBlocked);
+        }
+        if let Some(expected) = &journal.original_inventory {
+            if scan(&preserved, None)? != *expected {
+                return Err(BackupError::RecoveryBlocked);
+            }
         }
         let m = self.verify(&journal.backup, scope)?;
         if m.source.id != *id || scan(&self.source(id)?, None)? != m.inventory {
@@ -1026,6 +1075,135 @@ impl BackupStore {
         Ok(resulting_revision)
     }
 
+    /// Rollback is limited to a published restore whose registry has not yet
+    /// committed. Both directory trees are retained and checked on every replay.
+    pub fn rollback_plan(
+        &self,
+        id: &PrefixId,
+        scope: &PrefixScope,
+    ) -> Result<RollbackPlan, BackupError> {
+        let tx = self
+            .transaction_dir(id, false)?
+            .ok_or(BackupError::RecoveryBlocked)?;
+        let j: RestoreTransaction = read_json(&tx, "staged.json")?;
+        self.validate_restore_journal(id, &tx, &j)?;
+        if j.schema_version != 2 || &j.original.scope != scope || has_file(&tx, "completed.json")? {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let original = j
+            .original_inventory
+            .as_ref()
+            .ok_or(BackupError::RecoveryBlocked)?;
+        let registry = self.prefixes.load_snapshot()?.registry;
+        if registry.revision != j.expected_revision || registry.record(id) != Some(&j.original) {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        self.inactive(id)?;
+        let m = self.verify(&j.backup, scope)?;
+        if m.source.id != *id {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        let live = self.source(id)?;
+        let saved = open_at(&tx, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+        let live_id = identity(&live)?;
+        let saved_id = identity(&saved)?;
+        let old = j
+            .original
+            .filesystem_identity
+            .ok_or(BackupError::RecoveryBlocked)?;
+        let exchanged = if live_id == j.staged && saved_id == old {
+            if scan(&live, None)? != m.inventory || scan(&saved, None)? != *original {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            false
+        } else if live_id == old && saved_id == j.staged && has_file(&tx, "rollback-intent.json")? {
+            if scan(&live, None)? != *original || scan(&saved, None)? != m.inventory {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            true
+        } else {
+            return Err(BackupError::RecoveryBlocked);
+        };
+        let confirmation = format!(
+            "rollback:{}:{}:{}:{}",
+            id.as_str(),
+            j.backup.as_str(),
+            old.inode,
+            j.staged.inode
+        );
+        if has_file(&tx, "rollback-intent.json")? {
+            let recorded: String = read_json(&tx, "rollback-intent.json")?;
+            if recorded != confirmation {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        }
+        if has_file(&tx, "rollback-completed.json")? {
+            let completed: String = read_json(&tx, "rollback-completed.json")?;
+            if completed != confirmation || !exchanged {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        }
+        Ok(RollbackPlan {
+            prefix: id.clone(),
+            backup: j.backup,
+            expected_revision: j.expected_revision,
+            confirmation,
+            already_exchanged: exchanged,
+        })
+    }
+    pub fn rollback(
+        &self,
+        id: &PrefixId,
+        scope: &PrefixScope,
+        expected: u64,
+        confirmation: &str,
+    ) -> Result<RollbackPlan, BackupError> {
+        let _rg = self.fs.lock_registry()?;
+        let _pg = self.fs.lock_prefix(id)?;
+        let plan = self.rollback_plan(id, scope)?;
+        if plan.expected_revision != expected {
+            return Err(PrefixError::RevisionConflict.into());
+        }
+        if confirmation != plan.confirmation {
+            return Err(BackupError::Confirmation);
+        }
+        let tx = self
+            .transaction_dir(id, false)?
+            .ok_or(BackupError::RecoveryBlocked)?;
+        if !has_file(&tx, "rollback-intent.json")? {
+            write_json(&tx, "rollback-intent.json", &plan.confirmation)?;
+        }
+        self.checkpoint("rollback-intent")?;
+        if !plan.already_exchanged {
+            // Re-evaluate after the durable intent, immediately before exchange.
+            let fresh = self.rollback_plan(id, scope)?;
+            if fresh.already_exchanged || fresh.confirmation != plan.confirmation {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let layout = self.fs.layout(false)?.ok_or(PrefixError::Blocked)?;
+            if mount_id(&tx)? != layout.root_mount {
+                return Err(PrefixError::Blocked.into());
+            }
+            rename(
+                &tx,
+                "payload",
+                &layout.data,
+                id.as_str(),
+                libc::RENAME_EXCHANGE,
+            )?;
+            self.checkpoint("rollback-published")?;
+        }
+        let result = self.rollback_plan(id, scope)?;
+        if !result.already_exchanged {
+            return Err(BackupError::RecoveryBlocked);
+        }
+        if !has_file(&tx, "rollback-completed.json")? {
+            write_json(&tx, "rollback-completed.json", &result.confirmation)?;
+        }
+        self.checkpoint("rollback-completed")?;
+        Ok(result)
+    }
+
     /// Archive completed evidence and preserved bytes without deleting them.
     pub fn release(
         &self,
@@ -1046,10 +1224,17 @@ impl BackupStore {
             .transaction_dir(id, false)?
             .ok_or(BackupError::RecoveryBlocked)?;
         let j: RestoreTransaction = read_json(&tx, "staged.json")?;
-        if !has_file(&tx, "completed.json")? {
-            return Err(BackupError::RecoveryBlocked);
+        if has_file(&tx, "rollback-completed.json")? {
+            let plan = self.rollback_plan(id, scope)?;
+            if !plan.already_exchanged {
+                return Err(BackupError::RecoveryBlocked);
+            }
+        } else {
+            if !has_file(&tx, "completed.json")? {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            self.finalize(id, &tx, &j, scope)?;
         }
-        self.finalize(id, &tx, &j, scope)?;
         let roots = self.sub("restores", false)?.ok_or(PrefixError::Missing)?;
         let history = self.sub("history", true)?.ok_or(PrefixError::Blocked)?;
         rename(
@@ -1078,11 +1263,23 @@ impl BackupStore {
                 });
             }
         };
-        if journal.schema_version != 1 || journal.original.id != *id {
+        if !matches!(journal.schema_version, 1 | 2) || journal.original.id != *id {
             return Err(BackupError::RecoveryBlocked);
         }
         self.validate_restore_journal(id, &tx, &journal)?;
         journal.original.validate()?;
+        if has_file(&tx, "rollback-intent.json")? {
+            let plan = self.rollback_plan(id, &journal.original.scope)?;
+            return Ok(RecoveryReport {
+                action: if has_file(&tx, "rollback-completed.json")? {
+                    RecoveryAction::RollbackCompleted
+                } else {
+                    RecoveryAction::RollbackInProgress
+                },
+                original_preserved: plan.already_exchanged
+                    || self.fs.inspect_directory(id)? == Some(journal.staged),
+            });
+        }
         let live = self.fs.inspect_directory(id)?;
         let payload = open_at(&tx, "payload", libc::O_RDONLY | libc::O_DIRECTORY, 0).ok();
         let payload_identity = payload.as_ref().map(identity).transpose()?;
@@ -1145,12 +1342,15 @@ impl BackupStore {
             .ok_or(BackupError::RecoveryBlocked)?;
         let journal: RestoreTransaction = read_json(&tx, "staged.json")?;
         self.validate_restore_journal(id, &tx, &journal)?;
+        if has_file(&tx, "rollback-intent.json")? {
+            return Err(BackupError::RecoveryBlocked);
+        }
         if has_file(&tx, "completed.json")?
             && self.fs.inspect_directory(id)? != Some(journal.staged)
         {
             return Err(BackupError::RecoveryBlocked);
         }
-        if journal.schema_version != 1
+        if !matches!(journal.schema_version, 1 | 2)
             || journal.original.id != *id
             || &journal.original.scope != scope
         {
@@ -1173,6 +1373,11 @@ impl BackupStore {
                 return Err(BackupError::RecoveryBlocked);
             }
             self.inactive(id)?;
+            if let Some(expected) = &journal.original_inventory {
+                if scan(&self.source(id)?, None)? != *expected {
+                    return Err(BackupError::RecoveryBlocked);
+                }
+            }
             let l = self.fs.layout(false)?.ok_or(PrefixError::Blocked)?;
             if mount_id(&payload)? != l.root_mount {
                 return Err(PrefixError::Blocked.into());

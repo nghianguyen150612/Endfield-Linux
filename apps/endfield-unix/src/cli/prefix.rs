@@ -159,6 +159,20 @@ pub enum RestoreOperation {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum RecoveryOperation {
+    /// Preview rollback of an uncommitted published restore.
+    RollbackPlan {
+        #[arg(long)]
+        id: String,
+    },
+    /// Explicitly roll back a verified uncommitted published restore.
+    Rollback {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        expected_revision: u64,
+        #[arg(long)]
+        confirm: String,
+    },
     /// Archive completed recovery evidence while preserving original bytes.
     Release {
         #[arg(long)]
@@ -957,6 +971,21 @@ fn run_restore(op: RestoreOperation, out: &mut impl Write) -> Result<u8, Failure
 fn run_recovery(op: RecoveryOperation, out: &mut impl Write) -> Result<u8, Failure> {
     let b = backup_store()?;
     match op {
+        RecoveryOperation::RollbackPlan { id } => {
+            let id = prefixes::PrefixId::new(id)?;
+            json_output(out, &b.rollback_plan(&id, &authorized_scope(&id)?)?)
+        }
+        RecoveryOperation::Rollback {
+            id,
+            expected_revision,
+            confirm,
+        } => {
+            let id = prefixes::PrefixId::new(id)?;
+            json_output(
+                out,
+                &b.rollback(&id, &authorized_scope(&id)?, expected_revision, &confirm)?,
+            )
+        }
         RecoveryOperation::Release {
             id,
             expected_revision,
