@@ -106,6 +106,7 @@ pub enum CliError {
     RuntimeVerification(u8),
     RuntimeDiscoveryUnsupported,
     Compatibility(super::compatibility::CompatibilityError),
+    GameImport(u8),
     Systemd(super::systemd::SystemdError),
 }
 
@@ -179,6 +180,7 @@ impl CliError {
             Self::RuntimeDiscoveryFailed => EXIT_PLATFORM_PROBE_FAILED,
             Self::RuntimeDiscoveryUnsupported => EXIT_PLATFORM_UNSUPPORTED,
             Self::Compatibility(error) => error.exit_status(),
+            Self::GameImport(code) => *code,
             Self::Systemd(_) => EXIT_SYSTEMD_ERROR,
         }
     }
@@ -230,6 +232,9 @@ impl fmt::Display for CliError {
                 formatter.write_str("Linux runtime discovery is not supported on this platform.")
             }
             Self::Compatibility(error) => fmt::Display::fmt(error, formatter),
+            Self::GameImport(_) => {
+                formatter.write_str("game import command failed; see the reported result.")
+            }
             Self::Systemd(error) => fmt::Display::fmt(error, formatter),
         }
     }
@@ -256,6 +261,7 @@ impl Error for CliError {
             Self::RuntimeDiscoveryFailed => None,
             Self::RuntimeDiscoveryUnsupported => None,
             Self::Compatibility(error) => Some(error),
+            Self::GameImport(_) => None,
             Self::Systemd(error) => Some(error),
         }
     }
@@ -713,6 +719,14 @@ where
                 Ok(())
             } else {
                 Err(CliError::RuntimeVerification(code))
+            }
+        }
+        Command::GameManagement(operation) => {
+            let code = super::game_import::run(*operation, stdout).map_err(CliError::Output)?;
+            if code == 0 {
+                Ok(())
+            } else {
+                Err(CliError::GameImport(code))
             }
         }
         Command::RuntimeAudit(id) => {

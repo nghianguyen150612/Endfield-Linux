@@ -11,6 +11,7 @@ default-run = "endfield-unix"
 
 [dependencies]
 endfield-unix-compatibility-diagnostics = { path = "../../crates/compatibility-diagnostics" }
+endfield-unix-game-import = { path = "../../crates/game-import" }
 endfield-unix-runtime-install = { path = "../../crates/runtime-install" }
 endfield-unix-runtime-selection = { path = "../../crates/runtime-selection" }
 endfield-unix-prefix-management = { path = "../../crates/prefix-management" }
