@@ -1140,7 +1140,9 @@ recovery, and byte/metadata preservation. The actual executable suite covers
 read-only XDG behavior, nested help, plans, wrong approval, registration,
 listing/privacy, inspection, validation, stale revisions, unregister, P027
 config pins, P028/P029 fixture state, game bytes, and a non-execution sentinel.
-Exact local and final-head hosted results are recorded in
-[PROMPT031_MANIFEST.md](manifests/PROMPT031_MANIFEST.md). Physical game
-installation, NTFS/exFAT device behavior, remount behavior, GUI integration,
-Wine/Proton execution, and gameplay remain UNVERIFIED.
+Local results and implementation-head hosted qualification are recorded in
+[PROMPT031_MANIFEST.md](manifests/PROMPT031_MANIFEST.md); CI for the exact
+current head is tracked on the
+[Draft PR #4](https://github.com/nghianguyen150612/Endfield-Linux/pull/4).
+Physical game installation, NTFS/exFAT device behavior, remount behavior, GUI
+integration, Wine/Proton execution, and gameplay remain UNVERIFIED.

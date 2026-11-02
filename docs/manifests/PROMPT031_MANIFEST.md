@@ -41,8 +41,23 @@ that the sentinel is never created.
 
 ## Hosted and physical qualification
 
-Record exact final-head GitHub Actions run IDs and outcomes here after the
-Draft PR is created. The final hosted run must qualify GTK smoke and actual
-executable integration with genuine native libraries. Physical Endfield
-import, Wine/Proton/UMU execution, game launch, rendering, and compatibility
+The P031 implementation head
+`315efbe7215eb7653add20d666bd44b6f7957660` passed hosted Rust CI in
+[run 41448622030](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41448622030).
+The Rust job passed Rust 1.85 formatting, workspace check and warning-denied
+Clippy, all workspace tests, workspace build, Cargo metadata, P006/P021–P030
+regressions, the P031 31-test registry/filesystem suite, the actual
+`endfield-unix` P031 CLI integration, daemon/IPC gates, and graphical GTK
+smoke with screenshot upload. The independent GCC and Clang C17 ABI jobs also
+passed. CI used genuine Ubuntu GTK4/libadwaita development packages.
+
+The first hosted run, [41447769688](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41447769688),
+passed both P031 suites but failed one pre-existing general-help assertion
+that expected the new `game` namespace to be absent. The assertion was updated
+in `315efbe`; the full hosted run above then passed.
+
+This manifest update is documentation-only and triggers another PR-head CI
+run. Its exact head and result are linked in the final PR description and
+completion report. Physical Endfield import, NTFS/exFAT device and remount
+behavior, Wine/Proton/UMU execution, game launch, rendering, and compatibility
 remain unverified.
