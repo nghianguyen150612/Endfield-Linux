@@ -1125,4 +1125,24 @@ P029B adds isolated original-inventory, legacy forward-recovery, altered origina
 
 ## P030 compatibility diagnostics
 
-P030 adds synthetic typed-assessment coverage, P013 Vulkan feature/extension provider coverage, metadata-only P029 recovery-observer tests, and actual-binary CLI integration tests for isolated XDG, stale profile-pin precedence, missing prefixes, Created/uninitialized prefixes, JSON/human output, help, parser errors, and no storage creation. The P029 observer now also covers pending snapshot deletion and P027 pin-recovery markers without reading snapshot or prefix payload contents. Local final-head qualification and hosted run details are recorded in [P030 manifest](manifests/PROMPT030_MANIFEST.md); native GTK/actual-binary qualification remains pending until that hosted gate completes. Physical GPU and Endfield rendering remain UNVERIFIED.
+P030 adds synthetic typed-assessment coverage, P013 Vulkan feature/extension provider coverage, metadata-only P029 recovery-observer tests, and actual-binary CLI integration tests for isolated XDG, stale profile-pin precedence, missing prefixes, Created/uninitialized prefixes, JSON/human output, help, parser errors, and no storage creation. The P029 observer now also covers pending snapshot deletion and P027 pin-recovery markers without reading snapshot or prefix payload contents. Final-head hosted qualification, including genuine GTK and actual-binary tests, passed in [CI run 41207736864](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41207736864); PR #3 merged at `6f383c6390462cd4da64a97d372fee739b20fd2c`. Physical GPU and Endfield rendering remain UNVERIFIED.
+
+## P031 existing game location import
+
+P031 adds a GTK-independent import/registry crate, a Linux descriptor-relative
+observer, and actual `endfield-unix game` commands. The synthetic library suite
+covers explicit declaration, empty/missing/file/relative/Unicode paths,
+component limits, root and nested symlinks, symlink swaps, root replacement,
+special files, large directories and files, changed entry counts, mount
+identity uncertainty, duplicate locations, concurrent import and unregister,
+CAS conflicts, corrupt/future schemas, failed atomic publication, stale temp
+recovery, and byte/metadata preservation. The actual executable suite covers
+read-only XDG behavior, nested help, plans, wrong approval, registration,
+listing/privacy, inspection, validation, stale revisions, unregister, P027
+config pins, P028/P029 fixture state, game bytes, and a non-execution sentinel.
+Local results and implementation-head hosted qualification are recorded in
+[PROMPT031_MANIFEST.md](manifests/PROMPT031_MANIFEST.md); CI for the exact
+current head is tracked on the
+[Draft PR #4](https://github.com/nghianguyen150612/Endfield-Linux/pull/4).
+Physical game installation, NTFS/exFAT device behavior, remount behavior, GUI
+integration, Wine/Proton execution, and gameplay remain UNVERIFIED.

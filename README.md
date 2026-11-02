@@ -42,10 +42,19 @@ boundary. See [prefix management](docs/PREFIX-MANAGEMENT.md).
 P029 adds bounded prefix snapshots, restore, and recovery journals. Its merged
 implementation passed hosted qualification in [CI run 41186534556](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41186534556).
 P030 adds read-only runner, GPU/driver, Vulkan, and explicitly selected managed
-prefix diagnostics through `diagnose compatibility`. P030 remains in draft
-qualification; static observations do not prove successful initialization,
-Endfield launch, or rendering. See
-[compatibility diagnostics](docs/COMPATIBILITY-DIAGNOSTICS.md).
+prefix diagnostics through `diagnose compatibility`. PR #3 merged at
+`6f383c6390462cd4da64a97d372fee739b20fd2c` after final-head CI passed in
+[run 41207736864](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41207736864).
+Static observations do not prove successful initialization, Endfield launch,
+or rendering. See [compatibility diagnostics](docs/COMPATIBILITY-DIAGNOSTICS.md).
+
+P031 adds explicit, metadata-only registration of an existing game directory
+through `endfield-unix game`. The selected directory is inspected only at its
+top level, is never modified or executed, and remains user-declared and
+unverified because no authoritative Endfield marker format is available.
+Revalidation checks the exact root object and bounded entry counts. The GTK
+shell does not yet provide an import flow. See [game import](docs/GAME-IMPORT.md)
+for filesystem, privacy, and validation limits.
 
 The public GitHub repository remains [Endfield-Linux](https://github.com/nghianguyen150612/Endfield-Linux). The application and daemon executable names are `endfield-unix` and `endfield-unixd`.
 
@@ -81,6 +90,8 @@ The public GitHub repository remains [Endfield-Linux](https://github.com/nghiang
 - [P028 isolated prefix management](docs/PREFIX-MANAGEMENT.md)
 - [P029 prefix snapshots and recovery](docs/BACKUP-RECOVERY.md)
 - [P030 compatibility diagnostics](docs/COMPATIBILITY-DIAGNOSTICS.md)
+- [P031 existing game location import](docs/GAME-IMPORT.md)
+- [P031 implementation and qualification manifest](docs/manifests/PROMPT031_MANIFEST.md)
 - [Authenticated local IPC protocol and Linux transport](docs/IPC.md)
 - [Rust and C17 architecture decision](docs/adr/0001-rust-c17-architecture.md)
 - [Cross-platform boundary decision](docs/adr/0002-cross-platform-boundaries.md)
@@ -124,6 +135,8 @@ cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry cpu-memory
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry cpu-memory --interval-ms 500
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry frames --format frame-events-v1 --input ./frames.csv
 cargo +1.85.0 run --locked -p endfield-unix -- diagnose telemetry frames --format mangohud-csv --input ./mangohud.csv
+cargo +1.85.0 run --locked -p endfield-unix -- game list
+cargo +1.85.0 run --locked -p endfield-unix -- game import plan --path "/mnt/Games/Arknights Endfield" --id endfield-main --declare-endfield
 cargo +1.85.0 run --locked -p endfield-unix -- help gui
 cargo +1.85.0 run --locked -p endfield-unix -- gui
 cargo +1.85.0 run --locked -p endfield-unix
@@ -135,7 +148,7 @@ cargo +1.85.0 run --locked -p endfield-unix -- service status
 
 The no-argument command and `gui` open the same native application window. Help, version, and about do not initialize GTK or create application directories. `diagnose report` is headless and writes only to its explicit output path; it does not probe the host or upload data. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, and `diagnose display` are headless, read bounded Linux sources, need no daemon, and do not initialize GTK or change system state. GPU facts distinguish PCI presence, driver binding, DRM access, Vulkan enumeration, and application rendering; see [GPU-LINUX.md](docs/GPU-LINUX.md). Display facts distinguish session hints, live protocol connections, output modes, DRM connectors, and compositor identity; desktop environment names remain unverified hints unless a live source proves identity. See [DISPLAY-LINUX.md](docs/DISPLAY-LINUX.md). Hardware and display facts are displayed locally only when explicitly requested; they are not automatically added to logs or support reports. If GTK cannot connect to a working display, GUI startup prints a display-initialization diagnostic and exits with status 69. Invalid arguments print a diagnostic and exit with status 2; report and command output failures use status 74. The application does not infer display availability from `DISPLAY` or `WAYLAND_DISPLAY` alone. See [CLI usage and exit statuses](docs/CLI.md), the [Linux platform adapter](docs/PLATFORM-LINUX.md), and [Linux hardware discovery](docs/HARDWARE-LINUX.md).
 
-The shell provides Home, Optimize, Benchmark, Library, Diagnostics, and Settings. Pages distinguish unavailable services from detected facts. In particular, Play stays disabled until a launch backend exists; P012 inventory and P016 CPU/memory telemetry, P013 GPU discovery, and P014 display/session discovery are available through headless CLI commands but are not integrated into the GUI or optimizer; the current C17 implementation returns an empty plan set. Game management, runtime setup, optimization, benchmarking, and GUI-to-daemon probe queries remain future work. P006 provides a storage API, but GTK settings are not yet wired to it and stored preferences are not reported as applied. Synthetic fixtures remain test-only and are never displayed as host data.
+The shell provides Home, Optimize, Benchmark, Library, Diagnostics, and Settings. Pages distinguish unavailable services from detected facts. In particular, Play stays disabled until a launch backend exists; P012 inventory and P016 CPU/memory telemetry, P013 GPU discovery, and P014 display/session discovery are available through headless CLI commands but are not integrated into the GUI or optimizer; the current C17 implementation returns an empty plan set. P031's game-location import is headless-only; the GUI has no worker-backed import integration. Runtime setup, optimization, benchmarking, and GUI-to-daemon probe queries remain future work. P006 provides a storage API, but GTK settings are not yet wired to it and stored preferences are not reported as applied. Synthetic fixtures remain test-only and are never displayed as host data.
 
 The GUI does not start or own the daemon, and closing the GUI does not stop an independently launched daemon or user service. P020 adds explicit opt-in per-user systemd installation and lifecycle commands; it still does not launch games, expose session control over IPC, or collect session telemetry. P019 shutdown stops monitoring without signaling owned child processes, while systemd's conservative `KillMode=control-group` can clean up remaining processes on service stop; P020 makes no game-survival claim. Real Endfield launch and survival are unverified until P034/P035. Neither executable accesses game credentials or runs privileged commands. Structured logs are local and allowlist-only; generated reports omit private paths, free-form provider details, correlation IDs, credentials, and environment contents. See [diagnostics policy](docs/DIAGNOSTICS.md), [daemon lifecycle](docs/DAEMON.md), [session supervision](docs/SESSION-SUPERVISION.md), [systemd user services](docs/SYSTEMD-USER.md), and [IPC protocol](docs/IPC.md). macOS and BSD UI behavior is unverified; Linux-first CI does not establish support on those platforms.
 
@@ -174,7 +187,7 @@ file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
 P025 provides qualified local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. Hosted Rust/GTK, GCC and Clang qualification passed in [CI run 40872573654](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40872573654). It does not establish publisher authenticity or support HTTPS acquisition. See [Linux runtime installation](docs/RUNTIME-INSTALLATION-LINUX.md) for the workflow and limits.
 
 
-P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification remains pending, and no game compatibility claim is made.
+P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](docs/RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification remains pending, and no game compatibility claim is made.
 
 ## P029 draft prefix snapshots
 

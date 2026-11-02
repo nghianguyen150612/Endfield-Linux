@@ -1,12 +1,22 @@
 # PROMPT030 implementation and qualification manifest
 
+## Merge verification update — 2026-11-02
+
+GitHub confirms PR [#3](https://github.com/nghianguyen150612/Endfield-Linux/pull/3)
+merged on 2026-11-02 at `6f383c6390462cd4da64a97d372fee739b20fd2c`. Its final head
+`559eae826eb0b034c0d00d65b89ee23818276b1f` passed hosted Rust CI in
+[run 41207736864](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41207736864),
+including GTK and actual-binary qualification. The implementation notes below
+preserve the historical state recorded while P030 was still a Draft; P031
+starts from the verified merge commit above.
+
 ## Baseline and branch
 
 - Verified remote `main`: `43171ac19bc3e4bc51dc25d3e87f730c1ab17778`.
 - P028 PR [#1](https://github.com/nghianguyen150612/Endfield-Linux/pull/1) and P029 PR [#2](https://github.com/nghianguyen150612/Endfield-Linux/pull/2) are merged.
 - P030 branch: `feat/p030-compatibility-diagnostics`.
 - Draft PR: [#3](https://github.com/nghianguyen150612/Endfield-Linux/pull/3). The implementation source head qualified by hosted CI is `861058f889a5e7438b1dbf7e42981e1d35e8e0dd`. This follow-up manifest update is documentation-only; the resulting PR head is checked separately.
-- Merge status: intentionally unmerged. P031 has not started.
+- Historical manifest status: the PR was intentionally unmerged and P031 had not started at that checkpoint; see the merge verification update above for current status.
 
 ## Implementation
 

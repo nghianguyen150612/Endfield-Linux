@@ -290,6 +290,36 @@ P029B schema-2 restore journals record a bounded hash inventory of the original 
 
 P029B deletion writes an independent intent and per-entry device/inode inventory before retiring any snapshot. It places a durable clearing marker before unlink, then rechecks every remaining regular file's size, metadata and SHA-256 and every path's original identity. Only no-follow, same-owner entries on the recorded mount are eligible. Unexpected files, links, changed identities, registry revision changes or corrupt/missing journals stop replay. The journal is checksummed for accidental corruption, not authenticated against same-user edits. Filesystem unlink cannot be conditioned atomically on an inode, so malicious concurrent same-user replacement remains outside the supported offline/cooperative-use boundary. Legacy deletions without this evidence are never resumed.
 
+## P031 existing game location import
+
+P031 treats the exact user-selected directory as untrusted external data. It
+requires an absolute bounded UTF-8 path and opens path components relative to
+held directory descriptors with no-follow flags. It rejects traversal,
+symlink path components, missing/non-directory/unreadable/empty roots,
+unknown filesystem types, missing current mount identity, and roots with
+top-level links or special files. It enumerates at most 512 top-level entries
+and never recurses or opens their contents. It does not read documents, hash
+the game tree, run scripts, launch candidate binaries, or use root privileges.
+
+The observer stores device/inode/current-mount observations and entry-type
+counts. Those checks do not guarantee identity across remounts or detect
+nested changes, same-count filename replacement, or arbitrary file-byte
+changes. NTFS/exFAT/FUSE/network filesystems are reported conservatively; mount
+identity and inode semantics are only claimed for the current observed mount.
+Unix ownership semantics are not asserted for filesystems whose UID/GID values
+can be synthetic or mount-mapped. Unknown types fail closed.
+
+Plan and inspection operations are read-only and do not initialize XDG data,
+SQLite, or locks. Apply requires a user declaration, exact confirmation, and
+the expected registry revision, then revalidates before committing metadata
+under a private P006 data subdirectory. Unregister uses an exact ID, revision,
+and confirmation and deletes only the registry record. No P027 pin, P028
+prefix, P029 backup, P030 assessment, IPC, game file, or C17 optimizer state is
+associated or changed. Corrupt/future registry data and ambiguous temporary
+publication state block mutation without resetting metadata. The selected
+path is private registry data; list omits it, and logs/support reports do not
+include it. Explicit local inspection commands display it by request.
+
 ## P030 compatibility diagnostics
 
 `diagnose compatibility` reads only the exact selected P027 pin and optional registered P028 prefix, existing P013 Linux GPU/Vulkan observations, and bounded P029 transaction metadata. It does not create XDG directories, persist reports, walk external prefixes, read prefix or snapshot payload contents, start the daemon, access the network, or execute Wine, Proton, UMU, Steam, or a game. P027's P022/P025/P026 validator rechecks the selected runtime reference without substitution. Restore, rollback, pending deletion, and pin-recovery markers are reported without replay or mutation. Output omits raw machine ID and local runtime/prefix paths and is bounded to 1 MiB JSON or 64 KiB human output. Static evidence never establishes launch, translation, rendering, or performance compatibility. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).

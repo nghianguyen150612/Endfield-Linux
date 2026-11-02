@@ -106,6 +106,12 @@ jobs:
       - name: Run actual P030 compatibility CLI integration
         run: cargo test --locked -p endfield-unix --test compatibility_cli -- --test-threads=1 --nocapture
 
+      - name: Run P031 game-import registry and filesystem safety tests
+        run: cargo test --locked -p endfield-unix-game-import --all-targets -- --test-threads=1
+
+      - name: Run actual P031 game-import CLI integration
+        run: cargo test --locked -p endfield-unix --test game_import_cli -- --test-threads=1 --nocapture
+
       - name: Run actual P025 install and P027/P028 CLI smoke in an isolated XDG root
         run: cargo test --locked -p endfield-unix --test runtime_install_cli -- --test-threads=1 --nocapture
 

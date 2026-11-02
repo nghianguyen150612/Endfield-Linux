@@ -30,6 +30,7 @@ pub fn write_help<W: Write>(topic: Option<HelpTopic>, output: &mut W) -> io::Res
         Some(HelpTopic::Service) => write_service_help(output),
         Some(HelpTopic::Diagnose) => write_diagnose_help(output),
         Some(HelpTopic::Prefix) => write_prefix_help(output),
+        Some(HelpTopic::Game) => write_game_help(output),
     }
 }
 
@@ -1630,6 +1631,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
+        "  game <import|list|show|validate|remove-plan|remove>  Register and inspect one existing game location"
+    )?;
+    writeln!(
+        output,
         "  diagnose platform  Inspect Linux platform facts without the daemon"
     )?;
     writeln!(
@@ -1793,6 +1798,25 @@ fn write_prefix_help<W: Write>(output: &mut W) -> io::Result<()> {
     )
 }
 
+fn write_game_help<W: Write>(output: &mut W) -> io::Result<()> {
+    writeln!(
+        output,
+        "Usage: {APPLICATION_NAME} game import <plan|apply> --path PATH --id ID\n       {APPLICATION_NAME} game <list|show|validate|remove-plan|remove>\n"
+    )?;
+    writeln!(
+        output,
+        "Import is an explicit metadata-only registration. Planning and revalidation do not create application storage or write to the selected game directory. Registration requires --declare-endfield and the exact token from the current plan."
+    )?;
+    writeln!(
+        output,
+        "The repository has no authoritative Endfield layout or marker format. A user declaration remains unverified; no executable is opened or run, and no build, publisher authenticity, or compatibility claim is made."
+    )?;
+    writeln!(
+        output,
+        "Unregister removes only the application record. It preserves the game directory and its files. Run nested --help for each command."
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1865,6 +1889,10 @@ mod tests {
         assert!(String::from_utf8_lossy(&output).contains("diagnose hardware"));
         assert!(String::from_utf8_lossy(&output).contains("diagnose gpu"));
         assert!(String::from_utf8_lossy(&output).contains("diagnose display"));
+        assert!(
+            String::from_utf8_lossy(&output)
+                .contains("game <import|list|show|validate|remove-plan|remove>")
+        );
     }
 
     #[test]

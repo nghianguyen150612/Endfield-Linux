@@ -89,3 +89,19 @@ The registry associates each managed directory with its exact P027 runtime refer
 ## P029 backup storage
 
 P006 app data gains backups/ with an identity-bound owner.json, immutable published snapshot manifests, staging, restores, preserved history, pin-recovery, deleting and deletion-journals directories. A deletion journal persists the complete original manifest and per-entry identities independently before its snapshot is retired. The clearing and completion markers are synced around explicit unlink replay. Snapshot directory names form the index; no second mutable registry is introduced. Snapshot and deletion journal schemas, bounds and descriptor-relative publication are specified in [backup/recovery](BACKUP-RECOVERY.md). Reads never initialize storage. Legacy partial or unidentified directories are preserved and blocked.
+
+## P031 game-location registry
+
+P031 stores one versioned `game-installations/registry.json` under
+`AppPaths::data_dir()`, separate from P006 SQLite, P027 config pins, P028's
+prefix registry, and P029 backup journals. Schema v1 is bounded to 1 MiB and
+1024 records. The directory and files use owner-only `0700` and `0600` modes;
+mutations use a lock, revision compare-and-swap, same-directory atomic
+publication, and synchronization. A SHA-256 checksum detects accidental
+record edits but does not authenticate data against the same user. Reads do
+not create XDG directories or lock files. Corrupt or future schemas are
+preserved and fail closed. Only approved
+import and unregister operations create or mutate application metadata. The
+selected game path is stored privately and is omitted from `game list`, logs,
+and exported support reports; explicit local plan/show/validate/remove-plan
+commands display it. See [P031 import](GAME-IMPORT.md) for bounds and recovery.

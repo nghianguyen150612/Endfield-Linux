@@ -311,6 +311,7 @@ dependencies = [
  "endfield-unix-compatibility-diagnostics",
  "endfield-unix-diagnostics",
  "endfield-unix-domain",
+ "endfield-unix-game-import",
  "endfield-unix-ipc",
  "endfield-unix-platform-linux",
  "endfield-unix-prefix-management",
@@ -361,6 +362,20 @@ dependencies = [
 [[package]]
 name = "endfield-unix-domain"
 version = "0.1.0"
+
+[[package]]
+name = "endfield-unix-game-import"
+version = "0.1.0"
+dependencies = [
+ "endfield-unix-storage",
+ "fs2",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+]
 
 [[package]]
 name = "endfield-unix-ipc"

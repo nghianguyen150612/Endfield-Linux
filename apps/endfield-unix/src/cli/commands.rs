@@ -8,6 +8,7 @@ pub enum HelpTopic {
     Service,
     Diagnose,
     Prefix,
+    Game,
 }
 
 /// Typed command selected by the CLI parser.
@@ -21,6 +22,7 @@ pub enum Command {
     RuntimeInstall(Box<super::runtime_install::Operation>),
     RuntimePin(Box<super::runtime_pin::Operation>),
     PrefixManagement(Box<super::prefix::Operation>),
+    GameManagement(Box<super::game_import::Operation>),
     RuntimeAudit(String),
     RuntimeAuditSource {
         installation_id: String,

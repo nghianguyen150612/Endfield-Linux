@@ -10,6 +10,10 @@
 - `prefix init` returns `initialization_unsupported` until a Wine/Proton/UMU
   initialization adapter can be validated. No runtime or game process is
   started, and Endfield compatibility remains unverified.
+- P031 adds explicit headless registration, inspection, bounded revalidation,
+  and metadata-only unregistering for one user-selected existing game directory.
+  Game identity remains user-declared and unverified; no game files are read,
+  hashed, changed, or executed.
 
 ## P029 — hosted qualified backup/recovery
 
@@ -22,6 +26,6 @@ Fixed the actual executable's P028-only parser by sharing the prefix operation e
 
 P029B adds bounded, journaled deletion replay for verified empty and nonempty snapshots, with per-entry identity and hash checks, explicit confirmation, revision checking and interruption recovery at each unlink boundary. It adds read-only deletion-journal/history/pin-journal inspection and limited explicit rollback for published, uncommitted schema-2 restores. The original and displaced trees remain preserved by rollback, and P027 pins stay unchanged. Legacy deletion remnants, legacy restore rollback and post-registry-commit rollback stay blocked. Final qualification is tracked in the P029B manifest.
 
-## P030 — draft compatibility diagnostics
+## P030 — hosted-qualified compatibility diagnostics
 
-Adds a portable typed assessment core and headless `diagnose compatibility` command. The report combines exact P027 selection and P022/P025/P026 revalidation, P013 PCI/DRM/Vulkan observations, P028 lifecycle and runtime association, and P029 metadata-only recovery state. It never executes a runtime or game, changes a pin, initializes a prefix, or claims Endfield compatibility. Final hosted qualification is pending; see [the P030 manifest](docs/manifests/PROMPT030_MANIFEST.md).
+Adds a portable typed assessment core and headless `diagnose compatibility` command. The report combines exact P027 selection and P022/P025/P026 revalidation, P013 PCI/DRM/Vulkan observations, P028 lifecycle and runtime association, and P029 metadata-only recovery state. It never executes a runtime or game, changes a pin, initializes a prefix, or claims Endfield compatibility. PR #3 merged at `6f383c6390462cd4da64a97d372fee739b20fd2c`; final-head hosted qualification passed in [CI run 41207736864](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41207736864). See [the P030 manifest](docs/manifests/PROMPT030_MANIFEST.md).

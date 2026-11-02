@@ -49,6 +49,11 @@ enum SubcommandArgs {
         #[command(subcommand)]
         command: Box<super::prefix::Operation>,
     },
+    /// Register and manage explicitly selected existing game directories.
+    Game {
+        #[command(subcommand)]
+        command: Box<super::game_import::Operation>,
+    },
     /// Show command help.
     Help {
         /// Command to describe.
@@ -256,6 +261,7 @@ enum HelpTopicArg {
     Service,
     Diagnose,
     Prefix,
+    Game,
 }
 
 /// Parses operating-system arguments into a typed command without exiting the process.
@@ -272,6 +278,9 @@ where
         return Ok(Command::HelpOutput(help));
     }
     if let Some(help) = nested_diagnose_help(&arguments) {
+        return Ok(Command::HelpOutput(help));
+    }
+    if let Some(help) = nested_game_help(&arguments) {
         return Ok(Command::HelpOutput(help));
     }
     let mut parser = parser_command();
@@ -320,6 +329,7 @@ where
             },
         },
         Some(SubcommandArgs::Prefix { command }) => Command::PrefixManagement(command),
+        Some(SubcommandArgs::Game { command }) => Command::GameManagement(command),
         Some(SubcommandArgs::Gui) => Command::LaunchGui,
         Some(SubcommandArgs::Help { topic }) => Command::Help(topic.map(|topic| match topic {
             HelpTopicArg::Gui => HelpTopic::Gui,
@@ -327,6 +337,7 @@ where
             HelpTopicArg::Service => HelpTopic::Service,
             HelpTopicArg::Diagnose => HelpTopic::Diagnose,
             HelpTopicArg::Prefix => HelpTopic::Prefix,
+            HelpTopicArg::Game => HelpTopic::Game,
         })),
         Some(SubcommandArgs::About) => Command::About,
         Some(SubcommandArgs::Diagnose {
@@ -502,6 +513,22 @@ fn nested_prefix_help(arguments: &[OsString]) -> Option<String> {
 fn nested_diagnose_help(arguments: &[OsString]) -> Option<String> {
     let (help_flag, path) = arguments.split_last()?;
     if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "diagnose" {
+        return None;
+    }
+    let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
+    for component in path {
+        command = command.find_subcommand(component.to_str()?)?.clone();
+    }
+    let invocation = std::iter::once(APPLICATION_NAME.to_owned())
+        .chain(path.iter().map(|part| part.to_string_lossy().into_owned()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(command.bin_name(invocation).render_help().to_string())
+}
+
+fn nested_game_help(arguments: &[OsString]) -> Option<String> {
+    let (help_flag, path) = arguments.split_last()?;
+    if !matches!(help_flag.to_str()?, "--help" | "-h") || path.first()?.to_str()? != "game" {
         return None;
     }
     let mut command = Arguments::command().name(APPLICATION_NAME).term_width(80);
@@ -841,6 +868,61 @@ mod tests {
             match parse(args(values)) {
                 Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
                 other => panic!("expected nested diagnose help for {values:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn game_import_commands_and_nested_help_use_the_canonical_parser() {
+        use super::super::game_import::{ImportOperation, Operation};
+
+        assert_command(
+            &[
+                "game",
+                "import",
+                "plan",
+                "--path",
+                "/mnt/Games/Endfield Δ",
+                "--id",
+                "endfield-main",
+                "--declare-endfield",
+                "--json",
+            ],
+            Command::GameManagement(Box::new(Operation::Import {
+                command: ImportOperation::Plan {
+                    path: PathBuf::from("/mnt/Games/Endfield Δ"),
+                    id: "endfield-main".into(),
+                    declare_endfield: true,
+                    json: true,
+                },
+            })),
+        );
+        assert_command(
+            &[
+                "game",
+                "remove",
+                "--id",
+                "endfield-main",
+                "--expected-revision",
+                "3",
+                "--confirm",
+                "unregister:endfield-main:3",
+            ],
+            Command::GameManagement(Box::new(Operation::Remove {
+                id: "endfield-main".into(),
+                expected_revision: 3,
+                confirm: "unregister:endfield-main:3".into(),
+                json: false,
+            })),
+        );
+        for values in [
+            &["game", "--help"][..],
+            &["game", "import", "--help"][..],
+            &["game", "import", "plan", "--help"][..],
+        ] {
+            match parse(args(values)) {
+                Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
+                other => panic!("expected nested game help for {values:?}, got {other:?}"),
             }
         }
     }

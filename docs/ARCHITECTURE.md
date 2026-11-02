@@ -34,6 +34,15 @@ Linux GPU/Vulkan probing, P028 prefix inspection, and P029 metadata-only
 recovery observation. Linux, filesystem, GTK, Vulkan, and P029 types stay
 outside the portable assessment crate.
 
+P031 adds the GTK-independent `endfield-unix-game-import` contract and
+registry crate. Its Linux adapter performs descriptor-relative path checks,
+bounded top-level observation, and application-owned registry publication.
+The existing `endfield-unix` parser and dispatcher expose the service through
+headless `game` commands; no third executable or P021/P027/P028 association is
+added. The GTK shell currently has no worker-backed import service boundary,
+so game import remains CLI-only. The C17 planner, daemon, Vulkan, Wine, Proton,
+UMU, and game execution are outside this path.
+
 ## P002 workspace and entry point
 
 The Cargo workspace uses resolver version 3 and Rust 2024 with MSRV 1.85. It contains two application packages and exactly two application binaries: `apps/endfield-unix` produces `endfield-unix` (GTK GUI and CLI), and `apps/endfield-unixd` produces `endfield-unixd` (foreground daemon). The daemon package has no GTK, libadwaita, or Relm4 dependency. P004 adds Relm4 0.9.1, GTK4-rs 0.9.6, and libadwaita-rs 0.7.2; these bindings use the matching GTK4 0.9 / GLib 0.20 generation.
@@ -280,7 +289,9 @@ version, about, GUI startup, report export, P010's `service ping` and
 Help documents only implemented commands. About reads its
 version, purpose, license, and repository from Cargo package metadata and
 static development-stage text; it does not probe hardware, runtimes, or games.
-The game, runtime, optimize, benchmark, and profile namespaces remain planned.
+P031 implements the headless `game` namespace for explicit location import,
+inspection, revalidation, and metadata-only unregister. Runtime setup,
+optimize, benchmark, and profile workflows remain planned.
 
 Static CLI commands run before GTK or libadwaita initialization. Both no-argument startup and `gui` call the same existing `start_gui` boundary. The CLI model has no GTK widget types. `service ping` and `service status` use the shared typed IPC client and return distinct IPC exit statuses without blocking GUI startup. `service systemd status` separately reports manager/unit state and makes a real Ping to identify discrepancies. systemd operations use fixed trusted executables and argument lists, bounded output/timeouts, and never invoke a shell. Future frontends must call the same Rust application services rather than duplicating Wine/Proton, optimizer, benchmark, or game-management behavior.
 
