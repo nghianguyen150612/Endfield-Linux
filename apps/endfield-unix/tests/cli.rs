@@ -35,7 +35,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
             "service systemd <install|uninstall|enable|disable|start|stop|restart|status>"
         )
     );
-    assert!(!stdout.contains("  game "));
+    assert!(stdout.contains("game <import|list|show|validate|remove-plan|remove>"));
     assert!(output.stderr.is_empty());
 }
 
