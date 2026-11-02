@@ -1,6 +1,6 @@
 # CLI commands
 
-`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Static CLI commands parse and format output without initializing GTK, creating a libadwaita application, connecting to a display server, creating config/database directories, opening SQLite, starting processes, contacting the network, or launching background workers. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, `diagnose runtimes`, `diagnose umu`, `diagnose telemetry cpu-memory`, and `diagnose telemetry frames` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Runtime discovery never executes UMU, Wine, or Proton and prints no absolute runtime paths. Frame import reads one explicitly named regular file and never searches for recordings. Hardware, display, telemetry, and runtime output is printed only for an explicit command and is not automatically persisted or exported. `service ping` and `service status` make bounded local Unix-socket requests and never start the daemon. P020's explicit `service systemd` operations manage the user service through fixed `systemctl --user` commands. P028's `prefix` command plans, creates, inspects, recovers, unregisters, or explicitly deletes Endfield-Unix-owned directories without Wine execution. See [IPC.md](IPC.md), [SYSTEMD-USER.md](SYSTEMD-USER.md), [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md), and [PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md).
+`endfield-unix` is one executable with native GTK4 GUI mode and headless command mode. Help, version, and about do not initialize GTK, create a libadwaita application, connect to a display server, create storage, open SQLite, start processes, contact the network, or launch workers. Other commands have operation-specific effects. `diagnose platform`, `diagnose hardware`, `diagnose gpu`, `diagnose display`, `diagnose runtimes`, `diagnose umu`, `diagnose telemetry cpu-memory`, and `diagnose telemetry frames` are separate read-only Linux commands; they avoid GTK, the daemon, and application storage. Runtime discovery never executes UMU, Wine, or Proton and prints no absolute runtime paths. Frame import reads one explicitly named regular file and never searches for recordings. Hardware, display, telemetry, and runtime output is printed only for an explicit command and is not automatically persisted or exported. P031's read-only `game` operations avoid GTK and the daemon; only explicitly approved import and unregister operations write the P031 application registry. `service ping` and `service status` make bounded local Unix-socket requests and never start the daemon. P020's explicit `service systemd` operations manage the user service through fixed `systemctl --user` commands. P028's `prefix` command plans, creates, inspects, recovers, unregisters, or explicitly deletes Endfield-Unix-owned directories without Wine execution. See [IPC.md](IPC.md), [SYSTEMD-USER.md](SYSTEMD-USER.md), [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md), [PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md), and [GAME-IMPORT.md](GAME-IMPORT.md).
 
 ## Available commands
 
@@ -23,6 +23,13 @@
 | `endfield-unix diagnose umu` | Inspect local UMU availability and Proton candidate count without execution | No |
 | `endfield-unix diagnose telemetry cpu-memory [--interval-ms MS]` | Sample CPU utilization and collect RAM, swap, cgroup memory, and optional current frequency | No |
 | `endfield-unix diagnose telemetry frames --input PATH [--format frame-events-v1|mangohud-csv]` | Import one selected frame recording and report only source-supported P015 metrics | No |
+| `endfield-unix game import plan --path PATH --id ID [--declare-endfield] [--json]` | Inspect one selected location and produce a read-only registration plan | No |
+| `endfield-unix game import apply --path PATH --id ID --declare-endfield --expected-revision REV --confirm TOKEN` | Register one selected location after exact approval | No |
+| `endfield-unix game list` | List registrations without absolute paths | No |
+| `endfield-unix game show --id ID` | Inspect one record and display its local selected path | No |
+| `endfield-unix game validate --id ID` | Revalidate the exact registered location without searching for a replacement | No |
+| `endfield-unix game remove-plan --id ID` | Plan metadata-only unregister | No |
+| `endfield-unix game remove --id ID --expected-revision REV --confirm TOKEN` | Remove only the P031 registry record | No |
 | `endfield-unix prefix list` | List managed prefixes and revalidate stored runtime associations | No |
 | `endfield-unix prefix show --id ID` | Inspect one managed prefix without mutation | No |
 | `endfield-unix prefix plan --id ID --scope machine|profile [--profile ID] [--expected-revision REV]` | Preflight managed storage and exact P027 runtime association | No |
@@ -38,7 +45,7 @@
 | `endfield-unix service systemd uninstall` | Remove verified installer-owned files after the unit is inactive | No |
 | `endfield-unix service systemd enable/disable/start/stop/restart/status` | Manage autostart/lifecycle or inspect unit state plus a separate live IPC Ping | No |
 
-Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, display/session discovery through `diagnose display`, installed Wine/Proton discovery through `diagnose runtimes`, and UMU integration discovery through `diagnose umu`. Runtime output is ephemeral and labels trust and compatibility as unverified. Frame telemetry is an explicit file import with canonical timestamped events by default; select `mangohud-csv` for supported MangoHud schema variants. Optimization and game services remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), [DISPLAY-LINUX.md](DISPLAY-LINUX.md), [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md), and [SYSTEMD-USER.md](SYSTEMD-USER.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, display/session discovery through `diagnose display`, installed Wine/Proton discovery through `diagnose runtimes`, and UMU integration discovery through `diagnose umu`. Runtime output is ephemeral and labels trust and compatibility as unverified. Frame telemetry is an explicit file import with canonical timestamped events by default; select `mangohud-csv` for supported MangoHud schema variants. P031 provides headless existing-location import only; game launch, runtime setup, optimization, and benchmarking remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), [DISPLAY-LINUX.md](DISPLAY-LINUX.md), [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md), [SYSTEMD-USER.md](SYSTEMD-USER.md), and [GAME-IMPORT.md](GAME-IMPORT.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -145,14 +152,14 @@ statuses 3–5 may have separate meanings for other command families. See
 
 ## Planned command namespaces
 
-The following namespaces are reserved for later work. The `diagnose`
+The `runtime`, `optimize`, `benchmark`, and `profile` namespaces are reserved
+for later work. The `diagnose`
 namespace implements safe report export, Linux platform/hardware/GPU/display
 inspection, and one-shot CPU/memory telemetry. `service ping` and
 `service status` check authenticated IPC; `service systemd` explicitly manages
 the optional Linux user service.
 
 ```text
-endfield-unix game ...
 endfield-unix runtime ...
 endfield-unix optimize ...
 endfield-unix benchmark ...
@@ -254,3 +261,26 @@ P029B also adds read-only `prefix backup deletion-plan --backup-id ID` and `pref
 ## P030 compatibility diagnostics
 
 `endfield-unix diagnose compatibility [--profile PROFILE_ID] [--prefix-id PREFIX_ID] [--json]` emits a bounded read-only assessment using the actual CLI parser and dispatch. It runs headless without the daemon. `--profile` follows P027 machine/profile precedence; a stale profile pin blocks fallback. `--prefix-id` inspects exactly one registered managed prefix. `--json` selects schema v1; successful partial reports exit 0, invalid arguments exit 2, output errors exit 74, and serialization/limit failures exit 70. Static findings are not game-compatibility results. See [COMPATIBILITY-DIAGNOSTICS.md](COMPATIBILITY-DIAGNOSTICS.md) for the report and privacy contract.
+
+## P031 game-location import
+
+The canonical `game` command family registers one explicitly selected
+directory. `game import plan --path PATH --id ID [--declare-endfield] [--json]`
+is read-only and prints the exact confirmation required by apply. Without
+`--declare-endfield`, the plan is not registerable. Apply repeats that flag and
+requires `--expected-revision REV --confirm TOKEN`. Use `game list` to see
+registered IDs without paths; `game show --id ID` and `game validate --id ID`
+display the selected local path and unverified identity state.
+`game remove-plan --id ID` prints the current revision and exact token;
+`game remove --id ID --expected-revision REV --confirm TOKEN` removes only the
+application record. All commands are headless and do not contact the daemon.
+
+Plan/apply/show/validate/remove-plan JSON uses schema version 1. A successful
+plan or mutation exits 0; invalid IDs/paths, missing declarations, or wrong
+tokens exit 2; missing, empty, or unreadable locations exit 3; revision and
+duplicate conflicts exit 4; storage/corruption/recovery failures exit 70;
+I/O publication failures exit 74; unsupported identity, filesystem, or
+bounded-inspection cases exit 78. A blocked plan still prints its findings
+before returning the typed nonzero status. `game list` omits absolute paths;
+explicit local plan/show/validate/remove-plan output includes the path and is
+not automatically logged or exported. See [GAME-IMPORT.md](GAME-IMPORT.md).
