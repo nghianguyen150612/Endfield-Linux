@@ -105,6 +105,7 @@ pub enum CliError {
     RuntimeDiscoveryFailed,
     RuntimeVerification(u8),
     RuntimeDiscoveryUnsupported,
+    Compatibility(super::compatibility::CompatibilityError),
     Systemd(super::systemd::SystemdError),
 }
 
@@ -177,6 +178,7 @@ impl CliError {
             Self::RuntimeDiscovery(_) => EXIT_INVALID_ARGUMENTS,
             Self::RuntimeDiscoveryFailed => EXIT_PLATFORM_PROBE_FAILED,
             Self::RuntimeDiscoveryUnsupported => EXIT_PLATFORM_UNSUPPORTED,
+            Self::Compatibility(error) => error.exit_status(),
             Self::Systemd(_) => EXIT_SYSTEMD_ERROR,
         }
     }
@@ -227,6 +229,7 @@ impl fmt::Display for CliError {
             Self::RuntimeDiscoveryUnsupported => {
                 formatter.write_str("Linux runtime discovery is not supported on this platform.")
             }
+            Self::Compatibility(error) => fmt::Display::fmt(error, formatter),
             Self::Systemd(error) => fmt::Display::fmt(error, formatter),
         }
     }
@@ -252,6 +255,7 @@ impl Error for CliError {
             Self::RuntimeDiscovery(_) => None,
             Self::RuntimeDiscoveryFailed => None,
             Self::RuntimeDiscoveryUnsupported => None,
+            Self::Compatibility(error) => Some(error),
             Self::Systemd(error) => Some(error),
         }
     }
@@ -544,6 +548,12 @@ where
                 .map_err(CliError::DisplayProbe)?;
             output::write_display_report(&report, stdout).map_err(CliError::Output)
         }
+        Command::DiagnoseCompatibility {
+            profile,
+            prefix_id,
+            json,
+        } => super::compatibility::run(profile, prefix_id, json, stdout)
+            .map_err(CliError::Compatibility),
         Command::DiagnoseRuntimes { family, roots } => {
             if !cfg!(target_os = "linux") {
                 return Err(CliError::RuntimeDiscoveryUnsupported);

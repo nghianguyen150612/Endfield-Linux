@@ -136,7 +136,7 @@ pub use telemetry_probe::{
 };
 pub use vulkan::{
     SystemVulkanBackend, VulkanBackend, VulkanDeviceType, VulkanDriverIdentity, VulkanFacts,
-    VulkanLoaderStatus, VulkanPhysicalDevice,
+    VulkanLoaderStatus, VulkanMetadataStatus, VulkanPhysicalDevice,
 };
 pub use wayland::{SystemWaylandBackend, WaylandDisplayBackend};
 pub use x11::{SystemX11Backend, X11DisplayBackend};

@@ -255,3 +255,6 @@ P025 now provides local tar.gz installation with P024 artifact verification, a d
 ## P027 selection boundary
 
 P022 inventory remains read-only and never changes saved pins. `diagnose runtimes` prints an opaque candidate ID for an explicit follow-up `runtime pin set-external`. The ID is not persisted as the runtime identity. The pin stores the candidate's canonical location and P022 structural snapshot and rechecks that exact location at resolution. This snapshot is not a full payload hash or integrity audit, and discovery source labels do not authenticate a publisher. Missing or changed external candidates make the pin stale and block fallback.
+## P030 selected-runner assessment
+
+P030 consumes the exact P027 selection and calls the existing managed P025/P026 or external P022 revalidation path. It does not execute a candidate or substitute another discovered runtime. External P022 structural identity is not a complete integrity or authenticity assessment. See [runtime pinning](RUNTIME-PINNING.md) and [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).

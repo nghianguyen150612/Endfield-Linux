@@ -500,6 +500,79 @@ impl BackupStore {
         Ok(reports)
     }
 
+    /// Detect pending deletion transactions for one source prefix using only
+    /// bounded intent metadata. This intentionally does not call
+    /// `deletion_plan`, which validates and hashes snapshot payload entries.
+    pub(super) fn compatibility_deletion_pending_for_prefix(
+        &self,
+        prefix: &PrefixId,
+    ) -> Result<bool, BackupError> {
+        const MAX_JOURNALS: usize = 64;
+        const MAX_INTENT_BYTES: usize = 512 * 1024;
+        const MAX_TOTAL_BYTES: usize = 2 * 1024 * 1024;
+
+        let Some(root) = self.sub("deletion-journals", false)? else {
+            return Ok(false);
+        };
+        let journal_names = names(&root)?;
+        if journal_names.len() > MAX_JOURNALS {
+            return Err(BackupError::Quota);
+        }
+        let mut bytes_read = 0usize;
+        for name in journal_names {
+            let backup = BackupId::new(name)?;
+            let Some(tx) = get_dir(&root, backup.as_str())? else {
+                return Err(BackupError::RecoveryBlocked);
+            };
+            let entries = names(&tx)?;
+            if entries.is_empty()
+                || entries.iter().any(|entry| {
+                    !["intent.json", "clearing.json", "completed.json"].contains(&entry.as_str())
+                })
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let intent_file = open_at(&tx, "intent.json", libc::O_RDONLY, 0)?;
+            verify_private_file(&intent_file)?;
+            let metadata_bytes = intent_file.metadata()?.len();
+            if metadata_bytes > MAX_INTENT_BYTES as u64 {
+                return Err(BackupError::Quota);
+            }
+            bytes_read = bytes_read
+                .checked_add(metadata_bytes as usize)
+                .ok_or(BackupError::Quota)?;
+            if bytes_read > MAX_TOTAL_BYTES {
+                return Err(BackupError::Quota);
+            }
+            let bytes = read_bounded(intent_file, MAX_INTENT_BYTES)?;
+            let envelope: DeletionEnvelope =
+                serde_json::from_slice(&bytes).map_err(|_| BackupError::RecoveryBlocked)?;
+            if intent_checksum(&envelope.body)? != envelope.checksum_sha256 {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            validate_intent(&envelope.body, &backup)?;
+
+            let clearing = has_file(&tx, "clearing.json")?;
+            let completed = has_file(&tx, "completed.json")?;
+            if clearing
+                && read_json::<FilesystemIdentity>(&tx, "clearing.json")? != envelope.body.root
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            if completed
+                && (!clearing
+                    || read_json::<FilesystemIdentity>(&tx, "completed.json")?
+                        != envelope.body.root)
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            if envelope.body.source.id == *prefix && !completed {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn deletion_plan(&self, id: &BackupId) -> Result<DeletionRecoveryPlan, BackupError> {
         BackupId::new(id.as_str())?;
         let journal_root = self

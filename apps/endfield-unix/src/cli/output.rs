@@ -1646,6 +1646,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
+        "  diagnose compatibility [--profile ID] [--prefix-id ID] [--json]  Explain selected runtime, driver, Vulkan, and prefix evidence"
+    )?;
+    writeln!(
+        output,
         "  diagnose runtimes [--family wine|proton] [--root PATH]  Discover local Wine and Proton files read-only"
     )?;
     writeln!(
@@ -1734,11 +1738,15 @@ fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>\nUsage: {APPLICATION_NAME} runtime <install|list-managed|audit|audit-source>\n"
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|compatibility|runtimes|umu|runtime-integrity|telemetry>\nUsage: {APPLICATION_NAME} runtime <install|list-managed|audit|audit-source>\n"
     )?;
     writeln!(
         output,
-        "Platform, hardware, GPU, display, runtime discovery, and live telemetry run without GTK or the daemon. Runtime discovery is read-only and never executes Wine or Proton."
+        "Platform, hardware, GPU, display, compatibility, runtime discovery, and live telemetry run without GTK or the daemon. Compatibility diagnostics inspect only the selected P027 runner and an optional registered managed prefix; they never execute Wine, Proton, UMU, or the game."
+    )?;
+    writeln!(
+        output,
+        "Compatibility: {APPLICATION_NAME} diagnose compatibility [--profile PROFILE_ID] [--prefix-id PREFIX_ID] [--json]. Static observations do not prove game launch or rendering."
     )?;
     writeln!(
         output,
@@ -2151,7 +2159,8 @@ mod tests {
             LinuxHardwareCompleteness, LinuxHardwareReport, LinuxMemoryFacts, LinuxVulkanDevice,
             PciGraphicsDevice, QueryAvailability, RuntimeDirectoryAssessment,
             RuntimeDirectoryStatus, RuntimeEnvironmentFacts, SchedulingFacts, VulkanDeviceType,
-            VulkanDriverIdentity, VulkanLoaderStatus, VulkanMapping, VulkanPhysicalDevice,
+            VulkanDriverIdentity, VulkanLoaderStatus, VulkanMapping, VulkanMetadataStatus,
+            VulkanPhysicalDevice,
         };
         use endfield_unix_platform_linux::{
             EnvironmentClassification, EnvironmentConfidence, EnvironmentStatus,
@@ -2270,9 +2279,14 @@ mod tests {
                 driver_identity: Some(VulkanDriverIdentity {
                     driver_id: 13,
                     name: "Mesa lavapipe".to_owned(),
+                    driver_info: None,
                 }),
                 device_type: VulkanDeviceType::Cpu,
                 api_version: Some((1, 3, 0)),
+                supported_extensions: Vec::new(),
+                extensions_status: VulkanMetadataStatus::Unavailable,
+                supported_features: Vec::new(),
+                features_status: VulkanMetadataStatus::Available,
                 device_local_heap_bytes: vec![1_073_741_824],
             },
             mapping: VulkanMapping::Unmatched,

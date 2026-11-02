@@ -262,7 +262,7 @@ pub struct RecoveryHistoryEntry {
     pub preserved_identity: FilesystemIdentity,
     pub validation: &'static str,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum PinRecoveryState {
     Pending,
     Completed,
@@ -279,6 +279,33 @@ pub struct PinRecoveryEntry {
 pub struct RecoveryReport {
     pub action: RecoveryAction,
     pub original_preserved: bool,
+}
+
+/// Journal state inspected for P030 without hashing, traversing, or reading
+/// any managed prefix payload bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompatibilityRecoveryState {
+    None,
+    IntentOnly,
+    Staged,
+    PublishedPending,
+    Completed,
+    RollbackPending,
+    RollbackCompleted,
+    IncompleteOrInconsistent,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompatibilityRecoveryObservation {
+    pub restore_state: CompatibilityRecoveryState,
+    pub pending_deletion: bool,
+    pub pending_pin_recovery: bool,
+    pub diagnostic: Option<&'static str>,
+}
+
+struct RestoreCompatibilityObservation {
+    restore_state: CompatibilityRecoveryState,
+    diagnostic: Option<&'static str>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1484,6 +1511,374 @@ impl BackupStore {
         })
     }
 
+    /// Observe P029 restore and rollback markers using only bounded metadata
+    /// reads and directory identities. This API deliberately does not call
+    /// `verify`, `scan`, `rollback_plan`, or any prefix-content reader.
+    fn restore_compatibility_recovery_observation(
+        &self,
+        id: &PrefixId,
+    ) -> Result<RestoreCompatibilityObservation, BackupError> {
+        let Some(tx) = self.transaction_dir(id, false)? else {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: CompatibilityRecoveryState::None,
+                diagnostic: None,
+            });
+        };
+        let entries = names(&tx)?;
+        let allowed = [
+            "intent.json",
+            "staged.json",
+            "payload",
+            "completed.json",
+            "rollback-intent.json",
+            "rollback-completed.json",
+        ];
+        if entries.len() > allowed.len()
+            || entries
+                .iter()
+                .any(|entry| !allowed.contains(&entry.as_str()))
+        {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                diagnostic: Some("restore transaction contains unexpected or excessive entries"),
+            });
+        }
+        let Some(intent) = entries.iter().find(|name| name.as_str() == "intent.json") else {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                diagnostic: Some("restore transaction is missing its intent metadata"),
+            });
+        };
+        let _ = intent;
+        let original: PrefixRecord = match read_json(&tx, "intent.json") {
+            Ok(record) => record,
+            Err(_) => {
+                return Ok(RestoreCompatibilityObservation {
+                    restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                    diagnostic: Some("restore intent metadata is unreadable or malformed"),
+                });
+            }
+        };
+        if original.id != *id || original.validate().is_err() {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                diagnostic: Some("restore intent metadata does not match the registered prefix"),
+            });
+        }
+        let has_staged = entries.iter().any(|name| name == "staged.json");
+        if !has_staged {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: if entries.len() == 1 {
+                    CompatibilityRecoveryState::IntentOnly
+                } else {
+                    CompatibilityRecoveryState::IncompleteOrInconsistent
+                },
+                diagnostic: Some("restore intent exists without a complete staged journal"),
+            });
+        }
+        let journal: RestoreTransaction = match read_json(&tx, "staged.json") {
+            Ok(journal) => journal,
+            Err(_) => {
+                return Ok(RestoreCompatibilityObservation {
+                    restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                    diagnostic: Some("restore journal metadata is unreadable or malformed"),
+                });
+            }
+        };
+        if journal.original.id != *id
+            || journal.original != original
+            || !matches!(journal.schema_version, 1 | 2)
+            || (journal.schema_version == 1 && journal.original_inventory.is_some())
+            || (journal.schema_version == 2 && journal.original_inventory.is_none())
+            || journal
+                .original_inventory
+                .as_ref()
+                .is_some_and(|entries| total(entries).is_err())
+            || journal.expected_revision.checked_add(1).is_none()
+        {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                diagnostic: Some("restore journal identity or version is inconsistent"),
+            });
+        }
+        let rollback_intent = entries.iter().any(|name| name == "rollback-intent.json");
+        let rollback_completed = entries.iter().any(|name| name == "rollback-completed.json");
+        let completed = entries.iter().any(|name| name == "completed.json");
+        if rollback_completed && !rollback_intent || rollback_intent && completed {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                diagnostic: Some("restore rollback markers conflict"),
+            });
+        }
+        let live = self.fs.inspect_directory(id)?;
+        let payload = child_dir(&tx, OsStr::new("payload"), false)?;
+        let payload_identity = payload.as_ref().map(identity).transpose()?;
+        if payload
+            .as_ref()
+            .is_some_and(|payload| mount_id(payload).ok() != mount_id(&tx).ok())
+            || payload_identity.is_some_and(|identity| identity.device != journal.staged.device)
+            || journal
+                .original
+                .filesystem_identity
+                .is_none_or(|identity| identity.device != journal.staged.device)
+        {
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                diagnostic: Some("restore directory identities or mount are inconsistent"),
+            });
+        }
+        if rollback_intent {
+            let expected = format!(
+                "rollback:{}:{}:{}:{}",
+                id.as_str(),
+                journal.backup.as_str(),
+                journal
+                    .original
+                    .filesystem_identity
+                    .map_or(0, |identity| identity.inode),
+                journal.staged.inode
+            );
+            let recorded: String = match read_json(&tx, "rollback-intent.json") {
+                Ok(value) => value,
+                Err(_) => {
+                    return Ok(RestoreCompatibilityObservation {
+                        restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                        diagnostic: Some("rollback intent metadata is unreadable"),
+                    });
+                }
+            };
+            if recorded != expected {
+                return Ok(RestoreCompatibilityObservation {
+                    restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                    diagnostic: Some("rollback intent does not match the restore identities"),
+                });
+            }
+            if rollback_completed {
+                let marker: String = match read_json(&tx, "rollback-completed.json") {
+                    Ok(value) => value,
+                    Err(_) => {
+                        return Ok(RestoreCompatibilityObservation {
+                            restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                            diagnostic: Some("rollback completion metadata is unreadable"),
+                        });
+                    }
+                };
+                let registry = self.prefixes.load_snapshot()?.registry;
+                let old = journal.original.filesystem_identity;
+                let valid = marker == expected
+                    && live == old
+                    && payload_identity == Some(journal.staged)
+                    && registry.record(id) == Some(&journal.original);
+                return Ok(RestoreCompatibilityObservation {
+                    restore_state: if valid {
+                        CompatibilityRecoveryState::RollbackCompleted
+                    } else {
+                        CompatibilityRecoveryState::IncompleteOrInconsistent
+                    },
+                    diagnostic: if valid {
+                        None
+                    } else {
+                        Some(
+                            "rollback completion evidence does not match current directory and registry identities",
+                        )
+                    },
+                });
+            }
+            let old = journal.original.filesystem_identity;
+            let before_exchange = live == Some(journal.staged) && payload_identity == old;
+            let after_exchange = live == old && payload_identity == Some(journal.staged);
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: if before_exchange || after_exchange {
+                    CompatibilityRecoveryState::RollbackPending
+                } else {
+                    CompatibilityRecoveryState::IncompleteOrInconsistent
+                },
+                diagnostic: if before_exchange || after_exchange {
+                    Some("rollback intent is pending explicit recovery")
+                } else {
+                    Some("rollback directory identities do not match the journal")
+                },
+            });
+        }
+        let old = journal.original.filesystem_identity;
+        if completed {
+            let marker: FilesystemIdentity = match read_json(&tx, "completed.json") {
+                Ok(value) => value,
+                Err(_) => {
+                    return Ok(RestoreCompatibilityObservation {
+                        restore_state: CompatibilityRecoveryState::IncompleteOrInconsistent,
+                        diagnostic: Some("restore completion metadata is unreadable"),
+                    });
+                }
+            };
+            let registry = self.prefixes.load_snapshot()?.registry;
+            let valid = marker == journal.staged
+                && live == Some(journal.staged)
+                && payload_identity == old
+                && registry.revision == journal.expected_revision.saturating_add(1)
+                && registry
+                    .record(id)
+                    .is_some_and(|record| record.filesystem_identity == Some(journal.staged));
+            return Ok(RestoreCompatibilityObservation {
+                restore_state: if valid {
+                    CompatibilityRecoveryState::Completed
+                } else {
+                    CompatibilityRecoveryState::IncompleteOrInconsistent
+                },
+                diagnostic: if valid {
+                    None
+                } else {
+                    Some("restore completion evidence does not match current metadata identities")
+                },
+            });
+        }
+        let staged_unpublished = live == old && payload_identity == Some(journal.staged);
+        let published_pending = live == Some(journal.staged) && payload_identity == old;
+        Ok(RestoreCompatibilityObservation {
+            restore_state: if staged_unpublished {
+                CompatibilityRecoveryState::Staged
+            } else if published_pending {
+                CompatibilityRecoveryState::PublishedPending
+            } else {
+                CompatibilityRecoveryState::IncompleteOrInconsistent
+            },
+            diagnostic: if staged_unpublished {
+                Some("staged restore is pending explicit recovery")
+            } else if published_pending {
+                Some("published restore is pending registry finalization")
+            } else {
+                Some("restore identities do not match the registered prefix")
+            },
+        })
+    }
+
+    /// Observe P029 recovery metadata relevant to one registered prefix. This
+    /// combines restore/rollback markers with pending snapshot-deletion and
+    /// P027 pin-recovery markers. The additional observations read bounded
+    /// journal metadata only; they never verify or traverse snapshot payloads.
+    pub fn compatibility_recovery_observation(
+        &self,
+        id: &PrefixId,
+    ) -> Result<CompatibilityRecoveryObservation, BackupError> {
+        let restore = self.restore_compatibility_recovery_observation(id)?;
+        let pending_deletion = self.compatibility_deletion_pending_for_prefix(id)?;
+        let pending_pin_recovery = self.compatibility_pin_recovery_pending_for_prefix(id)?;
+        let restore_pending = !matches!(
+            restore.restore_state,
+            CompatibilityRecoveryState::None
+                | CompatibilityRecoveryState::Completed
+                | CompatibilityRecoveryState::RollbackCompleted
+        );
+        let diagnostic = match (restore_pending, pending_deletion, pending_pin_recovery) {
+            (true, true, true) => Some(
+                "restore/rollback, snapshot deletion, and P027 pin recovery markers need review",
+            ),
+            (true, true, false) => {
+                Some("restore/rollback and snapshot deletion recovery markers need review")
+            }
+            (true, false, true) => {
+                Some("restore/rollback and P027 pin recovery markers need review")
+            }
+            (true, false, false) => restore.diagnostic,
+            (false, true, true) => {
+                Some("snapshot deletion and P027 pin recovery markers are pending")
+            }
+            (false, true, false) => Some("snapshot deletion recovery is pending"),
+            (false, false, true) => {
+                Some("P027 pin recovery is pending for the selected prefix scope")
+            }
+            (false, false, false) => restore.diagnostic,
+        };
+        Ok(CompatibilityRecoveryObservation {
+            restore_state: restore.restore_state,
+            pending_deletion,
+            pending_pin_recovery,
+            diagnostic,
+        })
+    }
+
+    fn compatibility_pin_recovery_pending_for_prefix(
+        &self,
+        id: &PrefixId,
+    ) -> Result<bool, BackupError> {
+        let snapshot = self.prefixes.load_snapshot()?;
+        let Some(record) = snapshot.registry.record(id) else {
+            return Ok(false);
+        };
+        const MAX_JOURNALS: usize = 64;
+        const MAX_PIN_METADATA_BYTES: usize = 64 * 1024;
+        const MAX_MARKER_BYTES: usize = 64;
+
+        let Some(root) = self.sub("pin-recovery", false)? else {
+            return Ok(false);
+        };
+        let journal_names = names(&root)?;
+        if journal_names.len() > MAX_JOURNALS {
+            return Err(BackupError::Quota);
+        }
+        for name in journal_names {
+            let (backup, revision) = name.rsplit_once('-').ok_or(BackupError::RecoveryBlocked)?;
+            let backup = BackupId::new(backup)?;
+            let expected_revision: u64 =
+                revision.parse().map_err(|_| BackupError::RecoveryBlocked)?;
+            if name != format!("{}-{expected_revision}", backup.as_str()) {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let dir =
+                child_dir(&root, OsStr::new(&name), false)?.ok_or(BackupError::RecoveryBlocked)?;
+            verify_private_dir(&dir)?;
+            if mount_id(&dir)? != mount_id(&root)? {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let entries = names(&dir)?;
+            if !entries.iter().any(|entry| entry == "intent.json")
+                || entries
+                    .iter()
+                    .any(|entry| !["intent.json", "completed.json"].contains(&entry.as_str()))
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let pin: endfield_unix_runtime_selection::RuntimePin =
+                read_json_limited(&dir, "intent.json", MAX_PIN_METADATA_BYTES)?;
+            if pin.created_at_unix_seconds > pin.updated_at_unix_seconds
+                || endfield_unix_runtime_selection::RuntimePin::new(
+                    pin.pin_id.clone(),
+                    pin.scope.clone(),
+                    pin.runtime.clone(),
+                    pin.adapter_preference,
+                    pin.updated_at_unix_seconds,
+                )
+                .is_err()
+            {
+                return Err(BackupError::RecoveryBlocked);
+            }
+            let scope = match pin.scope {
+                endfield_unix_runtime_selection::RuntimePinScope::Machine { machine } => {
+                    crate::MachineId::from_digest(machine.as_str())
+                        .map_err(|_| PrefixError::InvalidScope)?;
+                    PrefixScope::machine(machine)
+                }
+                endfield_unix_runtime_selection::RuntimePinScope::Profile { machine, profile } => {
+                    crate::MachineId::from_digest(machine.as_str())
+                        .map_err(|_| PrefixError::InvalidScope)?;
+                    crate::ProfileKey::new(profile.as_str())
+                        .map_err(|_| PrefixError::InvalidScope)?;
+                    PrefixScope::profile(machine, profile)
+                }
+            };
+            let completed = has_file(&dir, "completed.json")?;
+            if completed {
+                let revision: u64 = read_json_limited(&dir, "completed.json", MAX_MARKER_BYTES)?;
+                if Some(revision) != expected_revision.checked_add(1) {
+                    return Err(BackupError::RecoveryBlocked);
+                }
+            } else if scope == record.scope {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn recover(
         &self,
         id: &PrefixId,
@@ -1785,6 +2180,16 @@ fn read_json<T: serde::de::DeserializeOwned>(parent: &File, name: &str) -> Resul
     serde_json::from_slice(&read_bounded(f, MAX_METADATA)?)
         .map_err(|_| BackupError::Integrity(BackupIntegrity::Corrupt))
 }
+fn read_json_limited<T: serde::de::DeserializeOwned>(
+    parent: &File,
+    name: &str,
+    limit: usize,
+) -> Result<T, BackupError> {
+    let f = open_at(parent, name, libc::O_RDONLY, 0)?;
+    verify_private_file(&f)?;
+    serde_json::from_slice(&read_bounded(f, limit)?)
+        .map_err(|_| BackupError::Integrity(BackupIntegrity::Corrupt))
+}
 fn has_file(parent: &File, name: &str) -> Result<bool, BackupError> {
     match open_at(parent, name, libc::O_RDONLY, 0) {
         Ok(f) => {
@@ -1998,6 +2403,118 @@ mod tests {
                 b.verify(&id, &scope).unwrap();
             }
         }
+    }
+
+    #[test]
+    fn compatibility_recovery_observation_uses_metadata_and_directory_identity_only() {
+        let (_tmp, mut b, id, scope, revision) = fixture();
+        fs::write(b.fs.target_path(&id).join("save"), b"keep private").unwrap();
+        let snapshot = b.create(&id, &scope, revision, true).unwrap();
+        let plan = b.restore_plan(&id, &snapshot.id, &scope).unwrap();
+        b.fault = Some("restore-staged");
+        assert!(
+            b.restore(&id, &snapshot.id, &scope, revision, &plan.confirmation)
+                .is_err()
+        );
+        b.fault = None;
+
+        // An unsupported link in the selected prefix proves this observer
+        // does not enumerate or hash arbitrary prefix entries.
+        symlink("/etc/passwd", b.fs.target_path(&id).join("unrelated-link")).unwrap();
+        let observation = b.compatibility_recovery_observation(&id).unwrap();
+        assert_eq!(
+            observation.restore_state,
+            CompatibilityRecoveryState::Staged
+        );
+        assert!(observation.diagnostic.is_some());
+        assert_eq!(
+            fs::read(b.fs.target_path(&id).join("save")).unwrap(),
+            b"keep private"
+        );
+    }
+
+    #[test]
+    fn compatibility_recovery_observation_reports_pending_rollback_without_payload_reads() {
+        let (_tmp, mut b, id, scope, revision) = fixture();
+        fs::write(b.fs.target_path(&id).join("save"), b"original").unwrap();
+        let snapshot = b.create(&id, &scope, revision, true).unwrap();
+        let plan = b.restore_plan(&id, &snapshot.id, &scope).unwrap();
+        b.fault = Some("restore-published");
+        assert!(
+            b.restore(&id, &snapshot.id, &scope, revision, &plan.confirmation)
+                .is_err()
+        );
+        b.fault = None;
+        let rollback = b.rollback_plan(&id, &scope).unwrap();
+        b.fault = Some("rollback-intent");
+        assert!(
+            b.rollback(&id, &scope, revision, &rollback.confirmation)
+                .is_err()
+        );
+        b.fault = None;
+        let observation = b.compatibility_recovery_observation(&id).unwrap();
+        assert_eq!(
+            observation.restore_state,
+            CompatibilityRecoveryState::RollbackPending
+        );
+    }
+
+    #[test]
+    fn compatibility_recovery_observation_reports_pending_snapshot_deletion() {
+        let (_tmp, mut b, id, scope, revision) = fixture();
+        let snapshot = b.create(&id, &scope, revision, true).unwrap();
+        b.fault = Some("delete-retired");
+        assert!(
+            b.delete(
+                &snapshot.id,
+                &scope,
+                &format!("delete:{}", snapshot.id.as_str())
+            )
+            .is_err()
+        );
+        b.fault = None;
+
+        // The observer must not walk or hash this unrelated prefix payload.
+        symlink("/etc/passwd", b.fs.target_path(&id).join("unrelated-link")).unwrap();
+        let observation = b.compatibility_recovery_observation(&id).unwrap();
+        assert_eq!(observation.restore_state, CompatibilityRecoveryState::None);
+        assert!(observation.pending_deletion);
+        assert!(!observation.pending_pin_recovery);
+        assert_eq!(
+            observation.diagnostic,
+            Some("snapshot deletion recovery is pending")
+        );
+    }
+
+    #[test]
+    fn compatibility_recovery_observation_reports_pending_pin_recovery() {
+        let (tmp, mut b, id, scope, revision) = fixture();
+        let snapshot = b.create(&id, &scope, revision, true).unwrap();
+        let pins = endfield_unix_runtime_selection::PinStore::new(
+            tmp.path().join("pins/runtime-pins.json"),
+        );
+        b.fault = Some("pin-intent");
+        assert!(
+            b.restore_pin(
+                &snapshot.id,
+                &scope,
+                &pins,
+                0,
+                &format!("pin:{}", snapshot.id.as_str()),
+                |_| Ok(()),
+            )
+            .is_err()
+        );
+        b.fault = None;
+
+        let observation = b.compatibility_recovery_observation(&id).unwrap();
+        assert_eq!(observation.restore_state, CompatibilityRecoveryState::None);
+        assert!(!observation.pending_deletion);
+        assert!(observation.pending_pin_recovery);
+        assert_eq!(
+            observation.diagnostic,
+            Some("P027 pin recovery is pending for the selected prefix scope")
+        );
     }
 }
 

@@ -878,6 +878,10 @@ mod tests {
                     driver_identity: None,
                     device_type: VulkanDeviceType::Integrated,
                     api_version: Some((1, 3, 0)),
+                    supported_extensions: Vec::new(),
+                    extensions_status: crate::VulkanMetadataStatus::Unavailable,
+                    supported_features: Vec::new(),
+                    features_status: crate::VulkanMetadataStatus::Available,
                     device_local_heap_bytes: Vec::new(),
                 }],
             }

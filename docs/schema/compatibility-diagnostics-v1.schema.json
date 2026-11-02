@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nghianguyen150612/Endfield-Linux/blob/main/docs/schema/compatibility-diagnostics-v1.schema.json",
+  "title": "Endfield-Unix compatibility diagnostics report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observed_at_unix_seconds", "target", "platform", "runner", "gpu_inventory_state", "drm_inventory_state", "drivers", "unmatched_drm_nodes", "vulkan", "translation_layer_readiness", "prefix", "verdict", "game_compatibility", "findings", "compatibility_limitations"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "observed_at_unix_seconds": { "type": "integer", "minimum": 0 },
+    "target": { "$ref": "#/$defs/target" },
+    "platform": { "$ref": "#/$defs/platform" },
+    "runner": { "$ref": "#/$defs/runner" },
+    "gpu_inventory_state": { "$ref": "#/$defs/state" },
+    "drm_inventory_state": { "$ref": "#/$defs/state" },
+    "drivers": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/driver" } },
+    "unmatched_drm_nodes": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/drm_node" } },
+    "vulkan": { "$ref": "#/$defs/vulkan" },
+    "translation_layer_readiness": { "$ref": "#/$defs/state" },
+    "prefix": { "oneOf": [{ "$ref": "#/$defs/prefix" }, { "type": "null" }] },
+    "verdict": { "enum": ["no_known_static_blocker", "blocked_by_observed_facts", "incomplete_observations", "unknown"] },
+    "game_compatibility": { "const": "not_tested" },
+    "findings": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/finding" } },
+    "compatibility_limitations": { "type": "array", "items": { "type": "string", "maxLength": 512 } }
+  },
+  "$defs": {
+    "state": { "enum": ["verified_observation", "static_capability_available", "missing_requirement", "unsupported_configuration", "stale_or_inconsistent", "access_denied", "partial_observation", "unknown_or_unverifiable", "not_tested", "not_applicable"] },
+    "target": {
+      "type": "object", "additionalProperties": false,
+      "required": ["game", "profile_scope", "prefix_id"],
+      "properties": {
+        "game": { "type": "string", "maxLength": 128 },
+        "profile_scope": { "type": ["string", "null"], "maxLength": 128 },
+        "prefix_id": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    },
+    "platform": {
+      "type": "object", "additionalProperties": false,
+      "required": ["os", "distribution", "distribution_version", "kernel_release", "architecture", "environment"],
+      "properties": {
+        "os": { "type": "string", "maxLength": 64 },
+        "distribution": { "type": ["string", "null"], "maxLength": 128 },
+        "distribution_version": { "type": ["string", "null"], "maxLength": 64 },
+        "kernel_release": { "type": ["string", "null"], "maxLength": 128 },
+        "architecture": { "type": ["string", "null"], "maxLength": 64 },
+        "environment": { "type": ["string", "null"], "maxLength": 64 }
+      }
+    },
+    "selection_state": { "enum": ["selected", "no_selection", "stale", "unknown"] },
+    "runner_family": { "enum": ["wine", "proton", "unknown"] },
+    "runtime_origin": { "enum": ["managed", "external"] },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["exact_identity", "family", "build", "origin", "ownership", "provenance", "source"],
+      "properties": {
+        "exact_identity": { "type": "string", "maxLength": 512 },
+        "family": { "$ref": "#/$defs/runner_family" },
+        "build": { "type": ["string", "null"], "maxLength": 160 },
+        "origin": { "$ref": "#/$defs/runtime_origin" },
+        "ownership": { "type": "string", "maxLength": 128 },
+        "provenance": { "type": "string", "maxLength": 128 },
+        "source": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "selection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "source", "pin_id", "pin_revision", "registry_revision", "automatic_fallback", "diagnostic"],
+      "properties": {
+        "state": { "$ref": "#/$defs/selection_state" },
+        "source": { "type": ["string", "null"], "maxLength": 64 },
+        "pin_id": { "type": ["string", "null"], "maxLength": 128 },
+        "pin_revision": { "type": ["integer", "null"], "minimum": 0 },
+        "registry_revision": { "type": ["integer", "null"], "minimum": 0 },
+        "automatic_fallback": { "const": false },
+        "diagnostic": { "type": ["string", "null"], "maxLength": 256 }
+      }
+    },
+    "runner": {
+      "type": "object", "additionalProperties": false,
+      "required": ["selection", "runtime", "installation_state", "identity_state", "integrity_state", "adapter_preference", "adapter_state", "adapter_diagnostic"],
+      "properties": {
+        "selection": { "$ref": "#/$defs/selection" },
+        "runtime": { "oneOf": [{ "$ref": "#/$defs/runtime" }, { "type": "null" }] },
+        "installation_state": { "$ref": "#/$defs/state" },
+        "identity_state": { "$ref": "#/$defs/state" },
+        "integrity_state": { "$ref": "#/$defs/state" },
+        "adapter_preference": { "type": ["string", "null"], "maxLength": 64 },
+        "adapter_state": { "$ref": "#/$defs/state" },
+        "adapter_diagnostic": { "type": ["string", "null"], "maxLength": 512 }
+      }
+    },
+    "correlation": { "enum": ["exact_pci_identity", "ambiguous_pci_identity", "conflicting_pci_identity", "unmatched", "not_applicable", "unknown"] },
+    "node_access": { "enum": ["accessible", "denied", "missing", "unknown"] },
+    "driver": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pci_bdf", "vendor_id", "device_id", "vendor", "gpu_class", "kernel_driver", "kernel_driver_state", "kernel_driver_version", "drm_nodes", "vulkan_correlation"],
+      "properties": {
+        "pci_bdf": { "type": "string", "maxLength": 16 },
+        "vendor_id": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "device_id": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "vendor": { "type": "string", "maxLength": 64 },
+        "gpu_class": { "type": ["string", "null"], "maxLength": 32 },
+        "kernel_driver": { "type": ["string", "null"], "maxLength": 128 },
+        "kernel_driver_state": { "$ref": "#/$defs/state" },
+        "kernel_driver_version": { "type": ["string", "null"], "maxLength": 128 },
+        "drm_nodes": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/drm_node" } },
+        "vulkan_correlation": { "$ref": "#/$defs/correlation" }
+      }
+    },
+    "drm_node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "kind", "access", "pci_bdf"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 32 },
+        "kind": { "enum": ["primary", "render"] },
+        "access": { "$ref": "#/$defs/node_access" },
+        "pci_bdf": { "type": ["string", "null"], "maxLength": 16 }
+      }
+    },
+    "vulkan_loader": { "enum": ["missing", "initialization_failed", "available_no_devices", "enumerated", "partial", "unknown"] },
+    "vulkan_metadata": { "enum": ["available", "partial", "unavailable", "unknown"] },
+    "vulkan_device_type": { "enum": ["integrated", "discrete", "virtual", "cpu", "other"] },
+    "vulkan_device": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "vendor_id", "device_id", "pci_bdf", "correlation", "device_type", "api_version", "driver_id", "driver_name", "driver_info", "extension_state", "supported_extensions", "feature_state", "supported_features"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 256 },
+        "vendor_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "device_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "pci_bdf": { "type": ["string", "null"], "maxLength": 16 },
+        "correlation": { "$ref": "#/$defs/correlation" },
+        "device_type": { "$ref": "#/$defs/vulkan_device_type" },
+        "api_version": { "oneOf": [{ "type": "array", "prefixItems": [{ "type": "integer", "minimum": 0 }, { "type": "integer", "minimum": 0 }, { "type": "integer", "minimum": 0 }], "minItems": 3, "maxItems": 3 }, { "type": "null" }] },
+        "driver_id": { "type": ["integer", "null"] },
+        "driver_name": { "type": ["string", "null"], "maxLength": 256 },
+        "driver_info": { "type": ["string", "null"], "maxLength": 256 },
+        "extension_state": { "$ref": "#/$defs/vulkan_metadata" },
+        "supported_extensions": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 256 } },
+        "feature_state": { "$ref": "#/$defs/vulkan_metadata" },
+        "supported_features": { "type": "array", "maxItems": 64, "items": { "type": "string", "maxLength": 64 } }
+      }
+    },
+    "vulkan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["loader_state", "loader_api_version", "devices", "observation_state", "diagnostic"],
+      "properties": {
+        "loader_state": { "$ref": "#/$defs/vulkan_loader" },
+        "loader_api_version": { "oneOf": [{ "type": "array", "prefixItems": [{ "type": "integer", "minimum": 0 }, { "type": "integer", "minimum": 0 }, { "type": "integer", "minimum": 0 }], "minItems": 3, "maxItems": 3 }, { "type": "null" }] },
+        "devices": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/vulkan_device" } },
+        "observation_state": { "$ref": "#/$defs/state" },
+        "diagnostic": { "type": ["string", "null"], "maxLength": 256 }
+      }
+    },
+    "prefix_lifecycle": { "enum": ["planned", "created", "initialized", "incomplete", "recovery_required", "missing", "blocked", "unknown"] },
+    "recovery_state": { "enum": ["none", "intent_only", "staged", "published_pending", "completed", "rollback_pending", "rollback_completed", "pending_deletion", "pending_pin_recovery", "incomplete_or_inconsistent", "unknown"] },
+    "prefix": {
+      "type": "object", "additionalProperties": false,
+      "required": ["prefix_id", "scope", "lifecycle", "ownership_state", "filesystem_state", "runtime_association_state", "original_pin_id", "original_pin_revision", "adapter_preference", "current_pin_state", "current_pin_relation", "initialization_state", "initialization_evidence_available", "recovery_state", "recovery_diagnostic"],
+      "properties": {
+        "prefix_id": { "type": "string", "maxLength": 128 },
+        "scope": { "type": "string", "maxLength": 32 },
+        "lifecycle": { "$ref": "#/$defs/prefix_lifecycle" },
+        "ownership_state": { "$ref": "#/$defs/state" },
+        "filesystem_state": { "$ref": "#/$defs/state" },
+        "runtime_association_state": { "$ref": "#/$defs/state" },
+        "original_pin_id": { "type": ["string", "null"], "maxLength": 128 },
+        "original_pin_revision": { "type": ["integer", "null"], "minimum": 0 },
+        "adapter_preference": { "type": ["string", "null"], "maxLength": 64 },
+        "current_pin_state": { "$ref": "#/$defs/state" },
+        "current_pin_relation": { "type": ["string", "null"], "maxLength": 512 },
+        "initialization_state": { "$ref": "#/$defs/state" },
+        "initialization_evidence_available": { "type": "boolean" },
+        "recovery_state": { "$ref": "#/$defs/recovery_state" },
+        "recovery_diagnostic": { "type": ["string", "null"], "maxLength": 512 }
+      }
+    },
+    "severity": { "enum": ["information", "warning", "blocker"] },
+    "confidence": { "enum": ["high", "medium", "low"] },
+    "evidence_strength": { "enum": ["direct_observation", "validated_reference", "derived_correlation", "missing_observation"] },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source", "observed_value", "strength"],
+      "properties": {
+        "source": { "type": "string", "maxLength": 128 },
+        "observed_value": { "type": ["string", "null"], "maxLength": 512 },
+        "strength": { "$ref": "#/$defs/evidence_strength" }
+      }
+    },
+    "remediation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["action", "supported_by_endfield_unix"],
+      "properties": {
+        "action": { "type": "string", "maxLength": 512 },
+        "supported_by_endfield_unix": { "type": "boolean" }
+      }
+    },
+    "finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "component", "state", "severity", "confidence", "evidence", "expected_condition", "reason", "evidence_limitations", "suggested_remediation", "blocks_later_launch_qualification"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 96 },
+        "component": { "type": "string", "maxLength": 64 },
+        "state": { "$ref": "#/$defs/state" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/evidence" } },
+        "expected_condition": { "type": ["string", "null"], "maxLength": 512 },
+        "reason": { "type": "string", "maxLength": 1024 },
+        "evidence_limitations": { "type": "string", "maxLength": 1024 },
+        "suggested_remediation": { "oneOf": [{ "$ref": "#/$defs/remediation" }, { "type": "null" }] },
+        "blocks_later_launch_qualification": { "type": "boolean" }
+      }
+    }
+  }
+}

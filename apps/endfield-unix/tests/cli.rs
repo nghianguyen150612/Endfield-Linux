@@ -133,7 +133,7 @@ fn command_specific_help_describes_gui_and_about() {
     assert!(service_help.contains("never uses root privileges"));
     assert_eq!(diagnose.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&diagnose.stdout).contains(
-        "diagnose <report|platform|hardware|gpu|display|runtimes|umu|runtime-integrity|telemetry>\nUsage: endfield-unix runtime <install|list-managed|audit|audit-source>"
+        "diagnose <report|platform|hardware|gpu|display|compatibility|runtimes|umu|runtime-integrity|telemetry>\nUsage: endfield-unix runtime <install|list-managed|audit|audit-source>"
     ));
     assert_eq!(prefix.status.code(), Some(0));
     let prefix_help = String::from_utf8_lossy(&prefix.stdout);

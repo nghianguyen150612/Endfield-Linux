@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod compatibility;
 pub mod dispatch;
 pub mod output;
 pub mod parser;

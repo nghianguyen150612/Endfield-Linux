@@ -100,6 +100,12 @@ jobs:
       - name: Run P028 isolated prefix lifecycle and filesystem safety tests
         run: cargo test --locked -p endfield-unix-prefix-management --all-targets
 
+      - name: Run P030 portable compatibility assessment tests
+        run: cargo test --locked -p endfield-unix-compatibility-diagnostics --all-targets
+
+      - name: Run actual P030 compatibility CLI integration
+        run: cargo test --locked -p endfield-unix --test compatibility_cli -- --test-threads=1 --nocapture
+
       - name: Run actual P025 install and P027/P028 CLI smoke in an isolated XDG root
         run: cargo test --locked -p endfield-unix --test runtime_install_cli -- --test-threads=1 --nocapture
 
