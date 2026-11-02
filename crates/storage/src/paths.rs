@@ -144,6 +144,13 @@ impl AppPaths {
         ensure_private_dir(&self.data_dir)
     }
 
+    /// Creates and verifies the private application data directory for an
+    /// explicitly approved metadata write. Read-only consumers must not call
+    /// this method.
+    pub fn prepare_data_dir(&self) -> Result<(), StorageError> {
+        self.ensure_data_dir()
+    }
+
     pub(crate) fn verify_data_dir_if_present(&self) -> Result<(), StorageError> {
         verify_app_dir_if_present(&self.data_dir)
     }
