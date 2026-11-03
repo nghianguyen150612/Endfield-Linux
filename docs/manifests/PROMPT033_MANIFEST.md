@@ -1,8 +1,9 @@
-# P033 implementation checkpoint (incomplete)
+# P033 partial implementation checkpoint (not accepted)
 
-P033 has **not** been implemented or qualified. This file records the baseline and
-source observations for resuming the work; it is not a dependency catalog or a
-claim that the requested CLI, schema, or assessment exists.
+P033 now has an initial portable assessment engine, CLI, preliminary schema and
+hosted initial-HEAD CI evidence. It remains **incomplete and unqualified for acceptance**.
+This manifest records source observations and ongoing implementation; it is not
+proof of complete dependency assessment or physical/game compatibility.
 
 ## Baseline
 
@@ -40,8 +41,8 @@ requirements. No GRYPHLINK requirements were established here.
 
 ## Remaining work and qualification
 
-All P033 implementation, integration, documentation, schemas, and requested
-regression and actual-executable tests remain outstanding. In particular, reuse
+P033 remains unfinished: source-specific local Steam evidence, richer typed dependency findings,
+recommendations, adversarial cases and final-head qualification remain outstanding. In particular, reuse
 P030's existing observation adapter and P027 selection precedence; integrate
 P031/P032 and P028/P029 without mutation; maintain explicit unknown states and
 privacy bounds; and keep game compatibility untested. Validate official source
@@ -56,8 +57,8 @@ Do not interpret this checkpoint as completing P033 or authorizing P034.
 
 A portable requirement catalog and initial memory/storage comparison have been
 added along with a provisional CLI adapter that reuses P030, P012, P031 and the
-P032 offline catalog. The command's storage target is still unknown, and the
-requirements and recommendation engine do not yet cover all P033 cases. The
+P032 offline catalog. The command initially lacked a storage target, and the requirements and
+recommendation engine still do not cover all P033 cases. The
 preliminary schema and executable test do not establish acceptance. See
 [dependency diagnostics](../DEPENDENCY-DIAGNOSTICS.md) for current gaps.
 
@@ -69,3 +70,17 @@ synthetic game, runtime-pin, prefix, and recovery metadata. The P027–P032
 portable regression crates also passed. A generated report validated against
 the preliminary JSON schema with P030's embedded schema. These checks do not
 cover every requested adversarial case and do not establish P033 completion.
+
+## Stage 2: explicit destination observation (not accepted)
+
+The continuing P033 branch now has an optional `--storage-path` argument for one
+user-selected existing directory. The Linux adapter opens each directory
+component descriptor-relatively with `O_DIRECTORY | O_NOFOLLOW` and obtains
+available bytes via `fstatvfs`. This produces a bounded, path-redacted JSON
+storage observation and supplies the existing P033 storage assessor. No
+filesystem is selected implicitly and no directories or metadata are written.
+The CLI regression covers valid directory observation, a symlink refusal,
+absolute-path parsing and no XDG side effects. Epic unpack space remains
+unknown without proof of allocation and unpack target. These changes and the
+revised schema require hosted CI qualification at their own final HEAD.
+P033 remains Draft and unmerged; P034 has not begun.
