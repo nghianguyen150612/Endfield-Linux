@@ -132,3 +132,17 @@ canonical CLI are implemented, and the GUI does not offer game import. No GTK
 main-thread filesystem work or duplicate GUI import engine was added. A later
 GUI flow must call the same contracts through a background worker and Relm4
 messages.
+
+## P032 official source previews
+
+P031 PR [#4](https://github.com/nghianguyen150612/Endfield-Linux/pull/4) merged
+2026-11-02 at `846d9c867bc49946b2dffe15f2d4632cd6b412df`, verified through GitHub
+metadata and Git ancestry. P032 preserves registry schema 1 without migration.
+`game source plan-association --game-id ID --source-id steam [--path LIBRARY]`
+returns an ephemeral user-declared source label or a matching local Steam metadata
+observation. Neither changes the registration's unverified identity or authenticates
+payloads. No association is persisted, no cross-registry atomicity is claimed, and
+all original plan/apply/remove CAS contracts remain unchanged. `game source validate`
+revalidates the registered location and reports no saved source association;
+`game source revalidate` rechecks the exact prior Steam selection/token. See
+[official sources](OFFICIAL-GAME-SOURCES.md) for syntax, limits and channel ownership.

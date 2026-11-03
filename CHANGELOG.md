@@ -15,6 +15,17 @@
   Game identity remains user-declared and unverified; no game files are read,
   hashed, changed, or executed.
 
+## P032 — verified official source integration
+
+Adds a versioned offline Steam/Epic/GRYPHLINK catalog with exact evidence and
+manual guidance, explicit bounded Steam app 4732690 observation/revalidation,
+and headless read-only P031 association previews. No direct acquisition,
+launcher execution, source persistence/migration, updates or Linux compatibility
+claim is added. P031 PR [#4](https://github.com/nghianguyen150612/Endfield-Linux/pull/4)
+is verified merged at `846d9c867bc49946b2dffe15f2d4632cd6b412df`. See
+[official sources](docs/OFFICIAL-GAME-SOURCES.md) and the
+[P032 qualification manifest](docs/manifests/PROMPT032_MANIFEST.md).
+
 ## P029 — hosted qualified backup/recovery
 
 Added managed-prefix snapshot inventories and SHA-256 verification, private staging, durable restore evidence and original-data preservation, explicit snapshot removal, completed-restore archival and separate P027 CAS pin recovery. Restricted to Created prefixes and ordinary files/directories. The merged P029 implementation passed hosted Rust/GTK, actual CLI, GCC, and Clang gates in [run 41186534556](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41186534556). Historical test and fault evidence remains in [the P029 manifests](docs/manifests/PROMPT029_MANIFEST.md).

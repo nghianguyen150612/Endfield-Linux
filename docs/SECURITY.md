@@ -323,3 +323,21 @@ include it. Explicit local inspection commands display it by request.
 ## P030 compatibility diagnostics
 
 `diagnose compatibility` reads only the exact selected P027 pin and optional registered P028 prefix, existing P013 Linux GPU/Vulkan observations, and bounded P029 transaction metadata. It does not create XDG directories, persist reports, walk external prefixes, read prefix or snapshot payload contents, start the daemon, access the network, or execute Wine, Proton, UMU, Steam, or a game. P027's P022/P025/P026 validator rechecks the selected runtime reference without substitution. Restore, rollback, pending deletion, and pin-recovery markers are reported without replay or mutation. Output omits raw machine ID and local runtime/prefix paths and is bounded to 1 MiB JSON or 64 KiB human output. Static evidence never establishes launch, translation, rendering, or performance compatibility. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).
+
+## P032 official pages and local source observations
+
+Official publisher/store pages prove only their documented claims. P032 never
+downloads executables/assets, starts a browser/launcher/runtime/game, accesses
+account/token databases, updates game files, or substitutes a mirror/channel.
+Steam observations require one explicitly selected library/manifest and exact
+app ID 4732690. A bounded strict quoted KeyValues parser rejects malformed and
+duplicate records; no-follow descriptor-relative O_PATH checks validate object
+type before I/O, and only the held regular single-link manifest inode is reopened
+through kernel procfs. Install paths must remain a literal child of common;
+symlink escapes and unsafe aliases fail. Game payloads are never read or hashed.
+Local tokens detect metadata/object changes, not trusted payload integrity or
+publisher authentication; same-user races and remount continuity are not solved.
+Epic/GRYPHLINK inspection and all acquisition protocols remain unsupported.
+P031 remains schema v1 without new mutation. Source reports preserve unknown
+build/readiness and `not_tested` compatibility. See
+[official sources](OFFICIAL-GAME-SOURCES.md) for evidence and privacy limits.
