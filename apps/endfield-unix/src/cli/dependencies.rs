@@ -7,7 +7,13 @@ use endfield_unix_game_import::{
 use endfield_unix_platform_linux::{CgroupLimit, LinuxHardwareProbe};
 use endfield_unix_storage::AppPaths;
 use serde::Serialize;
-use std::io::Write;
+use std::{
+    ffi::CString,
+    fs::File,
+    io::Write,
+    os::{fd::{AsRawFd, FromRawFd}, unix::ffi::OsStrExt},
+    path::{Component, Path, PathBuf},
+};
 
 #[derive(Serialize)]
 struct CpuObservation {
@@ -34,6 +40,78 @@ struct AntiCheatEvidence {
     limitation: &'static str,
 }
 #[derive(Serialize)]
+struct StorageObservation {
+    selected: bool,
+    status: &'static str,
+    available_bytes: Option<u64>,
+    source: &'static str,
+    limitation: &'static str,
+}
+
+/// Observe only an explicitly selected directory. Each component is opened
+/// relative to a held parent descriptor with O_NOFOLLOW; no path is created,
+/// scanned, persisted or returned in the diagnostic report.
+fn inspect_storage(path: Option<&Path>) -> StorageObservation {
+    let observation = |selected, status, available_bytes| StorageObservation {
+        selected,
+        status,
+        available_bytes,
+        source: "explicit destination directory fstatvfs",
+        limitation: "Snapshot of available blocks only; filesystem permissions, allocation, future updates, unpack location and GB units remain separate uncertainties.",
+    };
+    let Some(path) = path else {
+        return observation(false, "not_selected", None);
+    };
+    if !path.is_absolute() || path.as_os_str().as_bytes().len() > 4096 {
+        return observation(true, "invalid_path", None);
+    }
+    let Ok(mut current) = File::open("/") else {
+        return observation(true, "unavailable", None);
+    };
+    let mut parts = 0_usize;
+    for component in path.components() {
+        match component {
+            Component::RootDir => continue,
+            Component::Normal(name) => {
+                parts += 1;
+                if parts > 256 || name.as_bytes().len() > 255 {
+                    return observation(true, "invalid_path", None);
+                }
+                let Ok(name) = CString::new(name.as_bytes()) else {
+                    return observation(true, "invalid_path", None);
+                };
+                // SAFETY: name is a bounded, NUL-free single path component.
+                // The parent fd stays alive, and the returned fd is owned by File.
+                let fd = unsafe {
+                    libc::openat(
+                        current.as_raw_fd(),
+                        name.as_ptr(),
+                        libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                    )
+                };
+                if fd < 0 {
+                    return observation(true, "blocked_or_unavailable", None);
+                }
+                // SAFETY: openat returned a new owned file descriptor.
+                current = unsafe { File::from_raw_fd(fd) };
+            }
+            _ => return observation(true, "invalid_path", None),
+        }
+    }
+    let mut stat = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+    // SAFETY: current is an open directory fd and stat has enough space.
+    if unsafe { libc::fstatvfs(current.as_raw_fd(), stat.as_mut_ptr()) } != 0 {
+        return observation(true, "unavailable", None);
+    }
+    // SAFETY: fstatvfs returned success and initialized the structure.
+    let stat = unsafe { stat.assume_init() };
+    match (stat.f_bavail as u64).checked_mul(stat.f_frsize as u64) {
+        Some(bytes) => observation(true, "observed", Some(bytes)),
+        None => observation(true, "overflow", None),
+    }
+}
+
+#[derive(Serialize)]
 struct Report {
     schema_version: u32,
     observed_at_unix_seconds: u64,
@@ -42,7 +120,7 @@ struct Report {
     requirements: Vec<core::Requirement>,
     cpu: CpuObservation,
     memory: core::MemoryObservation,
-    storage: &'static str,
+    storage: StorageObservation,
     game: GameObservation,
     source_guidance: Option<&'static str>,
     source_evidence: Option<endfield_unix_game_sources::OfficialGameSource>,
@@ -59,6 +137,7 @@ pub fn run(
     prefix_id: Option<String>,
     game_id: Option<String>,
     source_id: Option<String>,
+    storage_path: Option<PathBuf>,
     json: bool,
     output: &mut impl Write,
 ) -> Result<(), CompatibilityError> {
@@ -122,8 +201,9 @@ pub fn run(
         .as_deref()
         .and_then(|id| endfield_unix_game_sources::source(id).ok());
     let guidance = source_evidence.as_ref().map(|source| source.guidance);
+    let storage = inspect_storage(storage_path.as_deref());
     let mut findings = core::assess_memory(&memory, channel);
-    findings.extend(core::assess_storage(channel, None));
+    findings.extend(core::assess_storage(channel, storage.available_bytes));
     findings.extend(core::assess_noncomparable(channel));
     let requirements = core::catalog()
         .into_iter()
@@ -137,7 +217,7 @@ pub fn run(
         requirements,
         cpu,
         memory,
-        storage: "unknown: no installation destination was selected",
+        storage,
         game,
         source_guidance: guidance,
         source_evidence,
@@ -154,7 +234,7 @@ pub fn run(
         game_compatibility: "not_tested",
         limitations: vec![
             "Windows requirements do not establish Linux compatibility.",
-            "No installation target was selected; storage cannot be assessed.",
+            "Storage observations are only a point-in-time snapshot of a selected destination and do not establish successful installation.",
             "DXVK and VKD3D-Proton availability and version-specific requirements are unknown.",
             "No runtime, game, or anti-cheat component was executed.",
         ],
@@ -170,7 +250,7 @@ pub fn run(
             report.memory.available_bytes,
             report.memory.cgroup_limit_bytes,
             report.memory.swap_bytes,
-            report.storage,
+            format!("{} (available bytes: {:?})", report.storage.status, report.storage.available_bytes),
             report.game.state,
             report.game.action,
             report.compatibility.runner.selection.state,
