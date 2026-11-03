@@ -51,3 +51,21 @@ The current environment did not expose `cargo`, `rustc`, or `rustup`, and
 `pkg-config` could not find GTK4 or libadwaita. No Rust, GTK, actual-executable,
 physical-device, or final-head hosted CI qualification was performed for P033.
 Do not interpret this checkpoint as completing P033 or authorizing P034.
+
+## Resume progress (still incomplete)
+
+A portable requirement catalog and initial memory/storage comparison have been
+added along with a provisional CLI adapter that reuses P030, P012, P031 and the
+P032 offline catalog. The command's storage target is still unknown, and the
+requirements and recommendation engine do not yet cover all P033 cases. The
+preliminary schema and executable test do not establish acceptance. See
+[dependency diagnostics](../DEPENDENCY-DIAGNOSTICS.md) for current gaps.
+
+Resume validation on 2026-11-03 used Rust 1.85.0 and a disposable Ubuntu
+24.04 container with genuine GTK4/libadwaita development libraries. The full
+`cargo test --locked --workspace` passed; P033 actual-executable tests included
+isolated XDG roots, source selection, denied network/child creation, and unchanged
+synthetic game, runtime-pin, prefix, and recovery metadata. The P027–P032
+portable regression crates also passed. A generated report validated against
+the preliminary JSON schema with P030's embedded schema. These checks do not
+cover every requested adversarial case and do not establish P033 completion.

@@ -1,5 +1,7 @@
 # Changelog
 
+P033 work in progress adds a preliminary static dependency report; it is incomplete and not qualified. See [status](docs/DEPENDENCY-DIAGNOSTICS.md).
+
 ## Unreleased
 
 ### Added
