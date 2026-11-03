@@ -20,6 +20,7 @@ const MAX_HUMAN_FINDINGS: usize = 48;
 pub enum CompatibilityError {
     InvalidProfile,
     InvalidPrefixId,
+    InvalidGameId,
     Serialization,
     Output(io::Error),
     OutputLimit,
@@ -28,7 +29,7 @@ pub enum CompatibilityError {
 impl CompatibilityError {
     pub fn exit_status(&self) -> u8 {
         match self {
-            Self::InvalidProfile | Self::InvalidPrefixId => 2,
+            Self::InvalidProfile | Self::InvalidPrefixId | Self::InvalidGameId => 2,
             Self::Output(_) => 74,
             Self::Serialization | Self::OutputLimit => 70,
         }
@@ -40,6 +41,7 @@ impl std::fmt::Display for CompatibilityError {
         formatter.write_str(match self {
             Self::InvalidProfile => "compatibility diagnostic profile identifier is invalid.",
             Self::InvalidPrefixId => "compatibility diagnostic prefix identifier is invalid.",
+            Self::InvalidGameId => "dependency diagnostic game identifier is invalid.",
             Self::Serialization => "compatibility diagnostic report could not be serialized.",
             Self::Output(_) => "failed to write compatibility diagnostic output.",
             Self::OutputLimit => "compatibility diagnostic output exceeded its configured limit.",
@@ -62,6 +64,30 @@ pub fn run(
     json: bool,
     output: &mut impl Write,
 ) -> Result<(), CompatibilityError> {
+    let report = collect(profile, prefix_id)?;
+    let bytes = if json {
+        serde_json::to_vec_pretty(&report).map_err(|_| CompatibilityError::Serialization)?
+    } else {
+        render_human(&report)
+    };
+    let limit = if json {
+        MAX_JSON_BYTES
+    } else {
+        MAX_HUMAN_BYTES
+    };
+    if bytes.len() > limit {
+        return Err(CompatibilityError::OutputLimit);
+    }
+    output
+        .write_all(&bytes)
+        .map_err(CompatibilityError::Output)?;
+    Ok(())
+}
+
+pub(super) fn collect(
+    profile: Option<String>,
+    prefix_id: Option<String>,
+) -> Result<diagnostics::CompatibilityDiagnosticReport, CompatibilityError> {
     let profile_key = profile
         .as_ref()
         .map(|value| pins::ProfileKey::new(value.clone()))
@@ -103,23 +129,7 @@ pub fn run(
     };
     let mut report = diagnostics::assess(observations);
     bound_report(&mut report);
-    let bytes = if json {
-        serde_json::to_vec_pretty(&report).map_err(|_| CompatibilityError::Serialization)?
-    } else {
-        render_human(&report)
-    };
-    let limit = if json {
-        MAX_JSON_BYTES
-    } else {
-        MAX_HUMAN_BYTES
-    };
-    if bytes.len() > limit {
-        return Err(CompatibilityError::OutputLimit);
-    }
-    output
-        .write_all(&bytes)
-        .map_err(CompatibilityError::Output)?;
-    Ok(())
+    Ok(report)
 }
 
 fn collect_runner(

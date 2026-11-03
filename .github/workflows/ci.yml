@@ -100,6 +100,12 @@ jobs:
       - name: Run P028 isolated prefix lifecycle and filesystem safety tests
         run: cargo test --locked -p endfield-unix-prefix-management --all-targets
 
+      - name: Run P033 portable dependency assessment tests
+        run: cargo test --locked -p endfield-unix-dependency-diagnostics --all-targets
+
+      - name: Run actual P033 dependency CLI integration
+        run: cargo test --locked -p endfield-unix --test dependency_cli -- --test-threads=1 --nocapture
+
       - name: Run P030 portable compatibility assessment tests
         run: cargo test --locked -p endfield-unix-compatibility-diagnostics --all-targets
 

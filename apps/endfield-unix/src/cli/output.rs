@@ -1651,6 +1651,10 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
+        "  diagnose dependencies [--profile ID] [--game-id ID] [--prefix-id ID] [--source-id steam|epic|gryphlink] [--json]  Assess static dependencies"
+    )?;
+    writeln!(
+        output,
         "  diagnose compatibility [--profile ID] [--prefix-id ID] [--json]  Explain selected runtime, driver, Vulkan, and prefix evidence"
     )?;
     writeln!(
@@ -1743,7 +1747,7 @@ fn write_diagnose_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|compatibility|runtimes|umu|runtime-integrity|telemetry>\nUsage: {APPLICATION_NAME} runtime <install|list-managed|audit|audit-source>\n"
+        "Usage: {APPLICATION_NAME} diagnose <report|platform|hardware|gpu|display|dependencies|compatibility|runtimes|umu|runtime-integrity|telemetry>\nUsage: {APPLICATION_NAME} runtime <install|list-managed|audit|audit-source>\n"
     )?;
     writeln!(
         output,

@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod compatibility;
+pub mod dependencies;
 pub mod dispatch;
 pub mod output;
 pub mod parser;

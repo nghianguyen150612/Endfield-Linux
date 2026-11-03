@@ -121,6 +121,19 @@ enum DiagnoseArgs {
     Gpu,
     /// Inspect local Linux display outputs, session protocols, and DRM connectors.
     Display,
+    /// Assess static dependency evidence without installing or running software.
+    Dependencies {
+        #[arg(long, value_name = "PROFILE_ID")]
+        profile: Option<String>,
+        #[arg(long, value_name = "PREFIX_ID")]
+        prefix_id: Option<String>,
+        #[arg(long, value_name = "GAME_ID")]
+        game_id: Option<String>,
+        #[arg(long, value_parser = ["steam", "epic", "gryphlink"])]
+        source_id: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Assess selected runtime, GPU/driver, Vulkan, and an optional managed prefix.
     Compatibility {
         /// Select the machine/profile pin using P027 precedence.
@@ -355,6 +368,22 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Display,
         }) => Command::DiagnoseDisplay,
+        Some(SubcommandArgs::Diagnose {
+            command:
+                DiagnoseArgs::Dependencies {
+                    profile,
+                    prefix_id,
+                    game_id,
+                    source_id,
+                    json,
+                },
+        }) => Command::DiagnoseDependencies {
+            profile,
+            prefix_id,
+            game_id,
+            source_id,
+            json,
+        },
         Some(SubcommandArgs::Diagnose {
             command:
                 DiagnoseArgs::Compatibility {
