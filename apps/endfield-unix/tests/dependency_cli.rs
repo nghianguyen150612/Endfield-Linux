@@ -71,6 +71,75 @@ fn empty_host_and_source_selection_are_read_only() {
 }
 
 #[test]
+fn explicit_storage_observation_is_read_only_and_does_not_leak_path() {
+    use std::{fs, os::unix::fs::symlink};
+    let temp = tempfile::tempdir().unwrap();
+    let destination = temp.path().join("selected-storage");
+    fs::create_dir(&destination).unwrap();
+    let selected = destination.to_str().unwrap();
+    let response = invoke(
+        temp.path(),
+        &[
+            "diagnose",
+            "dependencies",
+            "--source-id",
+            "steam",
+            "--storage-path",
+            selected,
+            "--json",
+        ],
+    );
+    assert_eq!(
+        response.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&response.stderr)
+    );
+    let report: Value = serde_json::from_slice(&response.stdout).unwrap();
+    assert_eq!(report["storage"]["status"], "observed");
+    assert_eq!(report["storage"]["selected"], true);
+    assert!(report["storage"]["available_bytes"].as_u64().is_some());
+    assert!(!String::from_utf8_lossy(&response.stdout).contains(selected));
+    assert_eq!(report["game_compatibility"], "not_tested");
+
+    let alias = temp.path().join("directory-symlink");
+    symlink(&destination, &alias).unwrap();
+    let aliased = invoke(
+        temp.path(),
+        &[
+            "diagnose",
+            "dependencies",
+            "--source-id",
+            "steam",
+            "--storage-path",
+            alias.to_str().unwrap(),
+            "--json",
+        ],
+    );
+    assert_eq!(aliased.status.code(), Some(0));
+    let report: Value = serde_json::from_slice(&aliased.stdout).unwrap();
+    assert_eq!(report["storage"]["status"], "blocked_or_unavailable");
+    assert!(report["storage"]["available_bytes"].is_null());
+    assert!(report["findings"].as_array().unwrap().iter().any(
+        |finding| finding["id"] == "storage.installation" && finding["state"] == "unknown"
+    ));
+    assert_eq!(report["game_compatibility"], "not_tested");
+
+    assert_eq!(
+        invoke(
+            temp.path(),
+            &["diagnose", "dependencies", "--storage-path", "relative/path"]
+        )
+        .status
+        .code(),
+        Some(2)
+    );
+    for dir in ["home", "config", "data", "cache", "state"] {
+        assert!(!temp.path().join(dir).exists());
+    }
+}
+
+#[test]
 fn empty_host_completes_with_network_and_child_creation_denied() {
     let temp = tempfile::tempdir().unwrap();
     let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unix"));
