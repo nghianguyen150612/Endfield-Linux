@@ -131,6 +131,9 @@ enum DiagnoseArgs {
         game_id: Option<String>,
         #[arg(long, value_parser = ["steam", "epic", "gryphlink"])]
         source_id: Option<String>,
+        /// Explicit destination directory to inspect for available filesystem space.
+        #[arg(long, value_name = "PATH", value_parser = dependency_storage_path)]
+        storage_path: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
@@ -216,6 +219,18 @@ pub(super) fn absolute_path(value: &str) -> Result<PathBuf, String> {
     } else {
         Err("runtime roots must be absolute paths".into())
     }
+}
+
+fn dependency_storage_path(value: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(value);
+    if !path.is_absolute()
+        || value.len() > 4096
+        || value.as_bytes().contains(&0)
+        || path.components().any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err("storage destination must be an absolute bounded path without parent traversal".into());
+    }
+    Ok(path)
 }
 
 impl From<FrameFormatArg> for FrameSourceFormat {
@@ -375,6 +390,7 @@ where
                     prefix_id,
                     game_id,
                     source_id,
+                    storage_path,
                     json,
                 },
         }) => Command::DiagnoseDependencies {
@@ -382,6 +398,7 @@ where
             prefix_id,
             game_id,
             source_id,
+            storage_path,
             json,
         },
         Some(SubcommandArgs::Diagnose {
