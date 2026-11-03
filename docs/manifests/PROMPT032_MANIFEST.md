@@ -7,8 +7,8 @@
 - GitHub PR #4: merged 2026-11-02 14:07:24 UTC, merge `846d9c867bc49946b2dffe15f2d4632cd6b412df`.
 - Clone, `git log`, clean status and `git ls-remote origin HEAD refs/heads/main` agreed on supplied baseline `846d9c867bc49946b2dffe15f2d4632cd6b412df`; P031 ancestry is present. Empty workspace contained no work to overwrite.
 - Feature branch: `feat/p032-official-game-sources`. No main push, auto-merge, third application executable, ABI change or P033 implementation.
-- Implementation/test commit: `a320f6f` (full final HEAD is reported by the Draft PR and completion report; this document cannot embed its own commit hash).
-- Exactly one Draft PR targets `main`; hosted final-head evidence is recorded below as it becomes available. Do not merge automatically.
+- Initial implementation/test commit: `a320f6f`. Follow-ups `9e588b4` retain typed CLI observations and preservation sentinels; `830d819` binds source previews to P031 directory device/inode as well as path. The full final HEAD is reported by the Draft PR and completion report; this document cannot embed its own commit hash.
+- Exactly one Draft PR [#5](https://github.com/nghianguyen150612/Endfield-Linux/pull/5) targets `main`. It remains Draft and unmerged; final-head evidence is also recorded in its description and completion report. Do not merge automatically.
 
 ## Delivered scope
 
@@ -58,19 +58,57 @@ substitute binary, or test harness replaces the canonical executable.
 - Full workspace Clippy/test/build: attempted; native GTK prerequisites unavailable. Hosted CI must exercise the real app.
 - `cargo +1.85.0 test --locked --workspace --exclude endfield-unix`: **733 passed, 0 failed, 4 ignored**, including P027–P031, new 10 source tests, daemon and IPC library regressions.
 - `cargo +1.85.0 clippy --locked -p endfield-unix-game-sources --all-targets -- -D warnings`: passed.
-- Non-GTK workspace Clippy/build, metadata and GCC C17 checks: tracked below after completion.
+- `cargo +1.85.0 clippy --locked --workspace --exclude endfield-unix --all-targets -- -D warnings`: passed.
+- `cargo +1.85.0 build --locked --workspace --exclude endfield-unix`: passed.
+- `cargo +1.85.0 metadata --locked --no-deps --format-version 1`: passed; exactly `endfield-unix` and `endfield-unixd` are application binaries. Source crate has no GUI, network, IPC or storage dependency.
+- `CC=gcc native/optimizer/tests/run-c-tests.sh`: passed including the script's sanitizer/ABI gates.
+- `CC=clang native/optimizer/tests/run-c-tests.sh`: attempted, unavailable (`clang: not found`).
 - Local Clang and GTK smoke: unavailable (no Clang/native GTK stack); required hosted gates retained.
 - `git diff --check`: passed.
 
 ## Hosted qualification
 
-Pending initial Draft PR run. Required final-head CI includes Rust 1.85 format,
-workspace all-target check and Clippy, actual app build, 10 P032 core tests,
-`game_sources_cli` actual executable under seccomp network/child denial, original
-P031 real CLI and registry preservation tests, P027–P030 regressions, full
-workspace tests/build, daemon/IPC gates, GTK smoke/screenshot, metadata, and
-independent GCC and Clang C17 ABI jobs. Optional isolated systemd user-manager
-qualification remains unavailable unless explicitly enabled by repository CI.
+[Rust CI run 41550527363](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41550527363)
+passed **all three jobs** on initial implementation/documentation head
+`06d38507c7497ae5e0355616f7d1f55742d9cda1`. There were no failing checks in that run.
+It passed Rust 1.85 formatting, workspace all-target check and Clippy, actual
+application build, 10 P032 core tests, all 4 `game_sources_cli` real-executable
+tests under seccomp network/child denial, original P031 registry and real CLI
+tests, P027–P030 regressions, full workspace tests/build, daemon/IPC gates,
+GTK smoke with screenshot upload, Cargo metadata, and independent GCC/Clang
+C17 ABI jobs. This is executable CI evidence, not physical qualification.
+
+The follow-up preserves independent pin/prefix/recovery sentinel bytes, retains
+typed source observations through the CLI, and additionally requires matching
+installation device/inode for P031 previews. The exact **final HEAD and its own
+hosted run**, including this documentation commit, are recorded in Draft
+[PR #5](https://github.com/nghianguyen150612/Endfield-Linux/pull/5) and the completion
+report after checking the run. The earlier successful run above is not a
+substitute for that final-head gate. Optional isolated systemd user-manager
+qualification remains unavailable because its repository gate is not enabled.
+
+## Changed files and CLI results
+
+The 24 changed files comprise the new `crates/game-sources` Cargo manifest,
+portable `src/lib.rs`, Linux `src/steam.rs` and `tests/sources.rs`; workspace
+Cargo manifest/lock; application dependency manifest; canonical CLI
+`game_sources.rs`, `game_import.rs`, `mod.rs`, `output.rs`; real
+`game_sources_cli.rs` tests; `.github/workflows/ci.yml`; README, CHANGELOG,
+ROADMAP, GAME-IMPORT, ARCHITECTURE, CLI, STORAGE, SECURITY, TESTING, this manifest
+and OFFICIAL-GAME-SOURCES documentation. No P027–P031 implementation crate,
+daemon, native C header/library, prefix or runtime persistence format changed.
+
+Hosted real-binary results: `game sources`/`--json`, all three `source show`
+variants, nested help, `source check-catalog`, explicit Steam `inspect` and
+unchanged `revalidate` exited 0; modified valid metadata returned `changed`
+and exit 4; unknown source returned `unknown_source` / 2; Epic/GRYPHLINK
+inspection returned `unsupported_source_operation` / 78 without opening the
+supplied path. Existing schema-v1 import/apply, source validation and source
+label/Steam observation previews succeeded; no source was persisted. Wrong
+P031 removal revision returned 4; approved current-revision removal preserved
+game bytes. Corrupt/future P031 registries returned 70 and were preserved.
+Read-only operations left absent XDG storage absent. No launcher or game was
+run. Exact command syntax and evidence URLs are in the source guide.
 
 ## Physical qualification and later work
 

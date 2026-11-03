@@ -143,8 +143,8 @@ revision CAS. Nothing silently resets or rewrites records.
 
 `plan-association` reads an exact game ID and source ID, reports the current
 registry revision, revalidates the registered location, and optionally inspects
-one explicit Steam path. A matching observed installation path plus successful
-P031 root revalidation yields `observed_local_metadata`; an absent observation,
+one explicit Steam path. A matching observed installation path and device/inode
+plus successful P031 root revalidation yields `observed_local_metadata`; an absent observation,
 mismatch, or stale location leaves the proposed label `user_declared`. The
 report exposes the match boolean, actual observation and P031 validation.
 No metadata label promotes P031's identity confidence. A revision is an
