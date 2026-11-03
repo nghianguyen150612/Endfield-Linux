@@ -10,6 +10,7 @@ description = "Native community launcher and goal-driven optimization applicatio
 default-run = "endfield-unix"
 
 [dependencies]
+endfield-unix-game-sources = { path = "../../crates/game-sources" }
 endfield-unix-compatibility-diagnostics = { path = "../../crates/compatibility-diagnostics" }
 endfield-unix-game-import = { path = "../../crates/game-import" }
 endfield-unix-runtime-install = { path = "../../crates/runtime-install" }

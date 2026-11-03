@@ -192,3 +192,14 @@ P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.
 ## P029 draft prefix snapshots
 
 P029 adds headless bounded snapshots, full inventory verification, staged restore with preserved originals, and separately approved runtime-pin recovery. P029B adds journaled resume for verified snapshot deletion and limited explicit rollback for a published restore that has not committed its prefix registry update. See [backup and recovery](docs/BACKUP-RECOVERY.md) for commands, rejected filesystem objects and qualification gaps. This is not real-prefix or gameplay qualification.
+
+## P032 official sources
+
+`endfield-unix game sources` lists reviewed Steam, Epic Games Store and publisher
+GRYPHLINK pages offline. `game source show --id steam` provides official guidance;
+`game source inspect --id steam --path /selected/SteamLibrary` observes one bounded
+local manifest for app 4732690. Direct downloading, launcher execution and updates
+are unsupported. Source association previews are read-only and preserve P031
+schema v1. Listing provenance never authenticates installed game files or proves
+Linux compatibility. See [official sources](docs/OFFICIAL-GAME-SOURCES.md) and
+[qualification](docs/manifests/PROMPT032_MANIFEST.md).

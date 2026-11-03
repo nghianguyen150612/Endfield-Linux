@@ -1801,7 +1801,7 @@ fn write_prefix_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_game_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} game import <plan|apply> --path PATH --id ID\n       {APPLICATION_NAME} game <list|show|validate|remove-plan|remove>\n"
+        "Usage: {APPLICATION_NAME} game import <plan|apply> --path PATH --id ID\n       {APPLICATION_NAME} game <list|show|validate|remove-plan|remove>\n       {APPLICATION_NAME} game sources [--json]\n       {APPLICATION_NAME} game source <show|check-catalog|inspect|revalidate|plan-association|validate>\n"
     )?;
     writeln!(
         output,

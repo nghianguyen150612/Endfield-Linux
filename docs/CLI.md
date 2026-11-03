@@ -284,3 +284,28 @@ bounded-inspection cases exit 78. A blocked plan still prints its findings
 before returning the typed nonzero status. `game list` omits absolute paths;
 explicit local plan/show/validate/remove-plan output includes the path and is
 not automatically logged or exported. See [GAME-IMPORT.md](GAME-IMPORT.md).
+
+## P032 official source commands
+
+```sh
+endfield-unix game sources [--json]
+endfield-unix game source show --id steam|epic|gryphlink [--json]
+endfield-unix game source check-catalog [--json]
+endfield-unix game source inspect --id steam --path /selected/SteamLibrary [--json]
+endfield-unix game source revalidate --id steam --path /selected/SteamLibrary --expected-observation TOKEN [--json]
+endfield-unix game source plan-association --game-id ID --source-id steam|epic|gryphlink [--path /selected/SteamLibrary] [--json]
+endfield-unix game source validate --game-id ID [--json]
+```
+
+These commands are headless, storage-free reads with no daemon, network, browser,
+launcher or child-process activity. All JSON reports use schema 1; output is
+bounded to 64 KiB and human reports use escaped formatted fields with a manual
+handoff notice. Source inspection supports Steam only. Revalidation compares an
+exact path/token and reports changed metadata without rewriting anything.
+Association previews never persist a source or authenticate game payloads.
+Source validation reports the absence of a persisted association and revalidates
+the P031 location. Catalog rechecking is offline; live availability is unknown.
+Use nested `--help` for exact flags. No download/install/apply command exists.
+Typed error codes and exit statuses are documented in
+[official sources](OFFICIAL-GAME-SOURCES.md). Existing P031 import/apply/remove
+commands and revision checks are unchanged.

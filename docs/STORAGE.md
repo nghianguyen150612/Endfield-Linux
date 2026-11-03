@@ -105,3 +105,15 @@ import and unregister operations create or mutate application metadata. The
 selected game path is stored privately and is omitted from `game list`, logs,
 and exported support reports; explicit local plan/show/validate/remove-plan
 commands display it. See [P031 import](GAME-IMPORT.md) for bounds and recovery.
+
+## P032 source data
+
+The reviewed schema-1 catalog is compiled into a library and needs no XDG files.
+Steam observations and association plans are ephemeral; CLI reads do not create
+locks or application storage. P031 registry schema 1 is preserved verbatim: no
+migration, source sidecar or automatic rewrite is introduced. Plans display the
+observed revision without reserving it; different revisions between registry load
+and validation fail with the existing revision-conflict code. There is no source
+mutation or cross-registry transaction. P027 pins, P028 prefixes, P029 recovery
+and SQLite are untouched. Explicit local reports contain selected paths; they are
+not persisted in diagnostics. See [official sources](OFFICIAL-GAME-SOURCES.md).
