@@ -313,6 +313,17 @@ fn p031_v1_import_association_preview_and_removal_keep_source_state_read_only() 
     assert_eq!(record["schema_version"], 1);
     let registry = root.join("data/endfield-unix/game-installations/registry.json");
     let before = fs::read(&registry).unwrap();
+    // Existing pin/prefix/recovery bytes must be outside this command's read/write scope.
+    let sentinels = [
+        "config/endfield-unix/runtime-pins.json",
+        "data/endfield-unix/prefixes/registry.json",
+        "data/endfield-unix/prefixes/recovery/p032-preservation.json",
+    ];
+    for path in sentinels {
+        let path = root.join(path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, b"opaque pre-existing state; do not parse or alter").unwrap();
+    }
     let no_source = json(
         run(
             root,
@@ -462,8 +473,12 @@ fn p031_v1_import_association_preview_and_removal_keep_source_state_read_only() 
         fs::read(game.join("payload")).unwrap(),
         b"unchanged game bytes"
     );
-    assert!(!root.join("config").exists());
-    assert!(!root.join("data/endfield-unix/prefixes").exists());
+    for path in sentinels {
+        assert_eq!(
+            fs::read(root.join(path)).unwrap(),
+            b"opaque pre-existing state; do not parse or alter"
+        );
+    }
 }
 #[test]
 fn corrupt_and_future_p031_registries_are_never_reset_by_source_commands() {

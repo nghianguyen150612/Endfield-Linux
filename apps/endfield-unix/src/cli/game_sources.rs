@@ -3,7 +3,9 @@ use clap::Subcommand;
 use endfield_unix_game_import::{
     GameImportError, GameInstallationId, GameInstallationRegistry, GameInstallationState,
 };
-use endfield_unix_game_sources::{self as sources, SourceError, SourceVerificationStatus};
+use endfield_unix_game_sources::{
+    self as sources, InstalledSourceEvidence, SourceError, SourceVerificationStatus,
+};
 use serde_json::{Value, json};
 use std::{
     io::{self, Write},
@@ -76,23 +78,22 @@ impl Operation {
         }
     }
 }
-fn source_value(
+fn source_observation(
     id: &str,
     path: &std::path::Path,
     expected: Option<&str>,
-) -> Result<Value, SourceError> {
+) -> Result<InstalledSourceEvidence, SourceError> {
     sources::source(id)?;
     if id != "steam" {
         return Err(SourceError::Unsupported);
     }
     #[cfg(target_os = "linux")]
     {
-        let report = if let Some(token) = expected {
-            sources::revalidate_steam(path, token)?
+        if let Some(token) = expected {
+            sources::revalidate_steam(path, token)
         } else {
-            sources::inspect_steam(path)?
-        };
-        serde_json::to_value(report).map_err(|_| SourceError::InvalidMetadata)
+            sources::inspect_steam(path)
+        }
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -131,29 +132,26 @@ fn result(operation: Operation) -> Result<(u8, Value), (u8, Value)> {
                 json!({"schema_version":1,"catalog_revision":catalog.revision,"built_in_evidence":"verified","live_availability":"unknown","network_performed":false}),
             ))
         }
-        Operation::Inspect { id, path, .. }
-        | Operation::Revalidate {
-            id,
-            path,
-            expected_observation: _,
-            ..
-        } if id != "steam" => {
-            let _ = path;
-            sources::source(&id).map_err(source_error)?;
-            Err(source_error(SourceError::Unsupported))
-        }
-        Operation::Inspect { id, path, .. } => {
-            Ok((0, source_value(&id, &path, None).map_err(source_error)?))
-        }
+        Operation::Inspect { id, path, .. } => Ok((
+            0,
+            json!(source_observation(&id, &path, None).map_err(source_error)?),
+        )),
         Operation::Revalidate {
             id,
             path,
             expected_observation,
             ..
         } => {
-            let value =
-                source_value(&id, &path, Some(&expected_observation)).map_err(source_error)?;
-            Ok((if value["status"] == "changed" { 4 } else { 0 }, value))
+            let value = source_observation(&id, &path, Some(&expected_observation))
+                .map_err(source_error)?;
+            Ok((
+                if value.status == SourceVerificationStatus::Changed {
+                    4
+                } else {
+                    0
+                },
+                json!(value),
+            ))
         }
         Operation::PlanAssociation {
             game_id,
@@ -176,12 +174,11 @@ fn result(operation: Operation) -> Result<(u8, Value), (u8, Value)> {
             }
             let observation = path
                 .as_deref()
-                .map(|path| source_value(source.id, path, None))
+                .map(|path| source_observation(source.id, path, None))
                 .transpose()
                 .map_err(source_error)?;
             let matches = observation.as_ref().is_some_and(|value| {
-                value["installation_path"].as_str() == Some(record.selected_path.as_str())
-                    && value["installation_present"] == true
+                value.installation_path == record.selected_path && value.installation_present
             }) && validation.state == GameInstallationState::Registered;
             Ok((
                 0,

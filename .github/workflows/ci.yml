@@ -296,6 +296,9 @@ jobs:
           assert all("bin" not in t["kind"] for t in prefixes["targets"]), prefixes["targets"]
           assert {d["name"] for d in prefixes["dependencies"]} == {"endfield-unix-runtime-selection", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, prefixes["dependencies"]
           assert not ({d["name"] for d in prefixes["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
+          sources = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-game-sources")
+          assert all("bin" not in t["kind"] for t in sources["targets"])
+          assert {d["name"] for d in sources["dependencies"]} == {"serde", "sha2", "thiserror", "libc", "serde_json", "tempfile"}
           ipc = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-ipc")
           assert any("lib" in target["kind"] for target in ipc["targets"]), ipc["targets"]
           assert not any("bin" in target["kind"] for target in ipc["targets"]), ipc["targets"]
