@@ -17,7 +17,7 @@
 | `endfield-unix diagnose platform` | Inspect validated Linux distribution, running kernel, architecture, environment hints, and runtime-directory availability | No |
 | `endfield-unix diagnose hardware` | Inspect Linux CPU topology, process affinity, memory, cgroup v2 limits, scheduling queries, and readable frequency/power interfaces | No |
 | `endfield-unix diagnose gpu` | Inspect PCI graphics devices, DRM nodes, kernel drivers, and Vulkan physical devices | No |
-| `endfield-unix diagnose dependencies [--profile ID] [--game-id ID] [--prefix-id ID] [--source-id steam&#124;epic&#124;gryphlink] [--json]` | Experimental static dependency observations; [limitations](DEPENDENCY-DIAGNOSTICS.md) | No |
+| `endfield-unix diagnose dependencies [--profile ID] [--game-id ID] [--prefix-id ID] [--source-id steam&#124;epic&#124;gryphlink] [--storage-path ABSOLUTE_DIR] [--json]` | Experimental static dependency observations; [limitations](DEPENDENCY-DIAGNOSTICS.md) | No |
 | `endfield-unix diagnose compatibility [--profile ID] [--prefix-id ID] [--json]` | Explain selected runtime, driver, Vulkan, and one registered managed-prefix evidence | No |
 | `endfield-unix diagnose display` | Inspect local Wayland/X11 sessions, output modes, and DRM connectors | No |
 | `endfield-unix diagnose runtimes [--family wine|proton] [--root /absolute/path]` | Discover installed Wine/Proton files under documented roots and explicit additional directories | No |
