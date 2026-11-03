@@ -16,6 +16,16 @@ const MAX_HUMAN_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum Operation {
+    /// List reviewed official distribution sources, without network access.
+    Sources {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Official handoff and bounded source observation (no download).
+    Source {
+        #[command(subcommand)]
+        command: super::game_sources::Operation,
+    },
     /// Plan or apply registration of one explicitly selected directory.
     Import {
         #[command(subcommand)]
@@ -95,10 +105,12 @@ pub enum ImportOperation {
 impl Operation {
     fn json(&self) -> bool {
         match self {
+            Self::Source { .. } => false,
             Self::Import { command } => match command {
                 ImportOperation::Plan { json, .. } | ImportOperation::Apply { json, .. } => *json,
             },
-            Self::List { json }
+            Self::Sources { json }
+            | Self::List { json }
             | Self::Show { json, .. }
             | Self::Validate { json, .. }
             | Self::RemovePlan { json, .. }
@@ -156,6 +168,11 @@ struct ErrorDetail<'a> {
 }
 
 pub fn run(operation: Operation, output: &mut impl Write) -> io::Result<u8> {
+    let operation = match operation {
+        Operation::Sources { json } => return super::game_sources::list(json, output),
+        Operation::Source { command } => return super::game_sources::run(command, output),
+        operation => operation,
+    };
     let json = operation.json();
     let mut rendered = Vec::new();
     let result = run_inner(operation, &mut rendered, json);
@@ -204,6 +221,9 @@ fn run_inner(
         .map_err(|_| GameImportError::StorageUnavailable)?;
     let registry = GameInstallationRegistry::for_app(&paths);
     match operation {
+        Operation::Sources { .. } | Operation::Source { .. } => {
+            unreachable!("source commands dispatch before storage discovery")
+        }
         Operation::Import { command } => match command {
             ImportOperation::Plan {
                 path,

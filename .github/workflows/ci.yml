@@ -109,6 +109,12 @@ jobs:
       - name: Run P031 game-import registry and filesystem safety tests
         run: cargo test --locked -p endfield-unix-game-import --all-targets -- --test-threads=1
 
+      - name: Run P032 official catalog and bounded Steam observation tests
+        run: cargo test --locked -p endfield-unix-game-sources --all-targets
+
+      - name: Run actual P032 headless CLI with network and child creation denied
+        run: cargo test --locked -p endfield-unix --test game_sources_cli -- --test-threads=1 --nocapture
+
       - name: Run actual P031 game-import CLI integration
         run: cargo test --locked -p endfield-unix --test game_import_cli -- --test-threads=1 --nocapture
 
