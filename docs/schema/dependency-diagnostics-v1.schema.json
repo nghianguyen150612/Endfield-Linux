@@ -222,8 +222,44 @@
       }
     },
     "storage": {
-      "type": "string",
-      "maxLength": 1024
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected",
+        "status",
+        "available_bytes",
+        "source",
+        "limitation"
+      ],
+      "properties": {
+        "selected": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "not_selected",
+            "invalid_path",
+            "blocked_or_unavailable",
+            "unavailable",
+            "observed",
+            "overflow"
+          ]
+        },
+        "available_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "source": {
+          "const": "explicit destination directory fstatvfs"
+        },
+        "limitation": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
     },
     "game": {
       "type": "object",
