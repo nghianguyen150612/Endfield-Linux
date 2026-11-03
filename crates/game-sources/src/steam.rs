@@ -1,6 +1,7 @@
 //! Narrow quoted KeyValues subset, not a general Steam API or payload verifier.
 use crate::{
-    InstalledSourceEvidence, SCHEMA_VERSION, STEAM_APP_ID, SourceError, SourceVerificationStatus,
+    InstalledSourceEvidence, SCHEMA_VERSION, STEAM_APP_ID, SourceError, SourceObjectIdentity,
+    SourceVerificationStatus,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -233,9 +234,12 @@ fn stamp(file: &File) -> Result<String, SourceError> {
         m.ctime_nsec()
     ))
 }
-fn directory_identity(file: &File) -> Result<String, SourceError> {
+fn directory_identity(file: &File) -> Result<SourceObjectIdentity, SourceError> {
     let m = file.metadata().map_err(io)?;
-    Ok(format!("{}:{}", m.dev(), m.ino()))
+    Ok(SourceObjectIdentity {
+        device: m.dev(),
+        inode: m.ino(),
+    })
 }
 fn manifest_bytes(file: &File) -> Result<Vec<u8>, SourceError> {
     if file.metadata().map_err(io)?.len() > MAX_BYTES as u64 {
@@ -304,13 +308,17 @@ pub fn inspect_steam(path: &Path) -> Result<InstalledSourceEvidence, SourceError
     if identity != current {
         return Err(SourceError::Changed);
     }
+    let identity_token = identity
+        .as_ref()
+        .map(|id| format!("{}:{}", id.device, id.inode))
+        .unwrap_or_else(|| "missing".into());
     let mut hash = Sha256::new();
     for part in [
         b"endfield-unix:steam-observation:v1\0".as_slice(),
         manifest.as_os_str().as_bytes(),
         before.as_bytes(),
         bytes.as_slice(),
-        identity.as_deref().unwrap_or("missing").as_bytes(),
+        identity_token.as_bytes(),
     ] {
         hash.update((part.len() as u64).to_le_bytes());
         hash.update(part);
@@ -329,6 +337,7 @@ pub fn inspect_steam(path: &Path) -> Result<InstalledSourceEvidence, SourceError
             .ok_or(SourceError::InvalidPath)?
             .to_owned(),
         installation_present: identity.is_some(),
+        installation_identity: identity,
         reported_build_id: build,
         reported_state_flags: state,
         observation_token: format!("{:x}", hash.finalize()),

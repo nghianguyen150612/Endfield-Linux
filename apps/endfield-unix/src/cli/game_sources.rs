@@ -178,7 +178,15 @@ fn result(operation: Operation) -> Result<(u8, Value), (u8, Value)> {
                 .transpose()
                 .map_err(source_error)?;
             let matches = observation.as_ref().is_some_and(|value| {
-                value.installation_path == record.selected_path && value.installation_present
+                value.installation_path == record.selected_path
+                    && value.installation_present
+                    && value
+                        .installation_identity
+                        .as_ref()
+                        .is_some_and(|identity| {
+                            identity.device == record.root_identity.device
+                                && identity.inode == record.root_identity.inode
+                        })
             }) && validation.state == GameInstallationState::Registered;
             Ok((
                 0,

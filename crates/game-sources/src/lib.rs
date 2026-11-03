@@ -293,6 +293,12 @@ impl SourceError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SourceObjectIdentity {
+    pub device: u64,
+    pub inode: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct InstalledSourceEvidence {
     pub schema_version: u32,
     pub source_id: &'static str,
@@ -301,6 +307,7 @@ pub struct InstalledSourceEvidence {
     pub manifest_path: String,
     pub installation_path: String,
     pub installation_present: bool,
+    pub installation_identity: Option<SourceObjectIdentity>,
     pub reported_build_id: Option<String>,
     pub reported_state_flags: Option<String>,
     pub observation_token: String,
