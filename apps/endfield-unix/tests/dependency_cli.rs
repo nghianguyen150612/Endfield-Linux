@@ -128,7 +128,12 @@ fn explicit_storage_observation_is_read_only_and_does_not_leak_path() {
     assert_eq!(
         invoke(
             temp.path(),
-            &["diagnose", "dependencies", "--storage-path", "relative/path"]
+            &[
+                "diagnose",
+                "dependencies",
+                "--storage-path",
+                "relative/path"
+            ]
         )
         .status
         .code(),
