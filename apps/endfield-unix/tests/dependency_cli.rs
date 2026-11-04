@@ -72,7 +72,10 @@ fn empty_host_and_source_selection_are_read_only() {
 
 #[test]
 fn explicit_storage_observation_is_read_only_and_does_not_leak_path() {
-    use std::{fs, os::unix::fs::symlink};
+    use std::{
+        fs,
+        os::unix::fs::{PermissionsExt, symlink},
+    };
     let temp = tempfile::tempdir().unwrap();
     let destination = temp.path().join("selected-storage");
     fs::create_dir(&destination).unwrap();
@@ -120,10 +123,99 @@ fn explicit_storage_observation_is_read_only_and_does_not_leak_path() {
     let report: Value = serde_json::from_slice(&aliased.stdout).unwrap();
     assert_eq!(report["storage"]["status"], "blocked_or_unavailable");
     assert!(report["storage"]["available_bytes"].is_null());
-    assert!(report["findings"].as_array().unwrap().iter().any(
-        |finding| finding["id"] == "storage.installation" && finding["state"] == "unknown"
-    ));
+    assert!(
+        report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["id"] == "storage.installation"
+                && finding["state"] == "unavailable")
+    );
     assert_eq!(report["game_compatibility"], "not_tested");
+    for candidate in [temp.path().join("missing"), destination.join("nonexistent")] {
+        let output = invoke(
+            temp.path(),
+            &[
+                "diagnose",
+                "dependencies",
+                "--storage-path",
+                candidate.to_str().unwrap(),
+                "--json",
+            ],
+        );
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["storage"]["status"], "missing");
+    }
+    let file = temp.path().join("regular-file");
+    fs::write(&file, b"unchanged").unwrap();
+    let output = invoke(
+        temp.path(),
+        &[
+            "diagnose",
+            "dependencies",
+            "--storage-path",
+            file.to_str().unwrap(),
+            "--json",
+        ],
+    );
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["storage"]["status"], "blocked_or_unavailable");
+    assert_eq!(fs::read(file).unwrap(), b"unchanged");
+    let blocked = temp.path().join("inaccessible");
+    fs::create_dir(&blocked).unwrap();
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0)).unwrap();
+    let output = invoke(
+        temp.path(),
+        &[
+            "diagnose",
+            "dependencies",
+            "--source-id",
+            "steam",
+            "--storage-path",
+            blocked.to_str().unwrap(),
+            "--json",
+        ],
+    );
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o700)).unwrap();
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["storage"]["status"], "permission_denied");
+    assert!(
+        value["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["id"] == "storage.installation" && f["state"] == "permission_denied")
+    );
+    let too_long = format!("/{}", "x".repeat(4096));
+    assert_eq!(
+        invoke(
+            temp.path(),
+            &["diagnose", "dependencies", "--storage-path", &too_long]
+        )
+        .status
+        .code(),
+        Some(2)
+    );
+    let epic = invoke(
+        temp.path(),
+        &[
+            "diagnose",
+            "dependencies",
+            "--source-id",
+            "epic",
+            "--storage-path",
+            selected,
+            "--json",
+        ],
+    );
+    let value: Value = serde_json::from_slice(&epic.stdout).unwrap();
+    assert!(
+        value["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["id"] == "storage.unpack" && f["state"] == "unknown")
+    );
 
     assert_eq!(
         invoke(
@@ -277,8 +369,14 @@ fn registered_game_revalidation_does_not_modify_registry_or_payload() {
         fs::create_dir_all(&path).unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
     }
-    let game = root.join("selected-game");
-    fs::create_dir(&game).unwrap();
+    let library = root.join("steam-library");
+    let game = library.join("steamapps/common/selected-game");
+    fs::create_dir_all(&game).unwrap();
+    fs::write(
+        library.join("steamapps/appmanifest_4732690.acf"),
+        r#""AppState" { "appid" "4732690" "installdir" "selected-game" "buildid" "42" }"#,
+    )
+    .unwrap();
     fs::write(game.join("payload"), b"inert game data").unwrap();
     let path = game.to_str().unwrap();
     let plan = invoke(
@@ -338,6 +436,8 @@ fn registered_game_revalidation_does_not_modify_registry_or_payload() {
             "endfield-main",
             "--source-id",
             "steam",
+            "--steam-path",
+            library.to_str().unwrap(),
             "--json",
         ],
     );
@@ -349,6 +449,74 @@ fn registered_game_revalidation_does_not_modify_registry_or_payload() {
     );
     let report: Value = serde_json::from_slice(&report.stdout).unwrap();
     assert_eq!(report["game"]["selected_id"], "endfield-main");
+    assert_eq!(
+        report["steam_observation"]["status"],
+        "observed_local_metadata"
+    );
+    assert_eq!(report["steam_observation"]["matches_registered_game"], true);
+    assert_eq!(report["steam_observation"]["reported_build_id"], "42");
+    assert!(!report.to_string().contains(library.to_str().unwrap()));
+    let other = root.join("other-library");
+    fs::create_dir_all(other.join("steamapps/common/selected-game")).unwrap();
+    fs::write(
+        other.join("steamapps/appmanifest_4732690.acf"),
+        r#""AppState" { "appid" "4732690" "installdir" "selected-game" }"#,
+    )
+    .unwrap();
+    let mismatch = invoke(
+        root,
+        &[
+            "diagnose",
+            "dependencies",
+            "--game-id",
+            "endfield-main",
+            "--source-id",
+            "steam",
+            "--steam-path",
+            other.to_str().unwrap(),
+            "--json",
+        ],
+    );
+    let mismatch: Value = serde_json::from_slice(&mismatch.stdout).unwrap();
+    assert_eq!(
+        mismatch["steam_observation"]["matches_registered_game"],
+        false
+    );
+    fs::write(
+        other.join("steamapps/appmanifest_4732690.acf"),
+        r#""AppState" { "appid" "1" "installdir" "selected-game" }"#,
+    )
+    .unwrap();
+    let invalid = invoke(
+        root,
+        &[
+            "diagnose",
+            "dependencies",
+            "--source-id",
+            "steam",
+            "--steam-path",
+            other.to_str().unwrap(),
+            "--json",
+        ],
+    );
+    let invalid: Value = serde_json::from_slice(&invalid.stdout).unwrap();
+    assert_eq!(invalid["steam_observation"]["status"], "wrong_steam_app");
+    assert_eq!(
+        invoke(
+            root,
+            &[
+                "diagnose",
+                "dependencies",
+                "--source-id",
+                "epic",
+                "--steam-path",
+                other.to_str().unwrap()
+            ]
+        )
+        .status
+        .code(),
+        Some(2)
+    );
     assert_eq!(report["game_compatibility"], "not_tested");
     assert_eq!(fs::read(&registry).unwrap(), before);
     assert_eq!(fs::read(game.join("payload")).unwrap(), b"inert game data");

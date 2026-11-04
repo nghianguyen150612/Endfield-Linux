@@ -134,6 +134,9 @@ enum DiagnoseArgs {
         /// Explicit destination directory to inspect for available filesystem space.
         #[arg(long, value_name = "PATH", value_parser = dependency_storage_path)]
         storage_path: Option<PathBuf>,
+        /// Inspect one explicitly selected Steam library root or appmanifest.
+        #[arg(long, value_name = "PATH", value_parser = absolute_path)]
+        steam_path: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
@@ -395,6 +398,7 @@ where
                     game_id,
                     source_id,
                     storage_path,
+                    steam_path,
                     json,
                 },
         }) => Command::DiagnoseDependencies {
@@ -403,6 +407,7 @@ where
             game_id,
             source_id,
             storage_path,
+            steam_path,
             json,
         },
         Some(SubcommandArgs::Diagnose {

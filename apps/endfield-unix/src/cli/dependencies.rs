@@ -93,7 +93,12 @@ fn inspect_storage(path: Option<&Path>) -> StorageObservation {
                     )
                 };
                 if fd < 0 {
-                    return observation(true, "blocked_or_unavailable", None);
+                    let status = match std::io::Error::last_os_error().kind() {
+                        std::io::ErrorKind::NotFound => "missing",
+                        std::io::ErrorKind::PermissionDenied => "permission_denied",
+                        _ => "blocked_or_unavailable",
+                    };
+                    return observation(true, status, None);
                 }
                 // SAFETY: openat returned a new owned file descriptor.
                 current = unsafe { File::from_raw_fd(fd) };
@@ -115,6 +120,16 @@ fn inspect_storage(path: Option<&Path>) -> StorageObservation {
 }
 
 #[derive(Serialize)]
+struct SteamObservation {
+    selected: bool,
+    status: &'static str,
+    installation_present: Option<bool>,
+    matches_registered_game: Option<bool>,
+    reported_build_id: Option<String>,
+    reported_state_flags: Option<String>,
+    limitation: &'static str,
+}
+#[derive(Serialize)]
 struct Report {
     schema_version: u32,
     observed_at_unix_seconds: u64,
@@ -127,6 +142,7 @@ struct Report {
     game: GameObservation,
     source_guidance: Option<&'static str>,
     source_evidence: Option<endfield_unix_game_sources::OfficialGameSource>,
+    steam_observation: SteamObservation,
     compatibility: endfield_unix_compatibility_diagnostics::CompatibilityDiagnosticReport,
     findings: Vec<core::Finding>,
     anti_cheat: AntiCheatEvidence,
@@ -140,7 +156,7 @@ pub fn run(
     prefix_id: Option<String>,
     game_id: Option<String>,
     source_id: Option<String>,
-    storage_path: Option<PathBuf>,
+    paths: (Option<PathBuf>, Option<PathBuf>),
     json: bool,
     output: &mut impl Write,
 ) -> Result<(), CompatibilityError> {
@@ -150,6 +166,10 @@ pub fn run(
         Some("gryphlink") => Some(core::Channel::Gryphlink),
         _ => None,
     };
+    let (storage_path, steam_path) = paths;
+    if steam_path.is_some() && channel != Some(core::Channel::Steam) {
+        return Err(CompatibilityError::InvalidSourceSelection);
+    }
     let game_key = game_id
         .as_ref()
         .map(|id| GameInstallationId::new(id.clone()))
@@ -199,6 +219,7 @@ pub fn run(
             core::MemoryObservation::default(),
         ),
     };
+    let steam_observation = collect_steam(steam_path.as_deref(), game_key.as_ref());
     let game = collect_game(game_key.as_ref(), game_id);
     let source_evidence = source_id
         .as_deref()
@@ -206,8 +227,46 @@ pub fn run(
     let guidance = source_evidence.as_ref().map(|source| source.guidance);
     let storage = inspect_storage(storage_path.as_deref());
     let mut findings = core::assess_memory(&memory, channel);
-    findings.extend(core::assess_storage(channel, storage.available_bytes));
+    let mut storage_findings = core::assess_storage(channel, storage.available_bytes);
+    for finding in &mut storage_findings {
+        if finding.id == "storage.installation" {
+            match storage.status {
+                "permission_denied" => {
+                    finding.state = core::State::PermissionDenied;
+                    finding.explanation = "Access to the selected destination was denied.";
+                }
+                "missing" => {
+                    finding.state = core::State::Unavailable;
+                    finding.explanation = "The selected destination was not found.";
+                }
+                "blocked_or_unavailable" | "unavailable" | "overflow" | "invalid_path" => {
+                    finding.state = core::State::Unavailable;
+                    finding.explanation = "The selected destination could not be observed safely.";
+                }
+                _ => {}
+            }
+        }
+    }
+    findings.extend(storage_findings);
     findings.extend(core::assess_noncomparable(channel));
+    let game_state = match game.state.as_str() {
+        "missing" | "not_registered" => core::GameObservationState::Missing,
+        "not_selected" => core::GameObservationState::NotSelected,
+        "registered" | "structure_observed" | "identity_unverified" | "identity_verified" => {
+            core::GameObservationState::ObservedUnverified
+        }
+        "changed" | "registered_location_missing" | "changed_since_plan" => {
+            core::GameObservationState::Changed
+        }
+        "blocked" | "revalidation_blocked" | "unsupported" => core::GameObservationState::Blocked,
+        _ => core::GameObservationState::Unknown,
+    };
+    findings.extend(core::assess_setup_context(
+        game_state,
+        steam_observation.matches_registered_game,
+    ));
+    findings.sort_by_key(|finding| finding.id);
+    findings.truncate(core::MAX_FINDINGS);
     let requirements = core::catalog()
         .into_iter()
         .filter(|r| Some(r.channel) == channel)
@@ -224,6 +283,7 @@ pub fn run(
         game,
         source_guidance: guidance,
         source_evidence,
+        steam_observation,
         compatibility,
         findings,
         anti_cheat: AntiCheatEvidence {
@@ -284,6 +344,10 @@ pub fn run(
                 ));
             }
         }
+        text.push_str(&format!(
+            "Steam local metadata: {} (registered game match: {:?})\n",
+            report.steam_observation.status, report.steam_observation.matches_registered_game
+        ));
         if let Some(guidance) = report.source_guidance {
             text.push_str(guidance);
             text.push('\n');
@@ -295,6 +359,50 @@ pub fn run(
         return Err(CompatibilityError::OutputLimit);
     }
     output.write_all(&bytes).map_err(CompatibilityError::Output)
+}
+
+fn collect_steam(path: Option<&Path>, game_id: Option<&GameInstallationId>) -> SteamObservation {
+    let mut result = SteamObservation {
+        selected: path.is_some(),
+        status: "not_selected",
+        installation_present: None,
+        matches_registered_game: None,
+        reported_build_id: None,
+        reported_state_flags: None,
+        limitation: "Local metadata is untrusted; no source association is persisted, publisher authenticity and game integrity remain unverified.",
+    };
+    let Some(path) = path else {
+        return result;
+    };
+    match endfield_unix_game_sources::inspect_steam(path) {
+        Ok(observation) => {
+            result.status = "observed_local_metadata";
+            result.installation_present = Some(observation.installation_present);
+            if let Some(id) = game_id {
+                result.matches_registered_game = AppPaths::discover().ok().and_then(|paths| {
+                    let store = GameInstallationRegistry::for_app(&paths);
+                    let snapshot = store.load_read_only().ok()?;
+                    let record = snapshot
+                        .installations
+                        .iter()
+                        .find(|record| &record.id == id)?;
+                    let validation = store.validate(id).ok()?;
+                    if snapshot.revision != validation.registry_revision {
+                        return None;
+                    }
+                    Some(super::game_sources::observation_matches_game(
+                        &observation,
+                        record,
+                        &validation,
+                    ))
+                });
+            }
+            result.reported_build_id = observation.reported_build_id;
+            result.reported_state_flags = observation.reported_state_flags;
+        }
+        Err(error) => result.status = error.code(),
+    }
+    result
 }
 
 fn collect_game(id: Option<&GameInstallationId>, selected_id: Option<String>) -> GameObservation {

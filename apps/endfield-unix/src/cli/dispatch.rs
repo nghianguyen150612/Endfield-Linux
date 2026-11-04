@@ -560,13 +560,14 @@ where
             game_id,
             source_id,
             storage_path,
+            steam_path,
             json,
         } => super::dependencies::run(
             profile,
             prefix_id,
             game_id,
             source_id,
-            storage_path,
+            (storage_path, steam_path),
             json,
             stdout,
         )

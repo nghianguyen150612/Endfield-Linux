@@ -21,6 +21,7 @@ pub enum CompatibilityError {
     InvalidProfile,
     InvalidPrefixId,
     InvalidGameId,
+    InvalidSourceSelection,
     Serialization,
     Output(io::Error),
     OutputLimit,
@@ -29,7 +30,10 @@ pub enum CompatibilityError {
 impl CompatibilityError {
     pub fn exit_status(&self) -> u8 {
         match self {
-            Self::InvalidProfile | Self::InvalidPrefixId | Self::InvalidGameId => 2,
+            Self::InvalidProfile
+            | Self::InvalidPrefixId
+            | Self::InvalidGameId
+            | Self::InvalidSourceSelection => 2,
             Self::Output(_) => 74,
             Self::Serialization | Self::OutputLimit => 70,
         }
@@ -42,6 +46,7 @@ impl std::fmt::Display for CompatibilityError {
             Self::InvalidProfile => "compatibility diagnostic profile identifier is invalid.",
             Self::InvalidPrefixId => "compatibility diagnostic prefix identifier is invalid.",
             Self::InvalidGameId => "dependency diagnostic game identifier is invalid.",
+            Self::InvalidSourceSelection => "Steam metadata requires --source-id steam.",
             Self::Serialization => "compatibility diagnostic report could not be serialized.",
             Self::Output(_) => "failed to write compatibility diagnostic output.",
             Self::OutputLimit => "compatibility diagnostic output exceeded its configured limit.",

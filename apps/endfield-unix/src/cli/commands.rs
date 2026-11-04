@@ -42,6 +42,7 @@ pub enum Command {
         game_id: Option<String>,
         source_id: Option<String>,
         storage_path: Option<std::path::PathBuf>,
+        steam_path: Option<std::path::PathBuf>,
         json: bool,
     },
     DiagnoseCompatibility {

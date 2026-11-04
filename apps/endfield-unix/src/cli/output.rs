@@ -1651,7 +1651,7 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "  diagnose dependencies [--profile ID] [--game-id ID] [--prefix-id ID] [--source-id steam|epic|gryphlink] [--json]  Assess static dependencies"
+        "  diagnose dependencies [--profile ID] [--game-id ID] [--prefix-id ID] [--source-id steam|epic|gryphlink] [--storage-path PATH] [--steam-path PATH] [--json]  Assess static dependencies"
     )?;
     writeln!(
         output,

@@ -354,6 +354,95 @@ pub fn assess_noncomparable(channel: Option<Channel>) -> Vec<Finding> {
     }).collect()
 }
 
+/// State supplied by the game-registry adapter; no filesystem access occurs here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GameObservationState {
+    Missing,
+    NotSelected,
+    ObservedUnverified,
+    Changed,
+    Blocked,
+    Unknown,
+}
+
+/// Explain independent setup boundaries without evaluating compatibility a second time.
+pub fn assess_setup_context(game: GameObservationState, steam_match: Option<bool>) -> Vec<Finding> {
+    let (state, explanation, action, supported) = match game {
+        GameObservationState::Missing => (
+            State::Missing,
+            "No selected registered game was found.",
+            "Use the existing game import plan for an explicitly selected directory.",
+            true,
+        ),
+        GameObservationState::NotSelected => (
+            State::Unknown,
+            "A registered game exists but none was selected.",
+            "Choose an existing game ID for revalidation.",
+            true,
+        ),
+        GameObservationState::ObservedUnverified => (
+            State::Unknown,
+            "The registered location was observed, but the game identity and payload are unverified.",
+            "Review the existing game validation report.",
+            true,
+        ),
+        GameObservationState::Changed => (
+            State::Stale,
+            "The registered game location changed or is missing.",
+            "Review the registration and revalidate the exact location.",
+            true,
+        ),
+        GameObservationState::Blocked => (
+            State::Unavailable,
+            "The registered location could not be safely revalidated.",
+            "Review the selected location and registry state.",
+            true,
+        ),
+        GameObservationState::Unknown => (
+            State::Unknown,
+            "The registration state could not be established.",
+            "Review the game registry with existing game commands.",
+            true,
+        ),
+    };
+    let mut findings = vec![
+        Finding {
+            id: "game.registration",
+            component: "game",
+            requirement_id: None,
+            state,
+            severity: Severity::Warning,
+            explanation,
+            evidence_source: "P031 read-only registry and selected-location revalidation",
+            observed_bytes: None,
+            expected: "A selected registered game location",
+            suggested_action: action,
+            supported_by_endfield_unix: supported,
+            requires_separate_approval: false,
+            limitation: "A registration is user-declared and is not publisher authenticity, game integrity, or compatibility evidence.",
+        },
+        Finding {
+            id: "compatibility.anticheat",
+            component: "anti_cheat",
+            requirement_id: None,
+            state: State::Unknown,
+            severity: Severity::Warning,
+            explanation: "The Steam listing reports kernel-level ACE anti-cheat; Linux compatibility is not established.",
+            evidence_source: "P032 official Steam listing",
+            observed_bytes: None,
+            expected: "Publisher-authorized support evidence",
+            suggested_action: "Review official publisher support information; do not bypass protections.",
+            supported_by_endfield_unix: false,
+            requires_separate_approval: false,
+            limitation: "No anti-cheat component was run and no Linux support is inferred.",
+        },
+    ];
+    if steam_match == Some(false) {
+        findings.push(Finding { id: "source.steam_location_conflict", component: "game_source", requirement_id: None, state: State::Conflicting, severity: Severity::Warning, explanation: "The explicit Steam observation does not match the revalidated registered game location.", evidence_source: "P032 explicit Steam observation and P031 registration", observed_bytes: None, expected: "Matching path and observed directory identity", suggested_action: "Review the selected Steam metadata and registered game location.", supported_by_endfield_unix: true, requires_separate_approval: false, limitation: "The comparison is ephemeral and cannot prove authenticity or eliminate concurrent changes." });
+    }
+    findings
+}
+
 /// Evaluate only an explicitly selected filesystem's free bytes. Separate
 /// installation and unpack observations are never added across filesystems.
 pub fn assess_storage(channel: Option<Channel>, available_bytes: Option<u64>) -> Vec<Finding> {
@@ -476,5 +565,38 @@ mod tests {
                     .all(|f| f.state == State::NotComparable)
             );
         }
+    }
+    #[test]
+    fn setup_findings_preserve_conflict_and_uncertainty() {
+        let first = assess_setup_context(GameObservationState::Missing, Some(false));
+        assert_eq!(
+            first,
+            assess_setup_context(GameObservationState::Missing, Some(false))
+        );
+        assert_eq!(
+            first
+                .iter()
+                .find(|f| f.id == "game.registration")
+                .unwrap()
+                .state,
+            State::Missing
+        );
+        assert_eq!(
+            first
+                .iter()
+                .find(|f| f.id == "compatibility.anticheat")
+                .unwrap()
+                .state,
+            State::Unknown
+        );
+        assert_eq!(
+            first
+                .iter()
+                .find(|f| f.id == "source.steam_location_conflict")
+                .unwrap()
+                .state,
+            State::Conflicting
+        );
+        assert!(first.iter().all(|f| !f.suggested_action.contains("sudo")));
     }
 }
