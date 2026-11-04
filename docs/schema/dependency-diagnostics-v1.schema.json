@@ -1,0 +1,687 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nghianguyen150612/Endfield-Linux/blob/main/docs/schema/dependency-diagnostics-v1.schema.json",
+  "title": "Endfield-Unix dependency diagnostics report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observed_at_unix_seconds",
+    "requirement_catalog_revision",
+    "selected_source",
+    "requirements",
+    "cpu",
+    "memory",
+    "storage",
+    "game",
+    "source_guidance",
+    "compatibility",
+    "findings",
+    "anti_cheat",
+    "overall",
+    "game_compatibility",
+    "limitations",
+    "source_evidence",
+    "steam_observation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "observed_at_unix_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "requirement_catalog_revision": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "selected_source": {
+      "enum": [
+        "steam",
+        "epic",
+        "gryphlink",
+        null
+      ]
+    },
+    "requirements": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "component",
+          "value",
+          "unit",
+          "comparison",
+          "platform_scope",
+          "source_url",
+          "evidence_type",
+          "observed_on",
+          "limitation",
+          "channel",
+          "tier",
+          "linux_translation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "component": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "comparison": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "platform_scope": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "source_url": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "evidence_type": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "observed_on": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "limitation": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "channel": {
+            "enum": [
+              "steam",
+              "epic",
+              "gryphlink"
+            ]
+          },
+          "tier": {
+            "enum": [
+              "minimum",
+              "recommended"
+            ]
+          },
+          "linux_translation": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "cpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "logical_online",
+        "physical_cores",
+        "process_allowed",
+        "limitation"
+      ],
+      "properties": {
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "logical_online": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "physical_cores": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "process_allowed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "limitation": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "physical_bytes",
+        "available_bytes",
+        "cgroup_limit_bytes",
+        "swap_bytes",
+        "cgroup_limit_state",
+        "cgroup_ancestor_limits_assessed"
+      ],
+      "properties": {
+        "physical_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "available_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cgroup_limit_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "swap_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cgroup_limit_state": {
+          "enum": [
+            "unknown",
+            "unlimited",
+            "limited"
+          ]
+        },
+        "cgroup_ancestor_limits_assessed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected",
+        "status",
+        "available_bytes",
+        "source",
+        "limitation"
+      ],
+      "properties": {
+        "selected": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "not_selected",
+            "invalid_path",
+            "blocked_or_unavailable",
+            "unavailable",
+            "observed",
+            "overflow",
+            "missing",
+            "permission_denied"
+          ]
+        },
+        "available_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "source": {
+          "const": "explicit destination directory fstatvfs"
+        },
+        "limitation": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "game": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected_id",
+        "state",
+        "identity",
+        "explanation",
+        "action"
+      ],
+      "properties": {
+        "selected_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "state": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "identity": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "explanation": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "action": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "source_guidance": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1024
+    },
+    "compatibility": {
+      "$ref": "compatibility-diagnostics-v1.schema.json"
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "component",
+          "explanation",
+          "evidence_source",
+          "expected",
+          "suggested_action",
+          "limitation",
+          "requirement_id",
+          "state",
+          "severity",
+          "observed_bytes",
+          "supported_by_endfield_unix",
+          "requires_separate_approval"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "component": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "explanation": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "evidence_source": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "expected": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "suggested_action": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "limitation": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "requirement_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "state": {
+            "enum": [
+              "satisfied_by_observation",
+              "missing",
+              "unavailable",
+              "permission_denied",
+              "stale",
+              "conflicting",
+              "unsupported",
+              "unknown",
+              "not_comparable",
+              "not_tested",
+              "not_applicable"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "information",
+              "warning",
+              "blocker"
+            ]
+          },
+          "observed_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "supported_by_endfield_unix": {
+            "type": "boolean"
+          },
+          "requires_separate_approval": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "anti_cheat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim",
+        "source_url",
+        "observed_on",
+        "linux_compatibility",
+        "limitation"
+      ],
+      "properties": {
+        "claim": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "source_url": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "observed_on": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "linux_compatibility": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "limitation": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "overall": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "game_compatibility": {
+      "const": "not_tested"
+    },
+    "limitations": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "maxLength": 1024
+      }
+    },
+    "source_evidence": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "display_name",
+            "official_page",
+            "publisher",
+            "developer",
+            "platform_reported",
+            "region_scope",
+            "restrictions",
+            "guidance",
+            "channel",
+            "trust",
+            "capabilities",
+            "unsupported_operations",
+            "evidence"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "display_name": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "official_page": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "publisher": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "developer": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "platform_reported": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "region_scope": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "restrictions": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "guidance": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "channel": {
+              "enum": [
+                "steam",
+                "epic",
+                "gryphlink"
+              ]
+            },
+            "trust": {
+              "enum": [
+                "verified_official_listing",
+                "verified_publisher_announcement",
+                "observed_local_metadata",
+                "user_declared",
+                "unverifiable",
+                "unsupported",
+                "changed",
+                "unknown"
+              ]
+            },
+            "capabilities": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "enum": [
+                  "catalog_only",
+                  "official_handoff",
+                  "local_installation_observation",
+                  "verified_artifact_acquisition"
+                ]
+              }
+            },
+            "unsupported_operations": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            },
+            "evidence": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "title",
+                  "provider",
+                  "url",
+                  "observed_on",
+                  "claim",
+                  "publication_date",
+                  "status"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "provider": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "observed_on": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "claim": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "publication_date": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 256
+                  },
+                  "status": {
+                    "enum": [
+                      "verified_official_listing",
+                      "verified_publisher_announcement",
+                      "observed_local_metadata",
+                      "user_declared",
+                      "unverifiable",
+                      "unsupported",
+                      "changed",
+                      "unknown"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "steam_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected",
+        "status",
+        "installation_present",
+        "matches_registered_game",
+        "reported_build_id",
+        "reported_state_flags",
+        "limitation"
+      ],
+      "properties": {
+        "selected": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "not_selected",
+            "observed_local_metadata",
+            "unknown_source",
+            "invalid_catalog",
+            "unsupported_source_operation",
+            "unsafe_source_path",
+            "source_missing",
+            "invalid_source_metadata",
+            "wrong_steam_app",
+            "source_changed",
+            "source_io"
+          ]
+        },
+        "installation_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "matches_registered_game": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reported_build_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20
+        },
+        "reported_state_flags": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20
+        },
+        "limitation": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    }
+  }
+}

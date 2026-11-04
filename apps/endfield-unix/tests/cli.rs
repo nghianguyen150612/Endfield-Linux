@@ -25,6 +25,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
     assert!(stdout.contains("diagnose platform"));
     assert!(stdout.contains("diagnose hardware"));
     assert!(stdout.contains("diagnose display"));
+    assert!(stdout.contains("diagnose dependencies"));
     assert!(stdout.contains("diagnose runtimes"));
     assert!(stdout.contains("diagnose umu"));
     assert!(stdout.contains("diagnose telemetry frames --input PATH"));
@@ -133,7 +134,7 @@ fn command_specific_help_describes_gui_and_about() {
     assert!(service_help.contains("never uses root privileges"));
     assert_eq!(diagnose.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&diagnose.stdout).contains(
-        "diagnose <report|platform|hardware|gpu|display|compatibility|runtimes|umu|runtime-integrity|telemetry>\nUsage: endfield-unix runtime <install|list-managed|audit|audit-source>"
+        "diagnose <report|platform|hardware|gpu|display|dependencies|compatibility|runtimes|umu|runtime-integrity|telemetry>\nUsage: endfield-unix runtime <install|list-managed|audit|audit-source>"
     ));
     assert_eq!(prefix.status.code(), Some(0));
     let prefix_help = String::from_utf8_lossy(&prefix.stdout);

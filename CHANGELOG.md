@@ -1,5 +1,9 @@
 # Changelog
 
+P033 work in progress adds explicit read-only Steam metadata observation and more precise selected-storage failure states.
+
+P033 work in progress adds a preliminary static dependency report; it is incomplete and not qualified. See [status](docs/DEPENDENCY-DIAGNOSTICS.md).
+
 ## Unreleased
 
 ### Added

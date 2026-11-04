@@ -1,5 +1,9 @@
 # Security, privacy, and recovery
 
+P033 Steam metadata paths are explicitly selected and redacted from dependency reports; no account or payload data is read.
+
+P033 work in progress is intended to remain read-only and does not establish launch compatibility; see its [unqualified status](DEPENDENCY-DIAGNOSTICS.md).
+
 P001 sets the baseline requirements. P006 implements the storage protections below; this is not a broader security audit.
 
 ## Least privilege and trust boundaries

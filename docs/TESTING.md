@@ -1,5 +1,9 @@
 # Testing and release gates
 
+P033 tests cover selected Steam metadata, matching and mismatching P031 locations, redaction, and storage refusal. Qualification remains incomplete.
+
+P033 qualification is incomplete; see [current limitations](DEPENDENCY-DIAGNOSTICS.md).
+
 ## P001 baseline
 
 P001 added documentation only. At that baseline there was no Rust or C implementation, test suite, or application build/lint command. Rust/C tests, GUI checks, runtime checks, and platform validation were **not yet applicable**, not passed. P002 preserves the P001 requirements and adds the initial Rust checks below; it does not implement the future GUI, C optimizer, daemon, runtime, or platform checks.

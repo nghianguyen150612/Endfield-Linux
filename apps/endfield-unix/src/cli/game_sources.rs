@@ -1,7 +1,8 @@
 //! P032 read-only source reports, sharing the canonical game command tree.
 use clap::Subcommand;
 use endfield_unix_game_import::{
-    GameImportError, GameInstallationId, GameInstallationRegistry, GameInstallationState,
+    GameImportError, GameInstallationId, GameInstallationRecord, GameInstallationRegistry,
+    GameInstallationState, GameInstallationValidation,
 };
 use endfield_unix_game_sources::{
     self as sources, InstalledSourceEvidence, SourceError, SourceVerificationStatus,
@@ -101,6 +102,24 @@ fn source_observation(
         Err(SourceError::Unsupported)
     }
 }
+/// Match only an exact P031 object that remains registered after revalidation.
+pub(super) fn observation_matches_game(
+    observation: &InstalledSourceEvidence,
+    record: &GameInstallationRecord,
+    validation: &GameInstallationValidation,
+) -> bool {
+    observation.installation_path == record.selected_path
+        && observation.installation_present
+        && observation
+            .installation_identity
+            .as_ref()
+            .is_some_and(|identity| {
+                identity.device == record.root_identity.device
+                    && identity.inode == record.root_identity.inode
+            })
+        && validation.state == GameInstallationState::Registered
+}
+
 fn registry() -> Result<GameInstallationRegistry, GameImportError> {
     let paths = endfield_unix_storage::AppPaths::discover()
         .map_err(|_| GameImportError::StorageUnavailable)?;
@@ -177,17 +196,9 @@ fn result(operation: Operation) -> Result<(u8, Value), (u8, Value)> {
                 .map(|path| source_observation(source.id, path, None))
                 .transpose()
                 .map_err(source_error)?;
-            let matches = observation.as_ref().is_some_and(|value| {
-                value.installation_path == record.selected_path
-                    && value.installation_present
-                    && value
-                        .installation_identity
-                        .as_ref()
-                        .is_some_and(|identity| {
-                            identity.device == record.root_identity.device
-                                && identity.inode == record.root_identity.inode
-                        })
-            }) && validation.state == GameInstallationState::Registered;
+            let matches = observation
+                .as_ref()
+                .is_some_and(|value| observation_matches_game(value, record, &validation));
             Ok((
                 0,
                 json!({"schema_version":1,"game_id":id,"source_id":source.id,"registry_revision":snapshot.revision,"source_evidence_type":if matches {SourceVerificationStatus::ObservedLocalMetadata} else {SourceVerificationStatus::UserDeclared},"local_observation_matches_registered_location":matches,"local_observation":observation,"game_validation":validation,"persistence":"unsupported_read_only_plan","association_stored":false,"publisher_authenticity":"unverifiable","artifact_integrity":"unverifiable","game_compatibility":"not_tested","execution_readiness":"unknown","guidance":source.guidance,"limitations":"Source label is user-declared unless the local Steam observation matches the revalidated registered location. Snapshot revision is observational, not a reservation or cross-registry transaction. Re-run after any change; no apply command exists."}),

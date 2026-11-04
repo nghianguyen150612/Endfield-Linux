@@ -554,6 +554,24 @@ where
                 .map_err(CliError::DisplayProbe)?;
             output::write_display_report(&report, stdout).map_err(CliError::Output)
         }
+        Command::DiagnoseDependencies {
+            profile,
+            prefix_id,
+            game_id,
+            source_id,
+            storage_path,
+            steam_path,
+            json,
+        } => super::dependencies::run(
+            profile,
+            prefix_id,
+            game_id,
+            source_id,
+            (storage_path, steam_path),
+            json,
+            stdout,
+        )
+        .map_err(CliError::Compatibility),
         Command::DiagnoseCompatibility {
             profile,
             prefix_id,

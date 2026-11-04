@@ -1,5 +1,7 @@
 # Compatibility diagnostics (P030)
 
+The work-in-progress P033 adapter reuses the P030 collector; see [dependency diagnostics](DEPENDENCY-DIAGNOSTICS.md).
+
 P030 adds a headless, read-only assessment of the explicitly selected Wine/Proton runtime, Linux GPU and driver observations, Vulkan capabilities, and an optional registered Endfield-Unix prefix. It combines P013, P022–P027, P028, and P029 evidence without replacing those providers or registries.
 
 Static diagnostics describe observed structure and uncertainty. They do not establish successful Wine initialization, Direct3D translation, Endfield launch, rendering, or performance. `game_compatibility` is always `not_tested`.

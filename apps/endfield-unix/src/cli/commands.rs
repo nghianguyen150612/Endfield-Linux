@@ -36,6 +36,15 @@ pub enum Command {
     DiagnoseHardware,
     DiagnoseGpu,
     DiagnoseDisplay,
+    DiagnoseDependencies {
+        profile: Option<String>,
+        prefix_id: Option<String>,
+        game_id: Option<String>,
+        source_id: Option<String>,
+        storage_path: Option<std::path::PathBuf>,
+        steam_path: Option<std::path::PathBuf>,
+        json: bool,
+    },
     DiagnoseCompatibility {
         profile: Option<String>,
         prefix_id: Option<String>,

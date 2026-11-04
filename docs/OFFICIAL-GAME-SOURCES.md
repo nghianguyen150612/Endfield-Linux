@@ -1,5 +1,7 @@
 # Official game sources (P032)
 
+The work-in-progress P033 report reuses this offline catalog; see [dependency diagnostics](DEPENDENCY-DIAGNOSTICS.md).
+
 P032 provides an offline reviewed catalog, manual official installation handoff,
 and bounded read-only Steam metadata observation. It does not acquire artifacts,
 install launchers, update games, authenticate accounts, or launch anything.

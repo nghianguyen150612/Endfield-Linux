@@ -121,6 +121,25 @@ enum DiagnoseArgs {
     Gpu,
     /// Inspect local Linux display outputs, session protocols, and DRM connectors.
     Display,
+    /// Assess static dependency evidence without installing or running software.
+    Dependencies {
+        #[arg(long, value_name = "PROFILE_ID")]
+        profile: Option<String>,
+        #[arg(long, value_name = "PREFIX_ID")]
+        prefix_id: Option<String>,
+        #[arg(long, value_name = "GAME_ID")]
+        game_id: Option<String>,
+        #[arg(long, value_parser = ["steam", "epic", "gryphlink"])]
+        source_id: Option<String>,
+        /// Explicit destination directory to inspect for available filesystem space.
+        #[arg(long, value_name = "PATH", value_parser = dependency_storage_path)]
+        storage_path: Option<PathBuf>,
+        /// Inspect one explicitly selected Steam library root or appmanifest.
+        #[arg(long, value_name = "PATH", value_parser = absolute_path)]
+        steam_path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Assess selected runtime, GPU/driver, Vulkan, and an optional managed prefix.
     Compatibility {
         /// Select the machine/profile pin using P027 precedence.
@@ -203,6 +222,22 @@ pub(super) fn absolute_path(value: &str) -> Result<PathBuf, String> {
     } else {
         Err("runtime roots must be absolute paths".into())
     }
+}
+
+fn dependency_storage_path(value: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(value);
+    if !path.is_absolute()
+        || value.len() > 4096
+        || value.as_bytes().contains(&0)
+        || path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err(
+            "storage destination must be an absolute bounded path without parent traversal".into(),
+        );
+    }
+    Ok(path)
 }
 
 impl From<FrameFormatArg> for FrameSourceFormat {
@@ -355,6 +390,26 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Display,
         }) => Command::DiagnoseDisplay,
+        Some(SubcommandArgs::Diagnose {
+            command:
+                DiagnoseArgs::Dependencies {
+                    profile,
+                    prefix_id,
+                    game_id,
+                    source_id,
+                    storage_path,
+                    steam_path,
+                    json,
+                },
+        }) => Command::DiagnoseDependencies {
+            profile,
+            prefix_id,
+            game_id,
+            source_id,
+            storage_path,
+            steam_path,
+            json,
+        },
         Some(SubcommandArgs::Diagnose {
             command:
                 DiagnoseArgs::Compatibility {

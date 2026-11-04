@@ -309,6 +309,7 @@ dependencies = [
  "clap",
  "ed25519-dalek",
  "endfield-unix-compatibility-diagnostics",
+ "endfield-unix-dependency-diagnostics",
  "endfield-unix-diagnostics",
  "endfield-unix-domain",
  "endfield-unix-game-import",
@@ -340,6 +341,13 @@ dependencies = [
 
 [[package]]
 name = "endfield-unix-compatibility-diagnostics"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "endfield-unix-dependency-diagnostics"
 version = "0.1.0"
 dependencies = [
  "serde",
