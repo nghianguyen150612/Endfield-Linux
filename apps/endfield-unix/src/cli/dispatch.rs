@@ -561,8 +561,16 @@ where
             source_id,
             storage_path,
             json,
-        } => super::dependencies::run(profile, prefix_id, game_id, source_id, storage_path, json, stdout)
-            .map_err(CliError::Compatibility),
+        } => super::dependencies::run(
+            profile,
+            prefix_id,
+            game_id,
+            source_id,
+            storage_path,
+            json,
+            stdout,
+        )
+        .map_err(CliError::Compatibility),
         Command::DiagnoseCompatibility {
             profile,
             prefix_id,
