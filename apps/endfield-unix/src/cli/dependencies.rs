@@ -108,7 +108,7 @@ fn inspect_storage(path: Option<&Path>) -> StorageObservation {
     }
     // SAFETY: fstatvfs returned success and initialized the structure.
     let stat = unsafe { stat.assume_init() };
-    match (stat.f_bavail as u64).checked_mul(stat.f_frsize as u64) {
+    match stat.f_bavail.checked_mul(stat.f_frsize) {
         Some(bytes) => observation(true, "observed", Some(bytes)),
         None => observation(true, "overflow", None),
     }
@@ -246,17 +246,15 @@ pub fn run(
         serde_json::to_vec_pretty(&report).map_err(|_| CompatibilityError::Serialization)?
     } else {
         let mut text = format!(
-            "Dependency diagnostics (static, incomplete)\nSource: {:?}\nCPU: {}\nPhysical RAM: {:?} bytes; available: {:?}; cgroup limit: {:?}; swap: {:?}\nStorage: {}\nGame: {} — {}\nRuntime selection: {:?}\nVulkan loader: {:?}\n",
+            "Dependency diagnostics (static, incomplete)\nSource: {:?}\nCPU: {}\nPhysical RAM: {:?} bytes; available: {:?}; cgroup limit: {:?}; swap: {:?}\nStorage: {} (available bytes: {:?})\nGame: {} — {}\nRuntime selection: {:?}\nVulkan loader: {:?}\n",
             report.selected_source,
             report.cpu.model.as_deref().unwrap_or("unknown"),
             report.memory.physical_bytes,
             report.memory.available_bytes,
             report.memory.cgroup_limit_bytes,
             report.memory.swap_bytes,
-            format!(
-                "{} (available bytes: {:?})",
-                report.storage.status, report.storage.available_bytes
-            ),
+            report.storage.status,
+            report.storage.available_bytes,
             report.game.state,
             report.game.action,
             report.compatibility.runner.selection.state,
