@@ -48,7 +48,7 @@ P031/P032 and P028/P029 without mutation; maintain explicit unknown states and
 privacy bounds; and keep game compatibility untested. Validate official source
 evidence again if it is stale when implementation resumes.
 
-The current environment did not expose `cargo`, `rustc`, or `rustup`, and
+The initial checkpoint environment did not expose `cargo`, `rustc`, or `rustup`, and
 `pkg-config` could not find GTK4 or libadwaita. No Rust, GTK, actual-executable,
 physical-device, or final-head hosted CI qualification was performed for P033.
 Do not interpret this checkpoint as completing P033 or authorizing P034.
@@ -84,3 +84,15 @@ absolute-path parsing and no XDG side effects. Epic unpack space remains
 unknown without proof of allocation and unpack target. These changes and the
 revised schema require hosted CI qualification at their own final HEAD.
 P033 remains Draft and unmerged; P034 has not begun.
+
+## Resume 2026-11-04: Steam and storage work in progress
+
+The P033 adapter now accepts one explicit Steam library or appmanifest path with
+`--source-id steam`, using P032's bounded observer. A selected P031 game is
+compared through the shared P032 path and device/inode matching logic after
+registry revision checks. Local observations are redacted, ephemeral and
+untrusted. No account credentials or payload files are inspected. Explicit
+storage errors distinguish missing and permission-denied from other blocked
+paths; Epic unpack readiness remains unknown. Concurrent renames are not
+excluded by the descriptor-based snapshot. These changes require final-head
+qualification and do not complete the remaining P033 acceptance matrix.

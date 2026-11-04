@@ -21,7 +21,8 @@
     "overall",
     "game_compatibility",
     "limitations",
-    "source_evidence"
+    "source_evidence",
+    "steam_observation"
   ],
   "properties": {
     "schema_version": {
@@ -242,7 +243,9 @@
             "blocked_or_unavailable",
             "unavailable",
             "observed",
-            "overflow"
+            "overflow",
+            "missing",
+            "permission_denied"
           ]
         },
         "available_bytes": {
@@ -451,10 +454,234 @@
       }
     },
     "source_evidence": {
-      "type": [
-        "object",
-        "null"
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "display_name",
+            "official_page",
+            "publisher",
+            "developer",
+            "platform_reported",
+            "region_scope",
+            "restrictions",
+            "guidance",
+            "channel",
+            "trust",
+            "capabilities",
+            "unsupported_operations",
+            "evidence"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "display_name": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "official_page": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "publisher": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "developer": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "platform_reported": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "region_scope": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "restrictions": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "guidance": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "channel": {
+              "enum": [
+                "steam",
+                "epic",
+                "gryphlink"
+              ]
+            },
+            "trust": {
+              "enum": [
+                "verified_official_listing",
+                "verified_publisher_announcement",
+                "observed_local_metadata",
+                "user_declared",
+                "unverifiable",
+                "unsupported",
+                "changed",
+                "unknown"
+              ]
+            },
+            "capabilities": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "enum": [
+                  "catalog_only",
+                  "official_handoff",
+                  "local_installation_observation",
+                  "verified_artifact_acquisition"
+                ]
+              }
+            },
+            "unsupported_operations": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            },
+            "evidence": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "title",
+                  "provider",
+                  "url",
+                  "observed_on",
+                  "claim",
+                  "publication_date",
+                  "status"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "provider": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "observed_on": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "claim": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "publication_date": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 256
+                  },
+                  "status": {
+                    "enum": [
+                      "verified_official_listing",
+                      "verified_publisher_announcement",
+                      "observed_local_metadata",
+                      "user_declared",
+                      "unverifiable",
+                      "unsupported",
+                      "changed",
+                      "unknown"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       ]
+    },
+    "steam_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected",
+        "status",
+        "installation_present",
+        "matches_registered_game",
+        "reported_build_id",
+        "reported_state_flags",
+        "limitation"
+      ],
+      "properties": {
+        "selected": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "not_selected",
+            "observed_local_metadata",
+            "unknown_source",
+            "invalid_catalog",
+            "unsupported_source_operation",
+            "unsafe_source_path",
+            "source_missing",
+            "invalid_source_metadata",
+            "wrong_steam_app",
+            "source_changed",
+            "source_io"
+          ]
+        },
+        "installation_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "matches_registered_game": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reported_build_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20
+        },
+        "reported_state_flags": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20
+        },
+        "limitation": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
     }
   }
 }

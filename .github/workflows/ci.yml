@@ -20,7 +20,7 @@ jobs:
       - name: Install GTK build and smoke-test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes libgtk-4-dev libadwaita-1-dev pkg-config dbus-daemon xvfb
+          sudo apt-get install --yes libgtk-4-dev libadwaita-1-dev pkg-config dbus-daemon xvfb python3-jsonschema
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -105,6 +105,11 @@ jobs:
 
       - name: Run actual P033 dependency CLI integration
         run: cargo test --locked -p endfield-unix --test dependency_cli -- --test-threads=1 --nocapture
+
+      - name: Validate actual P033 JSON schema
+        run: |
+          ./target/debug/endfield-unix diagnose dependencies --source-id steam --json > /tmp/p033-schema-report.json
+          /usr/bin/python3 scripts/validate-dependency-schema.py /tmp/p033-schema-report.json
 
       - name: Run P030 portable compatibility assessment tests
         run: cargo test --locked -p endfield-unix-compatibility-diagnostics --all-targets

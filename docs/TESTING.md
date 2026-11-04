@@ -1,5 +1,7 @@
 # Testing and release gates
 
+P033 tests cover selected Steam metadata, matching and mismatching P031 locations, redaction, and storage refusal. Qualification remains incomplete.
+
 P033 qualification is incomplete; see [current limitations](DEPENDENCY-DIAGNOSTICS.md).
 
 ## P001 baseline

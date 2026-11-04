@@ -1,5 +1,7 @@
 # endfield-unix
 
+The work-in-progress P033 report can inspect one explicitly selected Steam metadata path without storing an association.
+
 P033 dependency diagnostics are in progress and not qualified. See [current implementation and limitations](docs/DEPENDENCY-DIAGNOSTICS.md).
 
 `endfield-unix` is an independent community launcher and goal-driven optimization application for Arknights: Endfield on Unix-like systems. Linux is the first implementation target. The frontend is Rust 2024 with GTK4, libadwaita, Relm4, GTK CSS, and locally included SVG resources. Optimization decisions belong to the portable C17 library; Rust will validate and execute only user-approved actions.

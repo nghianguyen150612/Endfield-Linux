@@ -1,5 +1,7 @@
 # Architecture baseline
 
+The dependency adapter reuses P032 Steam observation and the shared P031 location match; reported source evidence stays ephemeral.
+
 P033 work in progress composes P030 read-only compatibility observations with a portable requirement catalog; see [current limitations](DEPENDENCY-DIAGNOSTICS.md).
 
 ## Status and dependency direction
