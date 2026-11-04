@@ -163,7 +163,7 @@ fn explicit_storage_observation_is_read_only_and_does_not_leak_path() {
     assert_eq!(fs::read(file).unwrap(), b"unchanged");
     let blocked = temp.path().join("inaccessible");
     fs::create_dir(&blocked).unwrap();
-    fs::set_permissions(&blocked, fs::Permissions::from_mode(0)).unwrap();
+    fs::set_permissions(&blocked, fs::Permissions::from_mode(0o000)).unwrap();
     let output = invoke(
         temp.path(),
         &[
