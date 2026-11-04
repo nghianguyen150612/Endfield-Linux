@@ -369,10 +369,15 @@ pub fn assess_storage(channel: Option<Channel>, available_bytes: Option<u64>) ->
             Some(bytes) if bytes >= gb * 1024 * 1024 * 1024 => (State::SatisfiedByObservation, "Available space meets both plausible interpretations of the source figure."),
             Some(_) => (State::Unknown, "The comparison depends on the store's unspecified GB interpretation."),
         };
-        let (state, explanation) = if id == "epic.minimum.unpack" && state == State::SatisfiedByObservation {
-            (State::Unknown, "The unpack requirement is additional; the installation allocation and unpack filesystem are not established.")
-        } else { (state, explanation) };
-        Finding { id: if id == "epic.minimum.unpack" { "storage.unpack" } else { "storage.installation" }, component: "storage", requirement_id: Some(id), state, severity: if state == State::SatisfiedByObservation { Severity::Information } else { Severity::Warning }, explanation, evidence_source: "explicit destination filesystem observation", observed_bytes: available_bytes, expected: if gb == 60 { "60 GB available" } else if gb == 50 { "50 GB available" } else { "40 GB additional for unpacking" }, suggested_action: "Review free space on the intended filesystem against the selected store's guidance.", supported_by_endfield_unix: false, requires_separate_approval: false, limitation: "The store does not specify its GB multiplier; future updates and whether temporary space shares this filesystem are unknown. Separate requirements are not summed." }
+        let (state, explanation) = if id == "epic.minimum.unpack" {
+            (
+                State::Unknown,
+                "The unpack requirement is additional; no unpack filesystem or allocation plan was explicitly selected.",
+            )
+        } else {
+            (state, explanation)
+        };
+        Finding { id: if id == "epic.minimum.unpack" { "storage.unpack" } else { "storage.installation" }, component: "storage", requirement_id: Some(id), state, severity: if state == State::SatisfiedByObservation { Severity::Information } else { Severity::Warning }, explanation, evidence_source: "explicit destination filesystem observation", observed_bytes: if id == "epic.minimum.unpack" { None } else { available_bytes }, expected: if gb == 60 { "60 GB available" } else if gb == 50 { "50 GB available" } else { "40 GB additional for unpacking" }, suggested_action: "Review free space on the intended filesystem against the selected store's guidance.", supported_by_endfield_unix: false, requires_separate_approval: false, limitation: "The store does not specify its GB multiplier; future updates and whether temporary space shares this filesystem are unknown. Separate requirements are not summed." }
     }).collect()
 }
 
@@ -434,6 +439,10 @@ mod tests {
             assess_storage(Some(Channel::Epic), Some(u64::MAX))[1].state,
             State::Unknown
         );
+        let low = assess_storage(Some(Channel::Epic), Some(20_000_000_000));
+        assert_eq!(low[0].state, State::Missing);
+        assert_eq!(low[1].state, State::Unknown);
+        assert_eq!(low[1].observed_bytes, None);
         assert!(assess_storage(Some(Channel::Gryphlink), Some(u64::MAX)).is_empty());
     }
     #[test]
