@@ -226,9 +226,13 @@ fn dependency_storage_path(value: &str) -> Result<PathBuf, String> {
     if !path.is_absolute()
         || value.len() > 4096
         || value.as_bytes().contains(&0)
-        || path.components().any(|component| matches!(component, std::path::Component::ParentDir))
+        || path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
     {
-        return Err("storage destination must be an absolute bounded path without parent traversal".into());
+        return Err(
+            "storage destination must be an absolute bounded path without parent traversal".into(),
+        );
     }
     Ok(path)
 }
