@@ -11,7 +11,10 @@ use std::{
     ffi::CString,
     fs::File,
     io::Write,
-    os::{fd::{AsRawFd, FromRawFd}, unix::ffi::OsStrExt},
+    os::{
+        fd::{AsRawFd, FromRawFd},
+        unix::ffi::OsStrExt,
+    },
     path::{Component, Path, PathBuf},
 };
 
@@ -250,7 +253,10 @@ pub fn run(
             report.memory.available_bytes,
             report.memory.cgroup_limit_bytes,
             report.memory.swap_bytes,
-            format!("{} (available bytes: {:?})", report.storage.status, report.storage.available_bytes),
+            format!(
+                "{} (available bytes: {:?})",
+                report.storage.status, report.storage.available_bytes
+            ),
             report.game.state,
             report.game.action,
             report.compatibility.runner.selection.state,
