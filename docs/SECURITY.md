@@ -1,8 +1,10 @@
 # Security, privacy, and recovery
 
+P034 plan generation is read-only and redacts absolute game/runtime/prefix paths. The selected executable is opened relative to held directory descriptors with O_NOFOLLOW and checked for a bounded PE/COFF signature; neither operation authenticates the publisher. Approval is hashed to the exact plan contents and cannot override blockers. Production process creation remains unsupported. P034 does not alter game files, runtime pins, prefixes, or P029 journals.
+
 P033 Steam metadata paths are explicitly selected and redacted from dependency reports; no account or payload data is read.
 
-P033 work in progress is intended to remain read-only and does not establish launch compatibility; see its [unqualified status](DEPENDENCY-DIAGNOSTICS.md).
+P033's preliminary dependency report remains read-only and does not establish launch compatibility; see its [unqualified status](DEPENDENCY-DIAGNOSTICS.md).
 
 P001 sets the baseline requirements. P006 implements the storage protections below; this is not a broader security audit.
 

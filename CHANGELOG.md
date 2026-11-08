@@ -1,12 +1,18 @@
 # Changelog
 
-P033 work in progress adds explicit read-only Steam metadata observation and more precise selected-storage failure states.
+P033 merged with outstanding acceptance debt; it adds explicit read-only Steam metadata observation and more precise selected-storage failure states.
 
-P033 work in progress adds a preliminary static dependency report; it is incomplete and not qualified. See [status](docs/DEPENDENCY-DIAGNOSTICS.md).
+P033 merged with outstanding acceptance debt; the preliminary static dependency report remains incomplete and unqualified. See [status](docs/DEPENDENCY-DIAGNOSTICS.md).
 
 ## Unreleased
 
 ### Added
+
+- P034 adds a portable deterministic launch plan, exact-plan approval contract,
+  read-only P031/P027/P028/P029 preflight, headless plan command, and worker-backed
+  GTK preflight. No production process executor is enabled; prefix initialization,
+  adapter invocation, P033 dependency readiness, anti-cheat compatibility, and
+  real gameplay remain unsupported or unknown.
 
 - P028 isolated prefix management: explicit machine/profile-scoped managed
   directories, P027 runtime association, read-only preflight and inspection,

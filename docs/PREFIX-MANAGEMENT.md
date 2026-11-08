@@ -1,5 +1,7 @@
 # Isolated prefix management (P028)
 
+P034 preflight consumes P028's exact managed record and initialization evidence. Created prefixes remain uninitialized and block launch with prefix_initialization_unsupported. P034 does not add an initializer or alter P028 lifecycle records.
+
 P028 adds a headless, library-backed foundation for explicitly managed Wine/Proton prefix directories. It creates and inspects empty directories only. It does not run Wine, Proton, UMU, `wineboot`, a launcher, or a game, and it does not establish Endfield compatibility.
 
 ## Ownership and identity

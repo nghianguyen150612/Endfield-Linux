@@ -1,6 +1,8 @@
-# Dependency diagnostics (P033, work in progress)
+# Dependency diagnostics (P033, acceptance debt outstanding)
 
-P033 is incomplete and is not qualified for acceptance. The experimental
+P033 is merged with outstanding acceptance debt. P034 treats critical dependency readiness as unknown until P033 acceptance is complete; unknown findings block production execution. No aggregate P033 result is treated as positive launch authorization.
+
+P033 is merged with outstanding acceptance debt and is not qualified for acceptance. The experimental
 headless command is `endfield-unix diagnose dependencies [--profile ID]
 [--game-id ID] [--prefix-id ID] [--source-id steam|epic|gryphlink]
 [--storage-path /absolute/selected/directory] [--steam-path /absolute/library/or/manifest] [--json]`.

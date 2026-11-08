@@ -1,5 +1,7 @@
 # Testing and release gates
 
+P034 portable tests cover deterministic plan IDs, plan tampering, traversal rejection, exact-plan approval, and the unsupported production-execution gate. Controlled execution tests compile and invoke a repository-owned synthetic child with direct argument vectors and bounded output. The local Rust 1.85 workspace suite and GTK smoke passed; the suite sets a private umask and serializes test cases because P029 checks live same-UID prefix use through process observations. Local GCC/Clang C17 ABI and GCC sanitizer tests also passed. Hosted final-head CI remains required before qualification. These tests do not exercise or authorize a real runtime or game.
+
 P033 tests cover selected Steam metadata, matching and mismatching P031 locations, redaction, and storage refusal. Qualification remains incomplete.
 
 P033 qualification is incomplete; see [current limitations](DEPENDENCY-DIAGNOSTICS.md).
