@@ -974,12 +974,33 @@ mod tests {
             &["game", "--help"][..],
             &["game", "import", "--help"][..],
             &["game", "import", "plan", "--help"][..],
+            &["game", "launch", "--help"][..],
+            &["game", "launch", "plan", "--help"][..],
         ] {
             match parse(args(values)) {
                 Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
                 other => panic!("expected nested game help for {values:?}, got {other:?}"),
             }
         }
+        assert!(matches!(
+            parse(args(&[
+                "game",
+                "launch",
+                "plan",
+                "--id",
+                "endfield-main",
+                "--prefix-id",
+                "prefix-main",
+                "--profile",
+                "desktop",
+                "--adapter",
+                "umu-proton",
+                "--executable-relative",
+                "Game/Selected.exe",
+                "--json",
+            ])),
+            Ok(Command::GameManagement(_))
+        ));
     }
 
     #[test]

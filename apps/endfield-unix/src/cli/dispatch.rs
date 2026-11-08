@@ -107,6 +107,7 @@ pub enum CliError {
     RuntimeDiscoveryUnsupported,
     Compatibility(super::compatibility::CompatibilityError),
     GameImport(u8),
+    GameLaunch(u8),
     Systemd(super::systemd::SystemdError),
 }
 
@@ -180,7 +181,7 @@ impl CliError {
             Self::RuntimeDiscoveryFailed => EXIT_PLATFORM_PROBE_FAILED,
             Self::RuntimeDiscoveryUnsupported => EXIT_PLATFORM_UNSUPPORTED,
             Self::Compatibility(error) => error.exit_status(),
-            Self::GameImport(code) => *code,
+            Self::GameImport(code) | Self::GameLaunch(code) => *code,
             Self::Systemd(_) => EXIT_SYSTEMD_ERROR,
         }
     }
@@ -235,6 +236,9 @@ impl fmt::Display for CliError {
             Self::GameImport(_) => {
                 formatter.write_str("game import command failed; see the reported result.")
             }
+            Self::GameLaunch(_) => {
+                formatter.write_str("game launch preflight is blocked; see the reported plan.")
+            }
             Self::Systemd(error) => fmt::Display::fmt(error, formatter),
         }
     }
@@ -261,7 +265,7 @@ impl Error for CliError {
             Self::RuntimeDiscoveryFailed => None,
             Self::RuntimeDiscoveryUnsupported => None,
             Self::Compatibility(error) => Some(error),
-            Self::GameImport(_) => None,
+            Self::GameImport(_) | Self::GameLaunch(_) => None,
             Self::Systemd(error) => Some(error),
         }
     }
@@ -740,9 +744,15 @@ where
             }
         }
         Command::GameManagement(operation) => {
+            let is_launch = matches!(
+                operation.as_ref(),
+                super::game_import::Operation::Launch { .. }
+            );
             let code = super::game_import::run(*operation, stdout).map_err(CliError::Output)?;
             if code == 0 {
                 Ok(())
+            } else if is_launch {
+                Err(CliError::GameLaunch(code))
             } else {
                 Err(CliError::GameImport(code))
             }

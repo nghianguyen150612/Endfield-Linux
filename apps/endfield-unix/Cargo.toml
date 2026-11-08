@@ -14,6 +14,7 @@ endfield-unix-dependency-diagnostics = { path = "../../crates/dependency-diagnos
 endfield-unix-game-sources = { path = "../../crates/game-sources" }
 endfield-unix-compatibility-diagnostics = { path = "../../crates/compatibility-diagnostics" }
 endfield-unix-game-import = { path = "../../crates/game-import" }
+endfield-unix-game-launch = { path = "../../crates/game-launch" }
 endfield-unix-runtime-install = { path = "../../crates/runtime-install" }
 endfield-unix-runtime-selection = { path = "../../crates/runtime-selection" }
 endfield-unix-prefix-management = { path = "../../crates/prefix-management" }
