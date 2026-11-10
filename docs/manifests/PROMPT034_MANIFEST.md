@@ -31,7 +31,9 @@ Managed Wine preparation does not authorize launch. P033 critical dependency rea
 
 ## Validation status for this continuation
 
-The current working tree has not yet received final local or hosted qualification. Only JSON syntax validation for `docs/schema/game-launch-plan-v2.schema.json` has run so far. This environment lacks Rust/Cargo and native GTK development files, and has limited free disk space. The previous successful hosted run on `5514755c14bbba30d369a585f375b2fa72b14d30` does not qualify new commits. Final validation still must include Rust 1.85 workspace checks, tests, Clippy/build/metadata, actual CLI/schema smoke, GTK smoke, GCC and Clang C17 ABI, and final-head hosted CI.
+Implementation head `1d442a458222d90b07fc96f864a7c1481cf9839d` passed all three required hosted jobs in [CI run 42758858716](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42758858716). The Linux job passed Rust 1.85 formatting, workspace check, Clippy, build, metadata, P034 launch-plan JSON/schema smoke, GTK smoke, and the P019/P021–P033 regression and CLI/IPC suites. Both GCC and Clang C17 ABI jobs passed. This evidence applies to that exact implementation SHA; later documentation-only changes are covered by the resulting PR check on their own head.
+
+The earlier checkpoint result in run 42490708196 applies only to `5514755c14bbba30d369a585f375b2fa72b14d30` and is historical. Local Rust/Cargo and native GTK development files were unavailable in this environment, so Rust/GTK validation was performed by hosted CI.
 
 ## Physical qualification and acceptance
 
