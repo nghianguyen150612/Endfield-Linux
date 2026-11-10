@@ -498,6 +498,7 @@ dependencies = [
  "endfield-unix-runtime",
  "libc",
  "sha2",
+ "tempfile",
 ]
 
 [[package]]
