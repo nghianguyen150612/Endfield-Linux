@@ -750,7 +750,7 @@ fn inspect_prefix(
             associated_adapter: None,
             initialization_plan_id: None,
             initialization_verified: false,
-            recovery_pending: true,
+            recovery_pending: recovery != RecoveryEvidence::Clear,
         },
         record: None,
         lifecycle: None,
