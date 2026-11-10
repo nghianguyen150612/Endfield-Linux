@@ -10,18 +10,21 @@ P033 merged with outstanding acceptance debt; the preliminary static dependency 
 
 - P034 adds schema-v2 runtime/prefix/game identity binding, a managed Wine
   native-argv preview with no shell or process creation, a deterministic
-  P028 initialization assessment, P029 pending/unknown recovery reporting,
-  and expanded CLI/GTK preflight. Managed Wine preparation remains
-  non-executable; external Wine, UMU execution, direct Proton, prefix
-  initialization, P033 dependency readiness, anti-cheat compatibility, and
-  real gameplay remain unsupported or unknown.
+  P028 initialization intent journal, Wine 10.0 descriptor-relative prefix
+  completion verifier, P029 pending/unknown recovery reporting, and an
+  initialization plan CLI. Production initialization remains blocked because
+  the audited launcher inode is not bound through process creation and Wine
+  helper ownership is not integrated. Managed Wine game execution remains
+  non-executable; external Wine, UMU execution, direct Proton, P033 dependency
+  readiness, anti-cheat compatibility, and real gameplay remain unsupported
+  or unknown.
 
 - P028 isolated prefix management: explicit machine/profile-scoped managed
   directories, P027 runtime association, read-only preflight and inspection,
   recovery, registry-only removal, and confirmed managed-data deletion.
-- `prefix init` returns `initialization_unsupported` until a Wine/Proton/UMU
-  initialization adapter can be validated. No runtime or game process is
-  started, and Endfield compatibility remains unverified.
+- `prefix init` remains `initialization_unsupported`. The separate
+  `prefix init-plan` reports the exact managed Wine plan; no runtime or game
+  process is started, and Endfield compatibility remains unverified.
 - P031 adds explicit headless registration, inspection, bounded revalidation,
   and metadata-only unregistering for one user-selected existing game directory.
   Game identity remains user-declared and unverified; no game files are read,

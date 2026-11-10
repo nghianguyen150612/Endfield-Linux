@@ -287,13 +287,23 @@ mandatory. The schema-v2 report revalidates the exact P027 runtime pin, P028
 managed prefix and initialization plan, P029 recovery markers, P031
 installation root, and one explicitly selected relative executable. Managed
 Wine can prepare a direct native-argument preview bound to P025/P026 identity
-and the exact executable inode; it cannot create a process. External Wine,
-UMU execution, direct Proton, and prefix initialization remain unsupported.
+and the exact executable inode; it cannot create a process.
+`prefix init-plan --id ID [--json]` prints the schema-v2 initialization
+assessment with the exact machine/profile scope in its plan binding.
+`prefix init --id ID` preserves its existing syntax and remains
+blocked. The intent journal and Wine 10.0 completion verifier do not enable an
+initializer process.
+External Wine, UMU execution, direct Proton, and prefix initialization remain unsupported.
 Unknown P033 critical dependency readiness also blocks execution. Blocked
 plans return 78. There is no apply command.
 
 The current `game launch plan` report uses
 [`game-launch-plan-v2.schema.json`](schema/game-launch-plan-v2.schema.json).
+Prefix registry mutations use
+[`prefix-registry-v2.schema.json`](schema/prefix-registry-v2.schema.json),
+which checksum-validates and migrates v1 records in memory. Initialization plan
+JSON uses
+[`prefix-initialization-plan-v2.schema.json`](schema/prefix-initialization-plan-v2.schema.json).
 P031 import/mutation/show/validate/remove-plan JSON remains schema version 1. A successful
 plan or mutation exits 0; invalid IDs/paths, missing declarations, or wrong
 tokens exit 2; missing, empty, or unreadable locations exit 3; revision and

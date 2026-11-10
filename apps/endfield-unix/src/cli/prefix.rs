@@ -62,6 +62,13 @@ pub enum Operation {
         #[arg(long)]
         id: String,
     },
+    /// Print the exact read-only Managed Wine initialization assessment.
+    InitPlan {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Reconcile an interrupted directory-only create operation.
     Recover {
         #[arg(long)]
@@ -495,12 +502,78 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, Failure> 
                 Err(prefixes::PrefixError::InitializationUnsupported) => {
                     writeln!(
                         out,
-                        "Initialization: BLOCKED\nError category: initialization_unsupported\nReason: no validated Wine or Proton initialization adapter is available\nPrefix lifecycle: created (uninitialized)\nProcess execution: not performed\nRuntime execution: not performed\nGame execution: not performed"
+                        "Initialization: BLOCKED\nError category: initialization_unsupported\nReason: no approved production initializer execution path is available; the prefix remains created (uninitialized)\nProcess execution: not performed\nRuntime execution: not performed\nGame execution: not performed"
                     )?;
                     Ok(5)
                 }
                 Err(error) => Err(error.into()),
             }
+        }
+        Operation::InitPlan { id, json } => {
+            let id = prefixes::PrefixId::new(id)?;
+            let store = store()?;
+            let snapshot = store.validate(&id, super::runtime_pin::validate_reference)?;
+            let paths = endfield_unix_storage::AppPaths::discover()
+                .map_err(|error| Failure::Runtime(error.to_string()))?;
+            let recovery_state = prefixes::backup::BackupStore::for_app(&paths)
+                .compatibility_recovery_observation(&id)
+                .ok()
+                .map(|observation| {
+                    let clear = matches!(
+                        observation.restore_state,
+                        prefixes::backup::CompatibilityRecoveryState::None
+                            | prefixes::backup::CompatibilityRecoveryState::Completed
+                            | prefixes::backup::CompatibilityRecoveryState::RollbackCompleted
+                    ) && !observation.pending_deletion
+                        && !observation.pending_pin_recovery;
+                    !clear
+                });
+            let scope = snapshot.record.scope.clone();
+            let association = snapshot.record.runtime.clone();
+            let mut validate_selected_runtime = |reference: &pins::PinnedRuntimeReference| {
+                super::runtime_pin::validate_reference(reference)?;
+                if reference != &association.runtime || current_pin_relation(&scope, &association).1
+                {
+                    return Err("P027 selected pin changed or became stale".into());
+                }
+                Ok(())
+            };
+            let plan = store.plan_initialization(
+                &id,
+                snapshot.registry_revision,
+                &association,
+                recovery_state,
+                &mut validate_selected_runtime,
+            )?;
+            if json {
+                serde_json::to_writer_pretty(&mut *out, &plan).map_err(|error| {
+                    Failure::Output(io::Error::new(io::ErrorKind::InvalidData, error))
+                })?;
+                writeln!(out)?;
+            } else {
+                writeln!(
+                    out,
+                    "Prefix initialization plan: {}\nPrefix: {}\nScope: {:?}\nRegistry revision: {}\nAdapter: {}\nState: {:?}\nProcess creation supported: {}\nBlockers: {:?}",
+                    plan.plan_id,
+                    plan.prefix_id,
+                    plan.scope,
+                    plan.registry_revision,
+                    plan.adapter_id,
+                    plan.state,
+                    plan.execution_supported,
+                    plan.blockers
+                )?;
+                for effect in &plan.expected_effects {
+                    writeln!(out, "Expected effect: {effect}")?;
+                }
+            }
+            Ok(
+                if plan.state == prefixes::PrefixInitializationPlanState::Ready {
+                    0
+                } else {
+                    78
+                },
+            )
         }
         Operation::Recover {
             id,
@@ -760,6 +833,25 @@ fn runtime_validation_status_label(
 }
 
 fn initialization_evidence_label(record: &prefixes::PrefixRecord) -> String {
+    if let Some(intent) = &record.initialization_intent {
+        return format!(
+            "durable intent {}; phase {:?}; process exit {:?}; plan {}; runtime pin {} revision {}",
+            if matches!(
+                intent.phase,
+                prefixes::PrefixInitializationPhase::Failed
+                    | prefixes::PrefixInitializationPhase::Interrupted
+            ) {
+                "requires recovery"
+            } else {
+                "pending"
+            },
+            intent.phase,
+            intent.process_exit_code,
+            intent.plan_id,
+            intent.runtime_pin_id,
+            intent.runtime_pin_revision
+        );
+    }
     let Some(evidence) = &record.initialization_evidence else {
         return "none".into();
     };
@@ -861,6 +953,7 @@ fn prefix_error_category(error: &prefixes::PrefixError) -> &'static str {
         prefixes::PrefixError::ActiveUse => "prefix_in_use",
         prefixes::PrefixError::UsageUnknown => "prefix_use_unknown",
         prefixes::PrefixError::InitializationUnsupported => "initialization_unsupported",
+        prefixes::PrefixError::InitializationIntentMismatch => "initialization_intent_mismatch",
         prefixes::PrefixError::ApprovalMismatch => "initialization_approval_mismatch",
         prefixes::PrefixError::PlanIntegrityMismatch => "initialization_plan_integrity_mismatch",
         prefixes::PrefixError::Blocked => "unsafe_or_unverifiable_state",

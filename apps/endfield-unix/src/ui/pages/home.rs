@@ -80,7 +80,7 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
     let play = gtk::Button::with_label("Play unavailable");
     play.set_sensitive(false);
     play.set_tooltip_text(Some(
-        "Production execution is blocked until an approved prefix initializer and runtime invocation adapter are validated.",
+        "Production launch is unsupported: the managed Wine launcher inode is not bound through process creation, and Wine helper-process ownership is not integrated.",
     ));
     play.add_css_class("suggested-action");
     actions.append(&play);
@@ -249,7 +249,7 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
     statuses.insert(
         &card(
             "Optimization profile",
-            "Created prefixes remain uninitialized; production Play is disabled while initialization is unsupported.",
+            "Prefix initialization has a durable intent and Wine 10.0 completion check; execution stays blocked until launcher identity and helper ownership are enforced.",
         ),
         -1,
     );

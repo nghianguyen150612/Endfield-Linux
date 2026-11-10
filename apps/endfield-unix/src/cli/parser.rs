@@ -805,6 +805,13 @@ mod tests {
                     expected_revision: 2,
                 },
             ),
+            (
+                vec!["init-plan", "--id", "game", "--json"],
+                O::InitPlan {
+                    id: "game".into(),
+                    json: true,
+                },
+            ),
         ];
         for (tail, operation) in cases {
             let values = std::iter::once("prefix").chain(tail).collect::<Vec<_>>();
