@@ -6,13 +6,16 @@
 //! P027, P028, P031, P032, and P029 evidence immediately before any future
 //! process boundary.
 
+use sha2::{Digest, Sha256};
 use std::{
     ffi::OsString,
     fs,
-    os::unix::{ffi::OsStrExt, fs::{MetadataExt, PermissionsExt}},
+    os::unix::{
+        ffi::OsStrExt,
+        fs::{MetadataExt, PermissionsExt},
+    },
     path::{Component, Path, PathBuf},
 };
-use sha2::{Digest, Sha256};
 
 pub const MAX_ARGUMENTS: usize = 256;
 pub const MAX_ARGUMENT_BYTES: usize = 32 * 1024;
@@ -88,7 +91,10 @@ impl std::fmt::Debug for ManagedWineInvocationPlan {
             .field("native_arguments", &"<redacted>")
             .field("working_directory", &"<redacted>")
             .field("environment", &"<redacted>")
-            .field("runtime_executable_identity", &self.runtime_executable_identity)
+            .field(
+                "runtime_executable_identity",
+                &self.runtime_executable_identity,
+            )
             .field("prefix_identity", &self.prefix_identity)
             .field("game_executable_identity", &self.game_executable_identity)
             .field("approval_required", &self.approval_required)
@@ -196,7 +202,8 @@ impl ManagedWineInvocationPlanBuilder {
         let runtime_executable_identity = checked_executable(&expected_executable)
             .ok_or(WinePlanError::RuntimeExecutableUnavailable)?;
         let prefix = checked_directory(&request.prefix).ok_or(WinePlanError::PrefixUnavailable)?;
-        let prefix_identity = identity(&fs::metadata(&prefix).map_err(|_| WinePlanError::PrefixUnavailable)?);
+        let prefix_identity =
+            identity(&fs::metadata(&prefix).map_err(|_| WinePlanError::PrefixUnavailable)?);
         if prefix_identity.device != request.binding.prefix_device
             || prefix_identity.inode != request.binding.prefix_inode
         {
@@ -207,12 +214,17 @@ impl ManagedWineInvocationPlanBuilder {
             .ok_or(WinePlanError::GameExecutableUnavailable)?;
         validate_relative(&request.game_executable_relative)?;
         let game_executable = game_root.join(&request.game_executable_relative);
-        let game_executable = checked_executable(&game_executable)
-            .ok_or(WinePlanError::GameExecutableUnavailable)?;
-        let game_root_identity = identity(&fs::metadata(&game_root).map_err(|_| WinePlanError::GameExecutableUnavailable)?);
+        let game_executable =
+            checked_executable(&game_executable).ok_or(WinePlanError::GameExecutableUnavailable)?;
+        let game_root_identity = identity(
+            &fs::metadata(&game_root).map_err(|_| WinePlanError::GameExecutableUnavailable)?,
+        );
         let game_executable_identity = identity(
-            &fs::metadata(&game_executable_path(&game_root, &request.game_executable_relative)?)
-                .map_err(|_| WinePlanError::GameExecutableUnavailable)?,
+            &fs::metadata(&game_executable_path(
+                &game_root,
+                &request.game_executable_relative,
+            )?)
+            .map_err(|_| WinePlanError::GameExecutableUnavailable)?,
         );
         if game_root_identity.device != request.binding.game_root_device
             || game_root_identity.inode != request.binding.game_root_inode
@@ -232,7 +244,12 @@ impl ManagedWineInvocationPlanBuilder {
             .iter()
             .map(|argument| argument.as_os_str().as_bytes().len())
             .sum::<usize>()
-            .saturating_add(game_executable_path(&game_root, &request.game_executable_relative)?.as_os_str().as_bytes().len());
+            .saturating_add(
+                game_executable_path(&game_root, &request.game_executable_relative)?
+                    .as_os_str()
+                    .as_bytes()
+                    .len(),
+            );
         if request.arguments.len().saturating_add(1) > MAX_ARGUMENTS
             || request.arguments.iter().any(|argument| {
                 argument.as_os_str().as_bytes().contains(&0)
@@ -361,7 +378,9 @@ fn valid_sha256(value: &str) -> bool {
 fn validate_absolute(path: &Path) -> Result<(), WinePlanError> {
     if !path.is_absolute()
         || path.as_os_str().len() > MAX_PATH_BYTES
-        || path.components().any(|component| component == Component::ParentDir)
+        || path
+            .components()
+            .any(|component| component == Component::ParentDir)
     {
         return Err(WinePlanError::InvalidPath);
     }
@@ -372,9 +391,9 @@ fn validate_relative(path: &Path) -> Result<(), WinePlanError> {
     if path.as_os_str().is_empty()
         || path.as_os_str().len() > MAX_PATH_BYTES
         || path.is_absolute()
-        || path.components().any(|component| {
-            !matches!(component, Component::Normal(_))
-        })
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
     {
         return Err(WinePlanError::InvalidPath);
     }
@@ -420,10 +439,7 @@ fn identity(metadata: &fs::Metadata) -> FileIdentity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        fs,
-        os::unix::fs::PermissionsExt,
-    };
+    use std::{fs, os::unix::fs::PermissionsExt};
     use tempfile::tempdir;
 
     fn executable(path: &Path, bytes: &[u8]) {
@@ -431,11 +447,7 @@ mod tests {
         fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
     }
 
-    fn binding(
-        prefix: &Path,
-        game_root: &Path,
-        game_executable: &Path,
-    ) -> InvocationBinding {
+    fn binding(prefix: &Path, game_root: &Path, game_executable: &Path) -> InvocationBinding {
         let prefix_metadata = fs::metadata(prefix).unwrap();
         let root_metadata = fs::metadata(game_root).unwrap();
         let game_metadata = fs::metadata(game_executable).unwrap();
@@ -476,7 +488,10 @@ mod tests {
         fs::create_dir(&prefix).unwrap();
         executable(&runtime.join("bin/wine"), b"fixture");
         executable(&game.join("Endfield Game.exe"), b"MZ");
-        let args = vec![OsString::from("参数 ; $(touch should-not-exist)"), OsString::from("--literal=$HOME")];
+        let args = vec![
+            OsString::from("参数 ; $(touch should-not-exist)"),
+            OsString::from("--literal=$HOME"),
+        ];
         let plan = ManagedWineInvocationPlanBuilder::prepare(ManagedWineInvocationRequest {
             runtime_root: runtime.clone(),
             prefix: prefix.clone(),
@@ -506,17 +521,15 @@ mod tests {
         );
         assert!(!temporary.path().join("should-not-exist").exists());
 
-        let repeated = ManagedWineInvocationPlanBuilder::prepare(
-            ManagedWineInvocationRequest {
-                runtime_root: runtime,
-                prefix,
-                game_root: game.clone(),
-                game_executable_relative: PathBuf::from("Endfield Game.exe"),
-                working_directory: game.clone(),
-                arguments: args,
-                binding: plan.binding.clone(),
-            },
-        )
+        let repeated = ManagedWineInvocationPlanBuilder::prepare(ManagedWineInvocationRequest {
+            runtime_root: runtime,
+            prefix,
+            game_root: game.clone(),
+            game_executable_relative: PathBuf::from("Endfield Game.exe"),
+            working_directory: game.clone(),
+            arguments: args,
+            binding: plan.binding.clone(),
+        })
         .unwrap();
         assert_eq!(plan.plan_id, repeated.plan_id);
     }

@@ -811,7 +811,10 @@ fn validate_runtime_evidence(runtime: &RuntimeSelectionEvidence) -> Result<(), L
         return Err(LaunchError::InvalidValue("pin_id"));
     }
     for (value, field) in [
-        (runtime.runtime_reference_sha256.as_deref(), "runtime_reference_sha256"),
+        (
+            runtime.runtime_reference_sha256.as_deref(),
+            "runtime_reference_sha256",
+        ),
         (runtime.invocation_plan_id.as_deref(), "invocation_plan_id"),
     ] {
         if value.is_some_and(|digest| !is_sha256_identifier(digest)) {
@@ -823,7 +826,10 @@ fn validate_runtime_evidence(runtime: &RuntimeSelectionEvidence) -> Result<(), L
             runtime.runtime_ownership_record_sha256.as_deref(),
             "runtime_ownership_record_sha256",
         ),
-        (runtime.runtime_artifact_sha256.as_deref(), "runtime_artifact_sha256"),
+        (
+            runtime.runtime_artifact_sha256.as_deref(),
+            "runtime_artifact_sha256",
+        ),
     ] {
         if value.is_some_and(|digest| !is_sha256_hex(digest)) {
             return Err(LaunchError::InvalidValue(field));
@@ -866,15 +872,20 @@ fn validate_prefix_evidence(prefix: &PrefixEvidence) -> Result<(), LaunchError> 
             prefix.associated_runtime_reference_sha256.as_deref(),
             "associated_runtime_reference_sha256",
         ),
-        (prefix.initialization_plan_id.as_deref(), "initialization_plan_id"),
+        (
+            prefix.initialization_plan_id.as_deref(),
+            "initialization_plan_id",
+        ),
     ] {
         if value.is_some_and(|digest| !is_sha256_identifier(digest)) {
             return Err(LaunchError::InvalidValue(field));
         }
     }
-    if prefix.associated_runtime_pin_id.as_deref().is_some_and(|id| {
-        validate_id(id, "associated_runtime_pin_id").is_err()
-    }) {
+    if prefix
+        .associated_runtime_pin_id
+        .as_deref()
+        .is_some_and(|id| validate_id(id, "associated_runtime_pin_id").is_err())
+    {
         return Err(LaunchError::InvalidValue("associated_runtime_pin_id"));
     }
     if prefix.associated_runtime_reference_sha256.is_some()
@@ -900,9 +911,7 @@ fn validate_game_executable_evidence(
 }
 
 fn is_sha256_identifier(value: &str) -> bool {
-    value.starts_with("sha256:")
-        && value.len() == 71
-        && is_sha256_hex(&value[7..])
+    value.starts_with("sha256:") && value.len() == 71 && is_sha256_hex(&value[7..])
 }
 
 fn is_sha256_hex(value: &str) -> bool {
@@ -1079,8 +1088,7 @@ mod tests {
         let original = LaunchPlan::build(&request(), &config()).unwrap();
 
         let mut changed_runtime = config();
-        changed_runtime.runtime.invocation_plan_id =
-            Some(format!("sha256:{}", "e".repeat(64)));
+        changed_runtime.runtime.invocation_plan_id = Some(format!("sha256:{}", "e".repeat(64)));
         let changed_runtime = LaunchPlan::build(&request(), &changed_runtime).unwrap();
         assert_ne!(original.plan_id, changed_runtime.plan_id);
 

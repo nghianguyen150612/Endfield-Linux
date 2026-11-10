@@ -430,7 +430,8 @@ fn inspect_runtime(
         pins::PinnedRuntimeReference::Managed(runtime) => runtime.installation_id.clone(),
         pins::PinnedRuntimeReference::External(_) => format!("external:{}", pin_id),
     };
-    let (managed, integrity, external, trust, generation, owner_record, artifact) = match &reference {
+    let (managed, integrity, external, trust, generation, owner_record, artifact) = match &reference
+    {
         pins::PinnedRuntimeReference::Managed(runtime) => (
             state == launch::EvidenceState::Verified,
             state == launch::EvidenceState::Verified,
@@ -526,9 +527,7 @@ struct RuntimeInvocationContext<'a> {
     executable: &'a launch::GameExecutableEvidence,
 }
 
-fn assess_runtime_invocation(
-    context: RuntimeInvocationContext<'_>,
-) -> RuntimeInvocationAssessment {
+fn assess_runtime_invocation(context: RuntimeInvocationContext<'_>) -> RuntimeInvocationAssessment {
     let RuntimeInvocationContext {
         paths,
         adapter,
@@ -564,7 +563,9 @@ fn assess_runtime_invocation(
                 || runtime.evidence.state != launch::EvidenceState::Verified
                 || !prefix.evidence.runtime_association_matches
             {
-                return unsupported("P027/P028 evidence does not select the same verified managed Wine adapter");
+                return unsupported(
+                    "P027/P028 evidence does not select the same verified managed Wine adapter",
+                );
             }
             let identity = match endfield_unix_runtime_install::pin_identity(
                 paths,
@@ -836,8 +837,10 @@ fn inspect_prefix(
     // A stored CompletedAndVerified label is not sufficient evidence for P034.
     let initialization_verified = false;
     let state = if runtime_valid
-        && !matches!(lifecycle, launch::PrefixLifecycle::Blocked | launch::PrefixLifecycle::Missing)
-    {
+        && !matches!(
+            lifecycle,
+            launch::PrefixLifecycle::Blocked | launch::PrefixLifecycle::Missing
+        ) {
         launch::EvidenceState::Verified
     } else {
         launch::EvidenceState::Stale
@@ -848,7 +851,10 @@ fn inspect_prefix(
             launch::PrefixLifecycle::Incomplete | launch::PrefixLifecycle::RecoveryRequired
         );
     let directory_identity_verified = record.filesystem_identity.is_some()
-        && !matches!(lifecycle, launch::PrefixLifecycle::Blocked | launch::PrefixLifecycle::Missing);
+        && !matches!(
+            lifecycle,
+            launch::PrefixLifecycle::Blocked | launch::PrefixLifecycle::Missing
+        );
     let expected_runtime = runtime.and_then(|current| {
         let selection_source = match &current.source {
             pins::SelectionSource::ProfilePin => prefixes::RuntimeSelectionSource::ProfilePin,
@@ -886,9 +892,9 @@ fn inspect_prefix(
         None => None,
     };
     let (filesystem_device, filesystem_inode) = if directory_identity_verified {
-        record
-            .filesystem_identity
-            .map_or((None, None), |identity| (Some(identity.device), Some(identity.inode)))
+        record.filesystem_identity.map_or((None, None), |identity| {
+            (Some(identity.device), Some(identity.inode))
+        })
     } else {
         (None, None)
     };
@@ -906,8 +912,8 @@ fn inspect_prefix(
             filesystem_inode,
             associated_runtime_pin_id: Some(record.runtime.pin_id.clone()),
             associated_runtime_pin_revision: Some(record.runtime.pin_revision),
-            associated_runtime_reference_sha256:
-                hash_runtime_reference(&record.runtime.runtime).ok(),
+            associated_runtime_reference_sha256: hash_runtime_reference(&record.runtime.runtime)
+                .ok(),
             associated_adapter,
             initialization_plan_id: initialization_plan
                 .as_ref()

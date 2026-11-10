@@ -587,9 +587,9 @@ impl PrefixInitializationPlan {
             execution_supported: self.execution_supported,
             expected_effects: &self.expected_effects,
         };
-        let bytes = serde_json::to_vec(&identity).map_err(|_| PrefixError::PlanIntegrityMismatch)?;
-        if self.schema_version != 1
-            || self.plan_id != format!("sha256:{:x}", Sha256::digest(bytes))
+        let bytes =
+            serde_json::to_vec(&identity).map_err(|_| PrefixError::PlanIntegrityMismatch)?;
+        if self.schema_version != 1 || self.plan_id != format!("sha256:{:x}", Sha256::digest(bytes))
         {
             return Err(PrefixError::PlanIntegrityMismatch);
         }
@@ -599,7 +599,10 @@ impl PrefixInitializationPlan {
     /// Verify a caller's confirmation against the exact read-only plan. The
     /// current plan is deliberately not executable, so matching approval still
     /// returns `InitializationUnsupported`.
-    pub fn approve(&self, exact_plan_id: &str) -> Result<PrefixInitializationApproval, PrefixError> {
+    pub fn approve(
+        &self,
+        exact_plan_id: &str,
+    ) -> Result<PrefixInitializationApproval, PrefixError> {
         self.validate_integrity()?;
         if exact_plan_id != self.plan_id {
             return Err(PrefixError::ApprovalMismatch);
@@ -739,7 +742,11 @@ impl PrefixStore {
             observed_lifecycle,
             runtime,
             registry_revision: snapshot.registry.revision,
-            initialization_evidence: match record.initialization_evidence.as_ref().map(|e| e.outcome) {
+            initialization_evidence: match record
+                .initialization_evidence
+                .as_ref()
+                .map(|e| e.outcome)
+            {
                 None => PrefixInitializationEvidenceStatus::Absent,
                 Some(InitializationEvidenceOutcome::CompletedAndVerified) => {
                     PrefixInitializationEvidenceStatus::CompletedClaimUnverified
@@ -831,36 +838,34 @@ impl PrefixStore {
             blockers.push(PrefixInitializationBlocker::ExistingInitializationEvidenceUnverified);
         }
 
-        let (adapter_id, strategy) = match (
-            record.runtime.adapter_preference,
-            &record.runtime.runtime,
-        ) {
-            (
-                Some(AdapterPreference::ManagedWine),
-                PinnedRuntimeReference::Managed(runtime),
-            ) if runtime.family == "wine" => (
-                "managed_wine".to_owned(),
-                PrefixInitializationStrategy::WineBootInitialize,
-            ),
-            (
-                Some(AdapterPreference::ExternalWine),
-                PinnedRuntimeReference::External(runtime),
-            ) if runtime.family == "wine" => (
-                "external_wine".to_owned(),
-                PrefixInitializationStrategy::WineBootInitialize,
-            ),
-            (Some(AdapterPreference::UmuProton), runtime) if runtime.family() == "proton" => (
-                "umu_proton".to_owned(),
-                PrefixInitializationStrategy::UmuManagedPrefixSetup,
-            ),
-            _ => {
-                blockers.push(PrefixInitializationBlocker::AdapterUnsupported);
+        let (adapter_id, strategy) =
+            match (record.runtime.adapter_preference, &record.runtime.runtime) {
                 (
-                    "unsupported".to_owned(),
-                    PrefixInitializationStrategy::Unsupported,
-                )
-            }
-        };
+                    Some(AdapterPreference::ManagedWine),
+                    PinnedRuntimeReference::Managed(runtime),
+                ) if runtime.family == "wine" => (
+                    "managed_wine".to_owned(),
+                    PrefixInitializationStrategy::WineBootInitialize,
+                ),
+                (
+                    Some(AdapterPreference::ExternalWine),
+                    PinnedRuntimeReference::External(runtime),
+                ) if runtime.family == "wine" => (
+                    "external_wine".to_owned(),
+                    PrefixInitializationStrategy::WineBootInitialize,
+                ),
+                (Some(AdapterPreference::UmuProton), runtime) if runtime.family() == "proton" => (
+                    "umu_proton".to_owned(),
+                    PrefixInitializationStrategy::UmuManagedPrefixSetup,
+                ),
+                _ => {
+                    blockers.push(PrefixInitializationBlocker::AdapterUnsupported);
+                    (
+                        "unsupported".to_owned(),
+                        PrefixInitializationStrategy::Unsupported,
+                    )
+                }
+            };
 
         // No current strategy has the full contract needed to execute safely:
         // exact runtime-specific setup, durable start intent, bounded process
@@ -886,9 +891,9 @@ impl PrefixStore {
                 "UMU/Proton may create or mutate prefix contents and runtime caches.",
                 "UMU may acquire or update Steam Linux Runtime components over the network.",
             ],
-            PrefixInitializationStrategy::Unsupported => vec![
-                "No initialization command will be started.",
-            ],
+            PrefixInitializationStrategy::Unsupported => {
+                vec!["No initialization command will be started."]
+            }
         };
         let identity = PrefixInitializationPlanIdentity {
             schema_version: 1,
@@ -1574,29 +1579,15 @@ mod tests {
     fn initialization_plan_is_deterministic_read_only_and_never_authorizes_execution() {
         let (_temporary, store, scope, runtime) = fixture();
         let id = PrefixId::new("init-plan").unwrap();
-        let (record, revision) = store
-            .create(id.clone(), scope, runtime, 0)
-            .unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
         let registry_before = store.fs.load_registry_bytes().unwrap();
         let prefix_before = store.fs.inspect_directory(&id).unwrap();
 
         let plan = store
-            .plan_initialization(
-                &id,
-                revision,
-                &record.runtime,
-                Some(false),
-                |_| Ok(()),
-            )
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
             .unwrap();
         let repeated = store
-            .plan_initialization(
-                &id,
-                revision,
-                &record.runtime,
-                Some(false),
-                |_| Ok(()),
-            )
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
             .unwrap();
 
         assert_eq!(plan, repeated);
@@ -1636,26 +1627,20 @@ mod tests {
     fn initialization_plan_blocks_existing_data_and_unknown_recovery_state() {
         let (_temporary, store, scope, runtime) = fixture();
         let id = PrefixId::new("init-data").unwrap();
-        let (record, revision) = store
-            .create(id.clone(), scope, runtime, 0)
-            .unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
         let data = store.target_path(&id).join("user-data");
         fs::write(&data, b"must remain unchanged").unwrap();
         let before = fs::read(&data).unwrap();
 
         let data_plan = store
-            .plan_initialization(
-                &id,
-                revision,
-                &record.runtime,
-                Some(false),
-                |_| Ok(()),
-            )
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
             .unwrap();
         assert_eq!(data_plan.state, PrefixInitializationPlanState::Blocked);
-        assert!(data_plan
-            .blockers
-            .contains(&PrefixInitializationBlocker::PrefixContainsData));
+        assert!(
+            data_plan
+                .blockers
+                .contains(&PrefixInitializationBlocker::PrefixContainsData)
+        );
 
         let unknown_recovery = store
             .plan_initialization(&id, revision, &record.runtime, None, |_| Ok(()))
@@ -1664,15 +1649,19 @@ mod tests {
             unknown_recovery.state,
             PrefixInitializationPlanState::Blocked
         );
-        assert!(unknown_recovery
-            .blockers
-            .contains(&PrefixInitializationBlocker::RecoveryUnknown));
+        assert!(
+            unknown_recovery
+                .blockers
+                .contains(&PrefixInitializationBlocker::RecoveryUnknown)
+        );
         let pending_recovery = store
             .plan_initialization(&id, revision, &record.runtime, Some(true), |_| Ok(()))
             .unwrap();
-        assert!(pending_recovery
-            .blockers
-            .contains(&PrefixInitializationBlocker::RecoveryPending));
+        assert!(
+            pending_recovery
+                .blockers
+                .contains(&PrefixInitializationBlocker::RecoveryPending)
+        );
         assert_eq!(fs::read(&data).unwrap(), before);
     }
 
@@ -1680,46 +1669,36 @@ mod tests {
     fn initialization_plan_binds_the_exact_runtime_and_revalidation_result() {
         let (_temporary, store, scope, runtime) = fixture();
         let id = PrefixId::new("init-runtime").unwrap();
-        let (record, revision) = store
-            .create(id.clone(), scope, runtime.clone(), 0)
-            .unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime.clone(), 0).unwrap();
 
         let mut changed_association = runtime.clone();
         changed_association.pin_id = "replacement-pin".into();
         let mismatch = store
-            .plan_initialization(
-                &id,
-                revision,
-                &changed_association,
-                Some(false),
-                |_| Ok(()),
-            )
+            .plan_initialization(&id, revision, &changed_association, Some(false), |_| Ok(()))
             .unwrap();
-        assert!(mismatch
-            .blockers
-            .contains(&PrefixInitializationBlocker::RuntimeAssociationMismatch));
+        assert!(
+            mismatch
+                .blockers
+                .contains(&PrefixInitializationBlocker::RuntimeAssociationMismatch)
+        );
 
         let stale = store
-            .plan_initialization(
-                &id,
-                revision,
-                &record.runtime,
-                Some(false),
-                |_| Err("runtime audit failed".into()),
-            )
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| {
+                Err("runtime audit failed".into())
+            })
             .unwrap();
-        assert!(stale
-            .blockers
-            .contains(&PrefixInitializationBlocker::RuntimeStale));
+        assert!(
+            stale
+                .blockers
+                .contains(&PrefixInitializationBlocker::RuntimeStale)
+        );
     }
 
     #[test]
     fn concurrent_initialization_requests_only_produce_the_same_read_only_plan() {
         let (_temporary, store, scope, runtime) = fixture();
         let id = PrefixId::new("init-concurrent").unwrap();
-        let (record, revision) = store
-            .create(id.clone(), scope, runtime, 0)
-            .unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
         let registry_before = store.fs.load_registry_bytes().unwrap();
         let prefix_before = store.fs.inspect_directory(&id).unwrap();
         let barrier = Arc::new(Barrier::new(2));
@@ -1732,13 +1711,9 @@ mod tests {
             workers.push(thread::spawn(move || {
                 worker_barrier.wait();
                 worker_store
-                    .plan_initialization(
-                        &worker_id,
-                        revision,
-                        &worker_runtime,
-                        Some(false),
-                        |_| Ok(()),
-                    )
+                    .plan_initialization(&worker_id, revision, &worker_runtime, Some(false), |_| {
+                        Ok(())
+                    })
                     .unwrap()
             }));
         }
@@ -1757,9 +1732,7 @@ mod tests {
     fn stored_completed_initialization_claim_is_not_reported_as_verified() {
         let (_temporary, store, scope, runtime) = fixture();
         let id = PrefixId::new("forged-init-evidence").unwrap();
-        let (record, revision) = store
-            .create(id.clone(), scope, runtime, 0)
-            .unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
         let snapshot = store.load_snapshot().unwrap();
         let mut registry = snapshot.registry;
         let stored = registry
