@@ -1577,7 +1577,17 @@ mod tests {
 
     #[test]
     fn initialization_plan_is_deterministic_read_only_and_never_authorizes_execution() {
-        let (_temporary, store, scope, runtime) = fixture();
+        let (_temporary, original_store, scope, runtime) = fixture();
+        let data_dir = original_store
+            .fs
+            .root_path()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(&data_dir),
+            in_use: Some(false),
+        }));
         let id = PrefixId::new("init-plan").unwrap();
         let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
         let registry_before = store.fs.load_registry_bytes().unwrap();
