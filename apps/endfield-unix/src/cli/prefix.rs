@@ -861,6 +861,8 @@ fn prefix_error_category(error: &prefixes::PrefixError) -> &'static str {
         prefixes::PrefixError::ActiveUse => "prefix_in_use",
         prefixes::PrefixError::UsageUnknown => "prefix_use_unknown",
         prefixes::PrefixError::InitializationUnsupported => "initialization_unsupported",
+        prefixes::PrefixError::ApprovalMismatch => "initialization_approval_mismatch",
+        prefixes::PrefixError::PlanIntegrityMismatch => "initialization_plan_integrity_mismatch",
         prefixes::PrefixError::Blocked => "unsafe_or_unverifiable_state",
         prefixes::PrefixError::InvalidState => "invalid_lifecycle_state",
         prefixes::PrefixError::Io(_) => "filesystem_error",
