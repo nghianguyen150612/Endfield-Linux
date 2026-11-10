@@ -1,6 +1,6 @@
 # Isolated prefix management (P028)
 
-P034 consumes P028's exact managed record and emits a deterministic read-only initialization plan. The plan requires an unchanged, application-owned, empty Created directory, known-clear P029 state, no active use, exact P027 runtime association, and exact plan-ID approval. No verified initializer or completion checker exists, so matching approval returns `initialization_unsupported`; Created remains Created. A stored CompletedAndVerified label is reported as an unverified claim, and P034 does not alter P028 lifecycle records. Unknown or pending recovery blocks.
+P034 now adds a durable, schema-v2 initialization intent state machine and a no-follow Wine 10.0 prefix-artifact verifier. It still does not create a Wine process: Managed Wine initialization plans are unsupported because the audited launcher inode is not bound through process creation and Wine helper-process ownership is not integrated. Existing `prefix init --id` remains blocked. A separate `prefix init-plan --id ID [--json]` shows the exact plan and blockers without mutation. A stored legacy `CompletedAndVerified` label remains an unverified claim.
 
 P028 adds a headless, library-backed foundation for explicitly managed Wine/Proton prefix directories. It creates and inspects empty directories only. It does not run Wine, Proton, UMU, `wineboot`, a launcher, or a game, and it does not establish Endfield compatibility.
 
@@ -20,14 +20,14 @@ $XDG_DATA_HOME/endfield-unix/prefixes/
 
 When `XDG_DATA_HOME` is unset, P006's XDG default applies. The path is resolved by the existing storage contract, not by username-specific assumptions. Managed directories use mode `0700`; registry, lock, and temporary metadata files use mode `0600`. Linux access uses directory file descriptors, no-follow opens, mount identity checks, filesystem ownership checks, and bounded registry reads. Unsafe symlinks, unexpected filesystem aliases, non-owned app storage, and collisions with known Steam, Bottles, Lutris, Heroic, or conventional Wine roots fail closed. No external prefix is imported, adopted, or modified.
 
-The registry is a separate schema-v1 JSON file. Each record preserves ID, machine/profile scope, relative path identity, ownership, invoking UID, exact P027 runtime reference, selection source and pin revision, adapter preference, lifecycle, filesystem device/inode identity, timestamps, generation, and optional structured initialization evidence (adapter ID, exact runtime-reference digest, evidence digest, outcome, and observation time). Partial evidence can remain attached to incomplete/recovery records; only the `CompletedAndVerified` outcome can accompany `Initialized`. The bounded registry has an accidental-corruption SHA-256 checksum; it is not a MAC and does not authenticate same-user edits. Unknown fields, malformed or corrupt content, and unsupported schema versions are preserved and reported instead of reset. There is no automatic schema migration in P028.
+The registry is a separate schema-v2 JSON file. It preserves the prior record fields and adds an optional initialization intent bound to plan ID, exact machine/profile scope, adapter, P027 pin and revision, runtime-reference digest, prefix generation, directory device/inode, phase, and timestamps. Schema-v1 registries are checksum-validated and migrated in memory; the next authorized registry mutation publishes schema v2 atomically. The bounded registry has an accidental-corruption SHA-256 checksum; it is not a MAC and does not authenticate same-user edits. Unknown fields, malformed or corrupt content, and unsupported schema versions are preserved and reported instead of reset. See [`prefix-registry-v2.schema.json`](schema/prefix-registry-v2.schema.json).
 
 ## Lifecycle and operations
 
 - **Planned** is a read-only operation result. It validates scope, runtime pin, storage location and permissions, destination collisions, registry revision, and available free-space information. It does not create directories or metadata.
 - **Created** means the private managed directory and registry record exist. It does not mean the Wine prefix is initialized.
-- **Initialized** is reserved for verified future evidence. P028 never writes this state.
-- **Incomplete/RecoveryRequired** records journal an interrupted mutation. `recover` only accepts a matching, empty directory; it will not adopt or clear non-empty data.
+- **Initialized** is written only by P034's Wine 10.0 completion method after a durable intent reaches `VerificationPending`, the exact managed runtime pin and integrity audit revalidate, P029 is clear, no visible prefix use remains, the same directory inode is present, and required Wine prefix artifacts pass no-follow structural checks. This is runtime-prefix setup evidence, not Endfield compatibility evidence.
+- **Incomplete/RecoveryRequired** records durable initialization progress and interruption. `Starting`, `Running`, and `VerificationPending` are persisted before/after process-boundary observations. A zero exit advances only to verification pending. Spawn failure, nonzero exit, or lost observation becomes Failed/Interrupted and requires review. Generic `recover`, unregister, and delete operations refuse records with an initialization intent; no retry or data cleanup is automatic.
 - **Missing** and **Blocked** are observed states. They do not authorize automatic recreation or overwrite.
 
 Create is idempotent only for the same registered identity, scope, and runtime association. Per-registry and per-prefix advisory locks serialize mutations, and each mutation checks an expected registry revision. Creation first persists a recovery journal, creates the directory with restrictive permissions, then commits the created record. A failure leaves evidence for inspection or recovery.
@@ -42,7 +42,9 @@ Inspection and validation recheck the stored reference. They report when the cur
 
 ## Wine initialization boundary
 
-`prefix init` is exposed as an explicit operation but returns exit status 5 and `initialization_unsupported`. No validated Wine, Proton, or UMU initialization adapter exists in this milestone. No process is started, no `WINEPREFIX` is exported, and no directory is presented as initialized. A future initializer must have validated invocation semantics, argument-vector and environment isolation, bounded execution/cancellation, sanitized diagnostics, and verifiable completion evidence before the lifecycle can advance.
+Wine 10.0 upstream source documents `wineboot.exe --init` and its `--init` option, and the man page describes initial WINEPREFIX creation. The Wine 10.0 implementation calls `update_wineprefix`, which logs a missing `wine.inf` but does not propagate that helper's failure as the process exit status. Therefore exit status alone is not completion proof. P034's verifier checks the exact prefix directory identity, `drive_c`, `dosdevices/c:` target, and stable `system.reg`/`user.reg` files with the Wine registry v2 header. Those artifacts are evidence of the selected prefix layout, not proof of game compatibility.
+
+The production initializer remains unsupported. P025/P026 can authenticate the managed Wine artifact and audit its complete installed baseline, but the current process API does not bind the validated `bin/wine` inode through exec, and the P019 supervisor is not connected to the launcher. Wine initialization may start wineserver/service helpers and may write user-scoped cache or configuration data outside the prefix. No process is started by `prefix init`; no runtime fallback occurs; `Created` remains uninitialized. The detailed contract and sources are recorded in [GAME-LAUNCH.md](GAME-LAUNCH.md).
 
 ## CLI
 
@@ -55,6 +57,7 @@ endfield-unix prefix plan --id game --scope profile --profile test-profile --exp
 endfield-unix prefix create --id game --scope profile --profile test-profile --expected-revision 0
 endfield-unix prefix validate --id game
 endfield-unix prefix init --id game
+endfield-unix prefix init-plan --id game --json
 endfield-unix prefix recover --id game --expected-revision REV
 endfield-unix prefix remove --id game --expected-revision REV
 endfield-unix prefix delete --id game --expected-revision REV --confirm-path /exact/path/from/plan
@@ -64,7 +67,7 @@ endfield-unix prefix delete --id game --expected-revision REV --confirm-path /ex
 
 ## Qualification boundary
 
-Synthetic tests cover read-only plans, lifecycle transitions, idempotence, concurrent creates, registry conflicts/corruption/schema handling, permission and symlink failures, interrupted creation, stale runtime identity, external-data preservation, active-use detection, and no fake initialization. The process-level CLI integration uses synthetic inert managed and external runtimes in isolated XDG roots. No real Wine, Proton, UMU, game, or hardware compatibility execution is part of P028. Physical Arch and Dell Vostro verification remains **UNVERIFIED**.
+Synthetic tests cover plan binding, durable initialization transitions, interrupted attempts, non-promotion after exit zero, schema-v1 migration, descriptor-relative Wine 10.0 artifact checks, symlink refusal, data preservation, and unsupported production execution. Synthetic fixtures are not authentic Wine compatibility evidence. No real Wine, Proton, UMU, game, or hardware compatibility execution is part of this milestone. Physical qualification remains **UNVERIFIED**.
 
 ## P029 snapshot extension
 

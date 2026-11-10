@@ -2,6 +2,8 @@
 
 P029 extends the P028 headless library and `endfield-unix prefix` CLI. It never executes Wine, Proton, UMU, wineboot or a game. This implementation is restricted to registered **Created**, uninitialized prefixes on the same machine and exact profile scope. Initialized-prefix evidence restoration is unsupported and blocked, rather than fabricated. Physical-device and real-prefix qualification remain UNVERIFIED.
 
+P034's new initialization intent uses P028 registry schema v2, but does not expand P029's backup or restore boundary. A prefix with a pending, failed, or interrupted initialization intent is not eligible for P029 backup/restore, P028 generic recovery, unregister, or delete. The preserved files and durable intent require explicit investigation; no automatic cleanup or retry is performed. Schema-v1 prefix registries are checksum-validated and migrated in memory by P028, with schema v2 written on the next authorized registry mutation.
+
 ## Version 1 storage
 
 P006 resolves the application data directory. Existing `prefixes/registry.json`, `prefixes/locks/` and `prefixes/data/<id>/` remain unchanged. The additional layout is:

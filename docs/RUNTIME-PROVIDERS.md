@@ -286,6 +286,10 @@ unverified; no download, extraction, installation or runtime execution is added.
 See [runtime trust manifests](RUNTIME-TRUST-MANIFESTS.md) for schema, CLI flags, evidence mapping,
 file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
 
+## P034 Managed Wine initialization scope
+
+P034 uses only the exact upstream Wine 10.0 `wineboot.exe --init` source semantics for its structural initialization contract. P025's signed archive digest and P026's complete reconstructed baseline cover the managed runtime payload, including internal Wine modules; P027's pin still must match provider, lineage, build, artifact, manifest, generation, trust, and ownership record. Other Wine versions, staging/custom lineages, external Wine, UMU-Proton, and direct Proton remain unsupported for P034 initialization. This source contract does not authorize process creation, and it does not establish Endfield or anti-cheat compatibility.
+
 ## P025 runtime installation
 
 P025 provides qualified local tar.gz installation with P024 artifact verification, a deliberate user-pinned limited-trust path, exact-plan approval, private staging, bounded extraction, no-overwrite publication and transaction recovery. Hosted Rust/GTK, GCC and Clang qualification passed in [CI run 40872573654](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/40872573654). It does not establish publisher authenticity or support HTTPS acquisition. See [Linux runtime installation](RUNTIME-INSTALLATION-LINUX.md) for the workflow and limits.
