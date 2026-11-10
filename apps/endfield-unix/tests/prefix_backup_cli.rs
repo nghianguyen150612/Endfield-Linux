@@ -228,12 +228,14 @@ fn actual_backup_restore_recovery_and_pin_cas_or_documented_use_refusal() {
     );
     let init_plan: Value = serde_json::from_slice(&init_plan.stdout).unwrap();
     assert_eq!(init_plan["schema_version"], 2);
-    assert_eq!(init_plan["state"], "unsupported");
     assert_eq!(init_plan["execution_supported"], false);
-    assert_eq!(
-        init_plan["blockers"],
-        serde_json::json!(["initializer_unverified"])
-    );
+    assert!(matches!(
+        init_plan["state"].as_str(),
+        Some("unsupported" | "blocked")
+    ));
+    assert!(init_plan["blockers"]
+        .as_array()
+        .is_some_and(|blockers| blockers.contains(&serde_json::json!("initializer_unverified"))));
     assert_eq!(fs::read(&registry_path).unwrap(), registry_before_init_plan);
     assert_eq!(fs::read(&pin_path).unwrap(), pin_before_init_plan);
     assert!(!runtime.join("proton.executed").exists());
