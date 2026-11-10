@@ -8,10 +8,12 @@ P033 merged with outstanding acceptance debt; the preliminary static dependency 
 
 ### Added
 
-- P034 adds a portable deterministic launch plan, exact-plan approval contract,
-  read-only P031/P027/P028/P029 preflight, headless plan command, and worker-backed
-  GTK preflight. No production process executor is enabled; prefix initialization,
-  adapter invocation, P033 dependency readiness, anti-cheat compatibility, and
+- P034 adds schema-v2 runtime/prefix/game identity binding, a managed Wine
+  native-argv preview with no shell or process creation, a deterministic
+  P028 initialization assessment, P029 pending/unknown recovery reporting,
+  and expanded CLI/GTK preflight. Managed Wine preparation remains
+  non-executable; external Wine, UMU execution, direct Proton, prefix
+  initialization, P033 dependency readiness, anti-cheat compatibility, and
   real gameplay remain unsupported or unknown.
 
 - P028 isolated prefix management: explicit machine/profile-scoped managed

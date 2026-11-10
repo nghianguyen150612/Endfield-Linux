@@ -1,6 +1,8 @@
 # Testing and release gates
 
-P034 portable tests cover deterministic plan IDs, plan tampering, traversal rejection, exact-plan approval, and the unsupported production-execution gate. Controlled execution tests compile and invoke a repository-owned synthetic child with direct argument vectors and bounded output. The local Rust 1.85 workspace suite and GTK smoke passed; the suite sets a private umask and serializes test cases because P029 checks live same-UID prefix use through process observations. Local GCC/Clang C17 ABI and GCC sanitizer tests also passed. Hosted final-head CI remains required before qualification. These tests do not exercise or authorize a real runtime or game.
+The P034 checkpoint at `5514755c14bbba30d369a585f375b2fa72b14d30` passed Rust 1.85 workspace/GTK checks, Clippy, build, metadata, tests, CLI/schema smoke, GTK smoke, GCC/Clang C17 ABI, sanitizer tests, and all three hosted jobs in [CI run 42490708196](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42490708196). This evidence applies only to that exact checkpoint. The current continuation adds Wine invocation and prefix-initialization plans and has not yet passed local Rust checks or final-head hosted qualification. JSON syntax for the new schema has been checked, but actual CLI/schema validation remains pending. No real runtime or game has been exercised.
+
+The continuation adds focused tests for deterministic preparation IDs, literal native arguments with Unicode and shell metacharacters, runtime/prefix/game identity binding, plan approval mismatch, unsupported initialization, unknown/pending recovery, and unverified stored initialization claims. Existing controlled execution fixtures remain test-only and do not exercise a runtime adapter.
 
 P033 tests cover selected Steam metadata, matching and mismatching P031 locations, redaction, and storage refusal. Qualification remains incomplete.
 

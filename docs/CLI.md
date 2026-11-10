@@ -282,15 +282,19 @@ display the selected local path and unverified identity state.
 `game remove --id ID --expected-revision REV --confirm TOKEN` removes only the
 application record. All commands are headless and do not contact the daemon.
 
-P034 adds the headless command game launch plan. Adapter selection is
-mandatory. The command revalidates the exact P027 runtime pin, P028 managed
-prefix, P029 recovery markers, P031 installation root, and one explicitly
-selected relative executable. Unknown P033 critical dependency readiness,
-unsupported prefix initialization, or missing runtime invocation contracts
-block production execution. The plan is deterministic, redacted, and has no
-process side effects. Blocked plans return 78. There is no apply command.
+P034 provides the headless command `game launch plan`. Adapter selection is
+mandatory. The schema-v2 report revalidates the exact P027 runtime pin, P028
+managed prefix and initialization plan, P029 recovery markers, P031
+installation root, and one explicitly selected relative executable. Managed
+Wine can prepare a direct native-argument preview bound to P025/P026 identity
+and the exact executable inode; it cannot create a process. External Wine,
+UMU execution, direct Proton, and prefix initialization remain unsupported.
+Unknown P033 critical dependency readiness also blocks execution. Blocked
+plans return 78. There is no apply command.
 
-Plan/apply/show/validate/remove-plan JSON uses schema version 1. A successful
+The current `game launch plan` report uses
+[`game-launch-plan-v2.schema.json`](schema/game-launch-plan-v2.schema.json).
+P031 import/mutation/show/validate/remove-plan JSON remains schema version 1. A successful
 plan or mutation exits 0; invalid IDs/paths, missing declarations, or wrong
 tokens exit 2; missing, empty, or unreadable locations exit 3; revision and
 duplicate conflicts exit 4; storage/corruption/recovery failures exit 70;

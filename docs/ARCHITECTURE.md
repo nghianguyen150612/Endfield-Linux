@@ -6,7 +6,7 @@ P033 is merged with outstanding acceptance debt; its preliminary report composes
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; P020 adds optional Linux user-service lifecycle management; P021 defines portable runtime provider, source verification, compatibility, ownership, and non-executable launch-plan contracts; P022 adds bounded read-only Linux Wine and Proton discovery; P023 adds bounded UMU discovery, explicit UMU-Proton preparation, and non-executable plan construction; P034 adds a portable launch plan and Linux read-only preflight consumer. P034 has no production process executor. Runtime acquisition and production game launch remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; P020 adds optional Linux user-service lifecycle management; P021 defines portable runtime provider, source verification, compatibility, ownership, and non-executable launch-plan contracts; P022 adds bounded read-only Linux Wine and Proton discovery; P023 adds bounded UMU discovery, explicit UMU-Proton preparation, and non-executable plan construction; P034 adds a portable schema-v2 launch plan, a preparation-only managed Wine native-argv plan, a read-only P028 initialization assessment, and Linux preflight reporting. P034 has no production process executor or prefix initializer. Runtime acquisition and production game launch remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -146,6 +146,33 @@ uses a mockable filesystem adapter, and adds no executable, GUI type, daemon,
 process runner, or C17 ABI surface. See
 [PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md) and
 [RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
+
+## P034 launch planning and invocation preparation
+
+The `endfield-unix-game-launch` crate owns a deterministic, data-only schema-v2
+plan. Its ID binds P027 runtime reference and pin revision, managed P025/P026
+identity, an adapter invocation-plan ID and runtime executable inode, P028
+record/revision/filesystem identity/adapter association/initialization-plan ID,
+P031 game root, P032 executable, policy and expected side effects. The Linux
+application builds this plan from fresh observations and never treats an
+external reference or a stale profile pin as a fallback candidate.
+
+`runtime-linux::wine_plan` prepares only the managed Wine direct-argv shape
+`bin/wine <game.exe> <args...>`. It takes an exact managed runtime root,
+application prefix, registered game root and durable identity bindings; it
+checks the observed files, constructs native `OsString` arguments, describes a
+clear-and-desktop-session-allowlist environment, and hashes the request. It
+cannot spawn a child. P022 external Wine lacks an exact execution binary
+binding; P023 UMU remains a separate non-executable plan builder; direct Proton
+has no verified P027 adapter contract.
+
+`PrefixStore::plan_initialization` is a read-only P028 boundary. It binds one
+Created prefix, P027 association, filesystem identity, runtime revalidation,
+P029 recovery state and expected effects. No initializer is registered, so
+the typed plan always remains unsupported or blocked. Stored completion labels
+are not trusted until a runtime-specific verifier exists. Process creation,
+P019 daemon ownership, initialized-prefix recovery and gameplay compatibility
+remain separate and unavailable.
 
 ## P015 normalized telemetry contracts
 
