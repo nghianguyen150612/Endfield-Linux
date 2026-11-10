@@ -1,0 +1,598 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://endfield-unix.invalid/schema/game-launch-plan-v2.schema.json",
+  "title": "Endfield-Unix game launch preflight report v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "approval_required",
+    "blockers",
+    "executable",
+    "executable_relative",
+    "expected_process_behavior",
+    "game_registry_revision",
+    "installation_id",
+    "plan_id",
+    "policy",
+    "prefix",
+    "prefix_id",
+    "process_execution_supported",
+    "process_ownership",
+    "profile",
+    "runtime",
+    "runtime_invocation",
+    "prefix_initialization",
+    "schema_version",
+    "side_effects",
+    "state",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "prefix_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "profile": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 96
+    },
+    "executable_relative": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "game_registry_revision": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "runtime_invocation": {
+      "$ref": "#/$defs/runtimeInvocation"
+    },
+    "prefix": {
+      "$ref": "#/$defs/prefix"
+    },
+    "prefix_initialization": {
+      "$ref": "#/$defs/prefixInitialization"
+    },
+    "executable": {
+      "$ref": "#/$defs/executable"
+    },
+    "policy": {
+      "$ref": "#/$defs/policy"
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/blocker"
+      },
+      "uniqueItems": true
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/warning"
+      },
+      "uniqueItems": true
+    },
+    "state": {
+      "enum": [
+        "prepared",
+        "blocked",
+        "requires_approval",
+        "approved",
+        "starting",
+        "started",
+        "exited",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "approval_required": {
+      "type": "boolean"
+    },
+    "process_execution_supported": {
+      "type": "boolean",
+      "const": false
+    },
+    "side_effects": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      },
+      "maxItems": 16
+    },
+    "expected_process_behavior": {
+      "const": "no_process_created"
+    },
+    "process_ownership": {
+      "const": "none"
+    }
+  },
+  "$defs": {
+    "evidenceState": {
+      "enum": [
+        "verified",
+        "unknown",
+        "missing",
+        "stale",
+        "unsupported"
+      ]
+    },
+    "adapter": {
+      "enum": [
+        "managed_wine",
+        "external_wine",
+        "umu_proton",
+        "direct_proton"
+      ]
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "selection_source",
+        "runtime_id",
+        "family",
+        "adapter",
+        "pin_id",
+        "pin_revision",
+        "runtime_reference_sha256",
+        "runtime_generation",
+        "runtime_ownership_record_sha256",
+        "runtime_artifact_sha256",
+        "managed_ownership_verified",
+        "baseline_integrity_verified",
+        "external_structure_revalidated",
+        "external_trust_policy_documented",
+        "invocation_contract_verified",
+        "invocation_plan_id",
+        "invocation_executable_identity"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/evidenceState"
+        },
+        "selection_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "runtime_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "family": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 32
+        },
+        "adapter": {
+          "$ref": "#/$defs/adapter"
+        },
+        "pin_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "pin_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "runtime_reference_sha256": {
+          "$ref": "#/$defs/sha256IdentifierOrNull"
+        },
+        "runtime_generation": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "runtime_ownership_record_sha256": {
+          "$ref": "#/$defs/sha256HexOrNull"
+        },
+        "runtime_artifact_sha256": {
+          "$ref": "#/$defs/sha256HexOrNull"
+        },
+        "managed_ownership_verified": {
+          "type": "boolean"
+        },
+        "baseline_integrity_verified": {
+          "type": "boolean"
+        },
+        "external_structure_revalidated": {
+          "type": "boolean"
+        },
+        "external_trust_policy_documented": {
+          "type": "boolean"
+        },
+        "invocation_contract_verified": {
+          "type": "boolean"
+        },
+        "invocation_plan_id": {
+          "$ref": "#/$defs/sha256IdentifierOrNull"
+        },
+        "invocation_executable_identity": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/fileIdentity"}
+          ]
+        }
+      }
+    },
+    "prefix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "prefix_id",
+        "lifecycle",
+        "managed_ownership_verified",
+        "directory_identity_verified",
+        "runtime_association_matches",
+        "registry_revision",
+        "filesystem_device",
+        "filesystem_inode",
+        "associated_runtime_pin_id",
+        "associated_runtime_pin_revision",
+        "associated_runtime_reference_sha256",
+        "associated_adapter",
+        "initialization_plan_id",
+        "initialization_verified",
+        "recovery_pending"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/evidenceState"
+        },
+        "prefix_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "lifecycle": {
+          "enum": [
+            "planned",
+            "created",
+            "initialized",
+            "incomplete",
+            "recovery_required",
+            "missing",
+            "blocked"
+          ]
+        },
+        "managed_ownership_verified": {
+          "type": "boolean"
+        },
+        "directory_identity_verified": {
+          "type": "boolean"
+        },
+        "runtime_association_matches": {
+          "type": "boolean"
+        },
+        "registry_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "filesystem_device": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "filesystem_inode": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "associated_runtime_pin_id": {
+          "type": ["string", "null"],
+          "maxLength": 96
+        },
+        "associated_runtime_pin_revision": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "associated_runtime_reference_sha256": {
+          "$ref": "#/$defs/sha256IdentifierOrNull"
+        },
+        "associated_adapter": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/adapter"}
+          ]
+        },
+        "initialization_plan_id": {
+          "$ref": "#/$defs/sha256IdentifierOrNull"
+        },
+        "initialization_verified": {
+          "type": "boolean"
+        },
+        "recovery_pending": {
+          "type": "boolean"
+        }
+      }
+    },
+    "executable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_path",
+        "exists",
+        "regular_file",
+        "symlink_free",
+        "within_registered_root",
+        "root_identity_matches",
+        "game_root_device",
+        "game_root_inode",
+        "file_device",
+        "file_inode",
+        "file_size",
+        "format",
+        "publisher_authenticity_verified"
+      ],
+      "properties": {
+        "relative_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "regular_file": {
+          "type": "boolean"
+        },
+        "symlink_free": {
+          "type": "boolean"
+        },
+        "within_registered_root": {
+          "type": "boolean"
+        },
+        "root_identity_matches": {
+          "type": "boolean"
+        },
+        "game_root_device": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "game_root_inode": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "file_device": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "file_inode": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "file_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "format": {
+          "enum": [
+            "pe_coff",
+            "other",
+            "unknown"
+          ]
+        },
+        "publisher_authenticity_verified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "process_creation_allowed",
+        "approval_required"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/evidenceState"
+        },
+        "process_creation_allowed": {
+          "type": "boolean"
+        },
+        "approval_required": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "fileIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device", "inode", "size"],
+      "properties": {
+        "device": {"type": "integer", "minimum": 0},
+        "inode": {"type": "integer", "minimum": 0},
+        "size": {"type": "integer", "minimum": 0}
+      }
+    },
+    "sha256IdentifierOrNull": {
+      "type": ["string", "null"],
+      "pattern": "^sha256:[0-9a-fA-F]{64}$"
+    },
+    "sha256HexOrNull": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "runtimeInvocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter", "state", "contract_verified", "invocation_plan_id",
+        "expected_executable_identity", "native_argument_count",
+        "process_creation_supported", "reason", "expected_effects"
+      ],
+      "properties": {
+        "adapter": {"$ref": "#/$defs/adapter"},
+        "state": {"enum": ["prepared_non_executable", "preparation_only", "unsupported"]},
+        "contract_verified": {"type": "boolean"},
+        "invocation_plan_id": {"$ref": "#/$defs/sha256IdentifierOrNull"},
+        "expected_executable_identity": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/fileIdentity"}]
+        },
+        "native_argument_count": {"type": ["integer", "null"], "minimum": 0},
+        "process_creation_supported": {"type": "boolean", "const": false},
+        "reason": {"type": "string", "maxLength": 256},
+        "expected_effects": {
+          "type": "array",
+          "items": {"type": "string", "maxLength": 512},
+          "maxItems": 8
+        }
+      }
+    },
+    "prefixInitialization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lifecycle", "evidence", "recovery", "plan"],
+      "properties": {
+        "lifecycle": {
+          "oneOf": [{"type": "null"}, {"enum": ["planned", "created", "initialized", "incomplete", "recovery_required", "missing", "blocked"]}]
+        },
+        "evidence": {
+          "oneOf": [{"type": "null"}, {"enum": ["absent", "completed_claim_unverified", "partial_claim", "failed_claim"]}]
+        },
+        "recovery": {"enum": ["clear", "pending", "unknown"]},
+        "plan": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/initializationPlan"}
+          ]
+        }
+      }
+    },
+    "initializationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "plan_id", "prefix_id", "registry_revision",
+        "prefix_generation", "filesystem_identity", "runtime_pin_id",
+        "runtime_pin_revision", "runtime_reference_sha256", "adapter_id",
+        "strategy", "state", "blockers", "approval_required",
+        "execution_supported", "expected_effects"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "plan_id": {"$ref": "#/$defs/sha256IdentifierOrNull"},
+        "prefix_id": {"type": "string", "maxLength": 96},
+        "registry_revision": {"type": "integer", "minimum": 0},
+        "prefix_generation": {"type": "integer", "minimum": 0},
+        "filesystem_identity": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/deviceInode"}]
+        },
+        "runtime_pin_id": {"type": "string", "maxLength": 96},
+        "runtime_pin_revision": {"type": "integer", "minimum": 0},
+        "runtime_reference_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "adapter_id": {"type": "string", "maxLength": 64},
+        "strategy": {"enum": ["wine_boot_initialize", "umu_managed_prefix_setup", "unsupported"]},
+        "state": {"enum": ["blocked", "unsupported"]},
+        "blockers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["prefix_not_created", "prefix_identity_unknown", "prefix_identity_changed", "prefix_contains_data", "prefix_active", "prefix_use_unknown", "runtime_association_mismatch", "runtime_stale", "recovery_pending", "recovery_unknown", "adapter_unsupported", "initializer_unverified", "existing_initialization_evidence_unverified"]}
+        },
+        "approval_required": {"const": true},
+        "execution_supported": {"const": false},
+        "expected_effects": {"type": "array", "items": {"type": "string"}, "maxItems": 8}
+      }
+    },
+    "deviceInode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device", "inode"],
+      "properties": {
+        "device": {"type": "integer", "minimum": 0},
+        "inode": {"type": "integer", "minimum": 0}
+      }
+    },
+    "blocker": {
+      "enum": [
+        "game_not_registered",
+        "game_root_changed",
+        "executable_missing",
+        "executable_not_regular",
+        "executable_symlink",
+        "executable_outside_root",
+        "executable_identity_unknown",
+        "executable_format_unsupported",
+        "runtime_pin_missing",
+        "runtime_stale",
+        "runtime_unknown",
+        "runtime_integrity_unverified",
+        "external_trust_policy_missing",
+        "adapter_mismatch",
+        "adapter_unsupported",
+        "prefix_missing",
+        "prefix_uninitialized",
+        "prefix_stale",
+        "prefix_recovery_pending",
+        "prefix_initialization_unsupported",
+        "critical_dependency_finding",
+        "critical_dependency_readiness_unknown",
+        "compatibility_unsupported",
+        "execution_policy_unknown"
+      ]
+    },
+    "warning": {
+      "enum": [
+        "publisher_authenticity_unknown",
+        "compatibility_unknown",
+        "anti_cheat_compatibility_unknown",
+        "runtime_network_effects_unknown",
+        "process_supervision_not_persistent"
+      ]
+    }
+  }
+}

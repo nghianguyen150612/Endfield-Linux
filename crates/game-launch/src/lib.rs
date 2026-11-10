@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-pub const PLAN_SCHEMA_VERSION: u32 = 1;
+pub const PLAN_SCHEMA_VERSION: u32 = 2;
 const MAX_ID: usize = 96;
 const MAX_PATH: usize = 4096;
 const MAX_TEXT: usize = 512;
@@ -76,11 +76,25 @@ pub struct RuntimeSelectionEvidence {
     pub adapter: RuntimeAdapter,
     pub pin_id: Option<String>,
     pub pin_revision: Option<u64>,
+    pub runtime_reference_sha256: Option<String>,
+    pub runtime_generation: Option<u64>,
+    pub runtime_ownership_record_sha256: Option<String>,
+    pub runtime_artifact_sha256: Option<String>,
     pub managed_ownership_verified: bool,
     pub baseline_integrity_verified: bool,
     pub external_structure_revalidated: bool,
     pub external_trust_policy_documented: bool,
     pub invocation_contract_verified: bool,
+    pub invocation_plan_id: Option<String>,
+    pub invocation_executable_identity: Option<RuntimeExecutableIdentity>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeExecutableIdentity {
+    pub device: u64,
+    pub inode: u64,
+    pub size: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,6 +119,13 @@ pub struct PrefixEvidence {
     pub directory_identity_verified: bool,
     pub runtime_association_matches: bool,
     pub registry_revision: Option<u64>,
+    pub filesystem_device: Option<u64>,
+    pub filesystem_inode: Option<u64>,
+    pub associated_runtime_pin_id: Option<String>,
+    pub associated_runtime_pin_revision: Option<u64>,
+    pub associated_runtime_reference_sha256: Option<String>,
+    pub associated_adapter: Option<RuntimeAdapter>,
+    pub initialization_plan_id: Option<String>,
     pub initialization_verified: bool,
     pub recovery_pending: bool,
 }
@@ -126,6 +147,8 @@ pub struct GameExecutableEvidence {
     pub symlink_free: bool,
     pub within_registered_root: bool,
     pub root_identity_matches: bool,
+    pub game_root_device: Option<u64>,
+    pub game_root_inode: Option<u64>,
     pub file_device: Option<u64>,
     pub file_inode: Option<u64>,
     pub file_size: Option<u64>,
@@ -363,6 +386,7 @@ impl LaunchPlan {
         }
         let exe = &config.executable;
         validate_relative_executable(&exe.relative_path)?;
+        validate_game_executable_evidence(exe)?;
         if exe.relative_path != request.executable_relative {
             return Err(LaunchError::InvalidValue("executable_evidence_path"));
         }
@@ -440,6 +464,10 @@ impl LaunchPlan {
             || !prefix.managed_ownership_verified
             || !prefix.directory_identity_verified
             || !prefix.runtime_association_matches
+            || prefix.associated_runtime_pin_id != runtime.pin_id
+            || prefix.associated_runtime_pin_revision != runtime.pin_revision
+            || prefix.associated_runtime_reference_sha256 != runtime.runtime_reference_sha256
+            || prefix.associated_adapter != Some(runtime.adapter)
         {
             blockers.push(LaunchBlocker::PrefixStale);
         }
@@ -552,6 +580,7 @@ impl LaunchPlan {
         validate_runtime_evidence(&self.runtime)?;
         validate_prefix_evidence(&self.prefix)?;
         validate_relative_executable(&self.executable.relative_path)?;
+        validate_game_executable_evidence(&self.executable)?;
         if self.executable.relative_path != self.executable_relative
             || !self.approval_required
             || self.policy.approval_required != self.approval_required
@@ -781,6 +810,37 @@ fn validate_runtime_evidence(runtime: &RuntimeSelectionEvidence) -> Result<(), L
     {
         return Err(LaunchError::InvalidValue("pin_id"));
     }
+    for (value, field) in [
+        (runtime.runtime_reference_sha256.as_deref(), "runtime_reference_sha256"),
+        (runtime.invocation_plan_id.as_deref(), "invocation_plan_id"),
+    ] {
+        if value.is_some_and(|digest| !is_sha256_identifier(digest)) {
+            return Err(LaunchError::InvalidValue(field));
+        }
+    }
+    for (value, field) in [
+        (
+            runtime.runtime_ownership_record_sha256.as_deref(),
+            "runtime_ownership_record_sha256",
+        ),
+        (runtime.runtime_artifact_sha256.as_deref(), "runtime_artifact_sha256"),
+    ] {
+        if value.is_some_and(|digest| !is_sha256_hex(digest)) {
+            return Err(LaunchError::InvalidValue(field));
+        }
+    }
+    if runtime.runtime_generation == Some(0)
+        || runtime.invocation_contract_verified
+            != (runtime.invocation_plan_id.is_some()
+                && runtime.invocation_executable_identity.is_some())
+        || runtime.managed_ownership_verified
+            && (runtime.runtime_generation.is_none()
+                || runtime.runtime_ownership_record_sha256.is_none()
+                || runtime.runtime_artifact_sha256.is_none())
+        || runtime.external_structure_revalidated && runtime.runtime_reference_sha256.is_none()
+    {
+        return Err(LaunchError::InvalidValue("runtime_invocation_identity"));
+    }
     Ok(())
 }
 
@@ -792,7 +852,61 @@ fn validate_prefix_evidence(prefix: &PrefixEvidence) -> Result<(), LaunchError> 
     {
         return Err(LaunchError::InvalidValue("prefix_id"));
     }
+    if prefix.filesystem_device.is_some() != prefix.filesystem_inode.is_some()
+        || prefix.directory_identity_verified
+            != (prefix.filesystem_device.is_some() && prefix.filesystem_inode.is_some())
+        || prefix.associated_runtime_pin_id.is_some()
+            != prefix.associated_runtime_pin_revision.is_some()
+        || prefix.associated_runtime_pin_revision == Some(0)
+    {
+        return Err(LaunchError::InvalidValue("prefix_identity"));
+    }
+    for (value, field) in [
+        (
+            prefix.associated_runtime_reference_sha256.as_deref(),
+            "associated_runtime_reference_sha256",
+        ),
+        (prefix.initialization_plan_id.as_deref(), "initialization_plan_id"),
+    ] {
+        if value.is_some_and(|digest| !is_sha256_identifier(digest)) {
+            return Err(LaunchError::InvalidValue(field));
+        }
+    }
+    if prefix.associated_runtime_pin_id.as_deref().is_some_and(|id| {
+        validate_id(id, "associated_runtime_pin_id").is_err()
+    }) {
+        return Err(LaunchError::InvalidValue("associated_runtime_pin_id"));
+    }
+    if prefix.associated_runtime_reference_sha256.is_some()
+        && prefix.associated_runtime_pin_id.is_none()
+    {
+        return Err(LaunchError::InvalidValue("prefix_runtime_association"));
+    }
     Ok(())
+}
+
+fn validate_game_executable_evidence(
+    executable: &GameExecutableEvidence,
+) -> Result<(), LaunchError> {
+    if executable.game_root_device.is_some() != executable.game_root_inode.is_some() {
+        return Err(LaunchError::InvalidValue("game_root_identity"));
+    }
+    if executable.root_identity_matches
+        != (executable.game_root_device.is_some() && executable.game_root_inode.is_some())
+    {
+        return Err(LaunchError::InvalidValue("game_root_identity"));
+    }
+    Ok(())
+}
+
+fn is_sha256_identifier(value: &str) -> bool {
+    value.starts_with("sha256:")
+        && value.len() == 71
+        && is_sha256_hex(&value[7..])
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn identity_id(identity: &PlanIdentity<'_>) -> Result<String, LaunchError> {
@@ -834,6 +948,8 @@ mod tests {
                 symlink_free: true,
                 within_registered_root: true,
                 root_identity_matches: true,
+                game_root_device: Some(1),
+                game_root_inode: Some(8),
                 file_device: Some(1),
                 file_inode: Some(2),
                 file_size: Some(4096),
@@ -848,11 +964,21 @@ mod tests {
                 adapter: RuntimeAdapter::UmuProton,
                 pin_id: Some("runtime-pin".into()),
                 pin_revision: Some(3),
+                runtime_reference_sha256: Some(format!("sha256:{}", "a".repeat(64))),
+                runtime_generation: None,
+                runtime_ownership_record_sha256: None,
+                runtime_artifact_sha256: None,
                 managed_ownership_verified: false,
                 baseline_integrity_verified: false,
                 external_structure_revalidated: true,
                 external_trust_policy_documented: true,
                 invocation_contract_verified: true,
+                invocation_plan_id: Some(format!("sha256:{}", "b".repeat(64))),
+                invocation_executable_identity: Some(RuntimeExecutableIdentity {
+                    device: 1,
+                    inode: 3,
+                    size: 4096,
+                }),
             },
             prefix: PrefixEvidence {
                 state: EvidenceState::Verified,
@@ -862,6 +988,13 @@ mod tests {
                 directory_identity_verified: true,
                 runtime_association_matches: true,
                 registry_revision: Some(4),
+                filesystem_device: Some(1),
+                filesystem_inode: Some(5),
+                associated_runtime_pin_id: Some("runtime-pin".into()),
+                associated_runtime_pin_revision: Some(3),
+                associated_runtime_reference_sha256: Some(format!("sha256:{}", "a".repeat(64))),
+                associated_adapter: Some(RuntimeAdapter::UmuProton),
+                initialization_plan_id: Some(format!("sha256:{}", "d".repeat(64))),
                 initialization_verified: true,
                 recovery_pending: false,
             },
@@ -939,6 +1072,27 @@ mod tests {
             approval.validate(&tampered),
             Err(LaunchError::PlanIntegrityMismatch)
         );
+    }
+
+    #[test]
+    fn plan_id_binds_runtime_invocation_prefix_and_game_root_identities() {
+        let original = LaunchPlan::build(&request(), &config()).unwrap();
+
+        let mut changed_runtime = config();
+        changed_runtime.runtime.invocation_plan_id =
+            Some(format!("sha256:{}", "e".repeat(64)));
+        let changed_runtime = LaunchPlan::build(&request(), &changed_runtime).unwrap();
+        assert_ne!(original.plan_id, changed_runtime.plan_id);
+
+        let mut changed_prefix = config();
+        changed_prefix.prefix.filesystem_inode = Some(99);
+        let changed_prefix = LaunchPlan::build(&request(), &changed_prefix).unwrap();
+        assert_ne!(original.plan_id, changed_prefix.plan_id);
+
+        let mut changed_game_root = config();
+        changed_game_root.executable.game_root_inode = Some(101);
+        let changed_game_root = LaunchPlan::build(&request(), &changed_game_root).unwrap();
+        assert_ne!(original.plan_id, changed_game_root.plan_id);
     }
     #[test]
     fn created_prefix_is_blocked_and_cannot_be_approved() {

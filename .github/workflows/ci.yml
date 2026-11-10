@@ -91,7 +91,7 @@ jobs:
           from jsonschema import Draft202012Validator
           from pathlib import Path
 
-          schema = json.loads(Path("docs/schema/game-launch-plan-v1.schema.json").read_text())
+          schema = json.loads(Path("docs/schema/game-launch-plan-v2.schema.json").read_text())
           report = json.loads(Path("/tmp/p034-launch-plan.json").read_text())
           Draft202012Validator.check_schema(schema)
           Draft202012Validator(schema).validate(report)
@@ -99,6 +99,8 @@ jobs:
           assert report["process_execution_supported"] is False
           assert report["expected_process_behavior"] == "no_process_created"
           assert report["policy"]["process_creation_allowed"] is False
+          assert report["runtime_invocation"]["process_creation_supported"] is False
+          assert report["prefix_initialization"]["recovery"] == "clear"
           assert "game_not_registered" in report["blockers"]
           assert "execution_policy_unknown" in report["blockers"]
           print("P034 blocked launch plan matches the versioned JSON schema.")
@@ -312,7 +314,7 @@ jobs:
           runtime_linux = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-runtime-linux")
           assert any("lib" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
           assert not any("bin" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
-          assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc", "sha2"}, runtime_linux["dependencies"]
+          assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc", "sha2", "tempfile"}, runtime_linux["dependencies"]
           assert not any(dependency["name"] in gui_dependencies | {"endfield-unixd", "ash", "nix", "vulkan", "vulkano", "wayland-client", "wayland-protocols", "x11rb"} for dependency in runtime_linux["dependencies"]), runtime_linux["dependencies"]
           verification = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-runtime-verification")
           assert all("bin" not in t["kind"] for t in verification["targets"])

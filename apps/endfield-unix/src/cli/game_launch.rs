@@ -7,6 +7,7 @@ use endfield_unix_game_launch as launch;
 use endfield_unix_prefix_management as prefixes;
 use endfield_unix_runtime_selection as pins;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::{
     ffi::CString,
     fs::{File, OpenOptions},
@@ -81,6 +82,62 @@ struct ErrorDetail<'a> {
     message: &'a str,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum InvocationPreparationState {
+    PreparedNonExecutable,
+    PreparationOnly,
+    Unsupported,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct InvocationFileIdentity {
+    pub(crate) device: u64,
+    pub(crate) inode: u64,
+    pub(crate) size: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RuntimeInvocationAssessment {
+    pub(crate) adapter: launch::RuntimeAdapter,
+    pub(crate) state: InvocationPreparationState,
+    pub(crate) contract_verified: bool,
+    pub(crate) invocation_plan_id: Option<String>,
+    pub(crate) expected_executable_identity: Option<InvocationFileIdentity>,
+    pub(crate) native_argument_count: Option<usize>,
+    pub(crate) process_creation_supported: bool,
+    pub(crate) reason: &'static str,
+    pub(crate) expected_effects: Vec<&'static str>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum RecoveryEvidence {
+    Clear,
+    Pending,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PrefixInitializationAssessment {
+    pub(crate) lifecycle: Option<launch::PrefixLifecycle>,
+    pub(crate) evidence: Option<prefixes::PrefixInitializationEvidenceStatus>,
+    pub(crate) recovery: RecoveryEvidence,
+    pub(crate) plan: Option<prefixes::PrefixInitializationPlan>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PreflightReport {
+    #[serde(flatten)]
+    pub(crate) plan: launch::LaunchPlan,
+    pub(crate) runtime_invocation: RuntimeInvocationAssessment,
+    pub(crate) prefix_initialization: PrefixInitializationAssessment,
+}
+
 pub fn run(operation: Operation, output: &mut impl Write) -> io::Result<u8> {
     let Operation::Plan {
         id,
@@ -99,15 +156,15 @@ pub fn run(operation: Operation, output: &mut impl Write) -> io::Result<u8> {
     );
     let mut bytes = Vec::new();
     let code = match result {
-        Ok(plan) => {
+        Ok(report) => {
             if json {
-                serde_json::to_writer_pretty(&mut bytes, &plan)
+                serde_json::to_writer_pretty(&mut bytes, &report)
                     .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
                 bytes.push(b'\n');
             } else {
-                render_human(&mut bytes, &plan)?;
+                render_human(&mut bytes, &report)?;
             }
-            if plan.is_blocked() { 78 } else { 0 }
+            if report.plan.is_blocked() { 78 } else { 0 }
         }
         Err(error) => {
             if json {
@@ -174,7 +231,7 @@ fn preflight(
     profile: Option<&str>,
     executable_relative: &str,
     adapter: AdapterArg,
-) -> Result<launch::LaunchPlan, PreflightError> {
+) -> Result<PreflightReport, PreflightError> {
     let request = launch::GameLaunchRequest::new(
         installation_id,
         prefix_id,
@@ -223,8 +280,30 @@ fn preflight(
         ),
     };
 
-    let (runtime_evidence, runtime_observation) = inspect_runtime(&paths, profile, adapter.into());
-    let prefix = inspect_prefix(&paths, prefix_id, profile, runtime_observation.as_ref());
+    let (mut runtime_evidence, runtime_observation) =
+        inspect_runtime(&paths, profile, adapter.into());
+    let prefix_observation =
+        inspect_prefix(&paths, prefix_id, profile, runtime_observation.as_ref());
+    let runtime_invocation = assess_runtime_invocation(
+        &paths,
+        adapter.into(),
+        runtime_observation.as_ref(),
+        &prefix_observation,
+        game,
+        executable_relative,
+        game_revision,
+        &exe,
+    );
+    runtime_evidence.invocation_contract_verified = runtime_invocation.contract_verified;
+    runtime_evidence.invocation_plan_id = runtime_invocation.invocation_plan_id.clone();
+    runtime_evidence.invocation_executable_identity = runtime_invocation
+        .expected_executable_identity
+        .map(|identity| launch::RuntimeExecutableIdentity {
+            device: identity.device,
+            inode: identity.inode,
+            size: identity.size,
+        });
+    let prefix = prefix_observation.evidence.clone();
     let config = launch::LaunchConfiguration {
         game_registered,
         game_registry_revision: game_revision,
@@ -239,19 +318,29 @@ fn preflight(
         // There is not yet a production adapter that can safely create this process.
         policy: launch::LaunchPolicy::fail_closed(),
     };
-    launch::LaunchPlan::build(&request, &config)
-        .map_err(|error| PreflightError::invalid(error.to_string()))
+    let plan = launch::LaunchPlan::build(&request, &config)
+        .map_err(|error| PreflightError::invalid(error.to_string()))?;
+    Ok(PreflightReport {
+        plan,
+        runtime_invocation,
+        prefix_initialization: PrefixInitializationAssessment {
+            lifecycle: prefix_observation.lifecycle,
+            evidence: prefix_observation.initialization_evidence,
+            recovery: prefix_observation.recovery,
+            plan: prefix_observation.initialization_plan,
+        },
+    })
 }
 
 /// Shared preflight entry point used by the GTK worker. It returns the same
 /// plan that the headless CLI serializes and never starts a process.
-pub fn plan_for_ui(
+pub(crate) fn plan_for_ui(
     installation_id: String,
     prefix_id: String,
     profile: Option<String>,
     executable_relative: String,
     adapter: AdapterArg,
-) -> Result<launch::LaunchPlan, String> {
+) -> Result<PreflightReport, String> {
     preflight(
         &installation_id,
         &prefix_id,
@@ -271,11 +360,17 @@ fn unknown_runtime(adapter: launch::RuntimeAdapter) -> launch::RuntimeSelectionE
         adapter,
         pin_id: None,
         pin_revision: None,
+        runtime_reference_sha256: None,
+        runtime_generation: None,
+        runtime_ownership_record_sha256: None,
+        runtime_artifact_sha256: None,
         managed_ownership_verified: false,
         baseline_integrity_verified: false,
         external_structure_revalidated: false,
         external_trust_policy_documented: false,
         invocation_contract_verified: false,
+        invocation_plan_id: None,
+        invocation_executable_identity: None,
     }
 }
 
@@ -335,20 +430,27 @@ fn inspect_runtime(
         pins::PinnedRuntimeReference::Managed(runtime) => runtime.installation_id.clone(),
         pins::PinnedRuntimeReference::External(_) => format!("external:{}", pin_id),
     };
-    let (managed, integrity, external, trust) = match &reference {
-        pins::PinnedRuntimeReference::Managed(_) => (
+    let (managed, integrity, external, trust, generation, owner_record, artifact) = match &reference {
+        pins::PinnedRuntimeReference::Managed(runtime) => (
             state == launch::EvidenceState::Verified,
             state == launch::EvidenceState::Verified,
             false,
             false,
+            Some(runtime.generation),
+            Some(runtime.ownership_record_sha256.clone()),
+            Some(runtime.artifact_sha256.clone()),
         ),
         pins::PinnedRuntimeReference::External(_) => (
             false,
             false,
             state == launch::EvidenceState::Verified,
             false,
+            None,
+            None,
+            None,
         ),
     };
+    let runtime_reference_sha256 = hash_runtime_reference(&reference).ok();
     let preference = pin.adapter_preference;
     let preference_matches = matches!(
         (preference, selected_adapter),
@@ -379,12 +481,18 @@ fn inspect_runtime(
         adapter: selected_adapter,
         pin_id: Some(pin_id.clone()),
         pin_revision: Some(report.registry_revision),
+        runtime_reference_sha256,
+        runtime_generation: generation,
+        runtime_ownership_record_sha256: owner_record,
+        runtime_artifact_sha256: artifact,
         managed_ownership_verified: managed,
         baseline_integrity_verified: integrity,
         external_structure_revalidated: external,
         external_trust_policy_documented: trust,
         // P023 only prepares non-executable UMU plans; no production invoker exists.
         invocation_contract_verified: false,
+        invocation_plan_id: None,
+        invocation_executable_identity: None,
     };
     if !preference_matches {
         evidence.state = launch::EvidenceState::Unsupported;
@@ -400,30 +508,250 @@ fn inspect_runtime(
     (observation.evidence.clone(), Some(observation))
 }
 
+fn hash_runtime_reference(
+    reference: &pins::PinnedRuntimeReference,
+) -> Result<String, serde_json::Error> {
+    let bytes = serde_json::to_vec(reference)?;
+    Ok(format!("sha256:{:x}", Sha256::digest(bytes)))
+}
+
+fn assess_runtime_invocation(
+    paths: &endfield_unix_storage::AppPaths,
+    adapter: launch::RuntimeAdapter,
+    runtime: Option<&RuntimeObservation>,
+    prefix: &PrefixObservation,
+    game: Option<&GameInstallationRecord>,
+    executable_relative: &str,
+    game_registry_revision: Option<u64>,
+    executable: &launch::GameExecutableEvidence,
+) -> RuntimeInvocationAssessment {
+    let unsupported = |reason| RuntimeInvocationAssessment {
+        adapter,
+        state: InvocationPreparationState::Unsupported,
+        contract_verified: false,
+        invocation_plan_id: None,
+        expected_executable_identity: None,
+        native_argument_count: None,
+        process_creation_supported: false,
+        reason,
+        expected_effects: vec![],
+    };
+
+    match adapter {
+        launch::RuntimeAdapter::ManagedWine => {
+            let Some(runtime) = runtime else {
+                return unsupported("no exact P027 runtime selection is available");
+            };
+            let pins::PinnedRuntimeReference::Managed(reference) = &runtime.reference else {
+                return unsupported("selected runtime is not an Endfield-managed Wine install");
+            };
+            if reference.family != "wine"
+                || runtime.pin_adapter != Some(pins::AdapterPreference::ManagedWine)
+                || runtime.evidence.state != launch::EvidenceState::Verified
+                || !prefix.evidence.runtime_association_matches
+            {
+                return unsupported("P027/P028 evidence does not select the same verified managed Wine adapter");
+            }
+            let identity = match endfield_unix_runtime_install::pin_identity(
+                paths,
+                &reference.installation_id,
+            ) {
+                Ok(identity) => identity,
+                Err(_) => return unsupported("P025/P026 managed Wine revalidation failed"),
+            };
+            use endfield_unix_runtime_audit::{Completeness, FindingKind};
+            if identity.installation_id != reference.installation_id
+                || identity.generation != reference.generation
+                || identity.ownership_record_sha256 != reference.ownership_record_sha256
+                || identity.audit.completeness != Completeness::Complete
+                || identity
+                    .audit
+                    .findings
+                    .iter()
+                    .any(|finding| finding.kind != FindingKind::Match)
+            {
+                return unsupported("P025 ownership or P026 baseline evidence changed");
+            }
+            let runtime_audit_report_sha256 = match serde_json::to_vec(&identity.audit) {
+                Ok(bytes) => format!("{:x}", Sha256::digest(bytes)),
+                Err(_) => return unsupported("P026 audit evidence could not be bound to the plan"),
+            };
+            let (Some(prefix_record), Some(prefix_revision)) =
+                (prefix.record.as_ref(), prefix.registry_revision)
+            else {
+                return unsupported("managed prefix record is unavailable");
+            };
+            let Some(prefix_identity) = prefix_record.filesystem_identity else {
+                return unsupported("managed prefix filesystem identity is unknown");
+            };
+            let runtime_reference_sha256 = match hash_runtime_reference(&runtime.reference) {
+                Ok(digest) => digest,
+                Err(_) => return unsupported("selected runtime reference could not be hashed"),
+            };
+            let prefix_runtime_reference_sha256 =
+                match hash_runtime_reference(&prefix_record.runtime.runtime) {
+                    Ok(digest) => digest,
+                    Err(_) => return unsupported("prefix runtime association could not be hashed"),
+                };
+            let Some(game) = game else {
+                return unsupported("registered game installation is unavailable");
+            };
+            let Some(game_registry_revision) = game_registry_revision else {
+                return unsupported("P031 game registry revision is unavailable");
+            };
+            if !executable.exists
+                || !executable.regular_file
+                || !executable.symlink_free
+                || !executable.within_registered_root
+                || !executable.root_identity_matches
+            {
+                return unsupported("P032 executable identity is incomplete or unsafe");
+            }
+            let (Some(game_executable_device), Some(game_executable_inode)) =
+                (executable.file_device, executable.file_inode)
+            else {
+                return unsupported("P032 executable filesystem identity is unavailable");
+            };
+            let Ok(prefix_id) = prefixes::PrefixId::new(prefix_record.id.as_str()) else {
+                return unsupported("managed prefix identifier is invalid");
+            };
+            if launch::validate_relative_executable(executable_relative).is_err() {
+                return unsupported("game executable path is invalid");
+            }
+            let runtime_root = paths
+                .data_dir()
+                .join("runtimes")
+                .join("wine")
+                .join(&reference.installation_id);
+            let game_root = PathBuf::from(&game.selected_path);
+            let game_executable = game_root.join(executable_relative);
+            let request = endfield_unix_runtime_linux::wine_plan::ManagedWineInvocationRequest {
+                runtime_root,
+                prefix: prefixes::PrefixStore::for_app(paths).target_path(&prefix_id),
+                game_root,
+                game_executable_relative: PathBuf::from(executable_relative),
+                working_directory: game_executable
+                    .parent()
+                    .unwrap_or(Path::new("/"))
+                    .to_path_buf(),
+                arguments: vec![],
+                binding: endfield_unix_runtime_linux::wine_plan::InvocationBinding {
+                    runtime_installation_id: identity.installation_id,
+                    runtime_pin_id: runtime.pin_id.clone(),
+                    runtime_pin_revision: runtime.pin_revision,
+                    runtime_reference_sha256,
+                    runtime_generation: identity.generation,
+                    runtime_ownership_record_sha256: identity.ownership_record_sha256,
+                    runtime_artifact_sha256: identity.artifact_sha256,
+                    runtime_audit_report_sha256,
+                    prefix_id: prefix_record.id.as_str().to_owned(),
+                    prefix_registry_revision: prefix_revision,
+                    prefix_generation: prefix_record.generation,
+                    prefix_device: prefix_identity.device,
+                    prefix_inode: prefix_identity.inode,
+                    prefix_runtime_pin_id: prefix_record.runtime.pin_id.clone(),
+                    prefix_runtime_pin_revision: prefix_record.runtime.pin_revision,
+                    prefix_runtime_reference_sha256,
+                    game_installation_id: game.id.as_str().to_owned(),
+                    game_registry_revision,
+                    game_root_device: game.root_identity.device,
+                    game_root_inode: game.root_identity.inode,
+                    game_executable_device,
+                    game_executable_inode,
+                },
+            };
+            let invocation = match endfield_unix_runtime_linux::wine_plan::ManagedWineInvocationPlanBuilder::prepare(request) {
+                Ok(invocation) => invocation,
+                Err(_) => return unsupported("exact managed Wine argv could not be prepared safely"),
+            };
+            RuntimeInvocationAssessment {
+                adapter,
+                state: InvocationPreparationState::PreparedNonExecutable,
+                contract_verified: true,
+                invocation_plan_id: Some(invocation.plan_id.clone()),
+                expected_executable_identity: Some(InvocationFileIdentity {
+                    device: invocation.runtime_executable_identity.device,
+                    inode: invocation.runtime_executable_identity.inode,
+                    size: invocation.runtime_executable_identity.size,
+                }),
+                native_argument_count: Some(invocation.native_arguments.len()),
+                process_creation_supported: false,
+                reason: "managed Wine native argv is prepared; production process creation remains disabled",
+                expected_effects: invocation.expected_effects,
+            }
+        }
+        launch::RuntimeAdapter::UmuProton => RuntimeInvocationAssessment {
+            adapter,
+            state: InvocationPreparationState::PreparationOnly,
+            contract_verified: false,
+            invocation_plan_id: None,
+            expected_executable_identity: None,
+            native_argument_count: None,
+            process_creation_supported: false,
+            reason: "P023 provides non-executable UMU preparation; the selected CLI path has no verified process adapter",
+            expected_effects: vec![
+                "UMU/Proton may modify the prefix and runtime caches.",
+                "UMU may acquire or update Steam Linux Runtime components over the network; UMU_RUNTIME_UPDATE=0 is not an offline guarantee.",
+            ],
+        },
+        launch::RuntimeAdapter::ExternalWine => unsupported(
+            "P022 external identity does not bind a production-approved exact Wine executable path",
+        ),
+        launch::RuntimeAdapter::DirectProton => unsupported(
+            "direct Proton invocation has no approved Endfield adapter or verified game identifier semantics",
+        ),
+    }
+}
+
+struct PrefixObservation {
+    evidence: launch::PrefixEvidence,
+    record: Option<prefixes::PrefixRecord>,
+    lifecycle: Option<launch::PrefixLifecycle>,
+    registry_revision: Option<u64>,
+    initialization_evidence: Option<prefixes::PrefixInitializationEvidenceStatus>,
+    recovery: RecoveryEvidence,
+    initialization_plan: Option<prefixes::PrefixInitializationPlan>,
+}
+
 fn inspect_prefix(
     paths: &endfield_unix_storage::AppPaths,
     prefix_id: &str,
     profile: Option<&str>,
     runtime: Option<&RuntimeObservation>,
-) -> launch::PrefixEvidence {
-    let unavailable = |state| launch::PrefixEvidence {
-        state,
-        prefix_id: Some(prefix_id.into()),
-        lifecycle: launch::PrefixLifecycle::Missing,
-        managed_ownership_verified: false,
-        directory_identity_verified: false,
-        runtime_association_matches: false,
+) -> PrefixObservation {
+    let unavailable = |state, recovery| PrefixObservation {
+        evidence: launch::PrefixEvidence {
+            state,
+            prefix_id: Some(prefix_id.into()),
+            lifecycle: launch::PrefixLifecycle::Missing,
+            managed_ownership_verified: false,
+            directory_identity_verified: false,
+            runtime_association_matches: false,
+            registry_revision: None,
+            filesystem_device: None,
+            filesystem_inode: None,
+            associated_runtime_pin_id: None,
+            associated_runtime_pin_revision: None,
+            associated_runtime_reference_sha256: None,
+            associated_adapter: None,
+            initialization_plan_id: None,
+            initialization_verified: false,
+            recovery_pending: true,
+        },
+        record: None,
+        lifecycle: None,
         registry_revision: None,
-        initialization_verified: false,
-        recovery_pending: true,
+        initialization_evidence: None,
+        recovery,
+        initialization_plan: None,
     };
     let Ok(id) = prefixes::PrefixId::new(prefix_id.to_owned()) else {
-        return unavailable(launch::EvidenceState::Missing);
+        return unavailable(launch::EvidenceState::Missing, RecoveryEvidence::Unknown);
     };
-    let recovery_pending = prefixes::backup::BackupStore::for_app(paths)
+    let recovery = prefixes::backup::BackupStore::for_app(paths)
         .compatibility_recovery_observation(&id)
         .map(|observation| {
-            observation.pending_deletion
+            if observation.pending_deletion
                 || observation.pending_pin_recovery
                 || !matches!(
                     observation.restore_state,
@@ -431,21 +759,20 @@ fn inspect_prefix(
                         | prefixes::backup::CompatibilityRecoveryState::Completed
                         | prefixes::backup::CompatibilityRecoveryState::RollbackCompleted
                 )
+            {
+                RecoveryEvidence::Pending
+            } else {
+                RecoveryEvidence::Clear
+            }
         })
-        .unwrap_or(true);
+        .unwrap_or(RecoveryEvidence::Unknown);
     let store = prefixes::PrefixStore::for_app(paths);
     let report = match store.validate(&id, super::runtime_pin::validate_reference) {
         Ok(report) => report,
         Err(prefixes::PrefixError::NotRegistered | prefixes::PrefixError::Missing) => {
-            let mut evidence = unavailable(launch::EvidenceState::Missing);
-            evidence.recovery_pending = recovery_pending;
-            return evidence;
+            return unavailable(launch::EvidenceState::Missing, recovery);
         }
-        Err(_) => {
-            let mut evidence = unavailable(launch::EvidenceState::Unknown);
-            evidence.recovery_pending = recovery_pending;
-            return evidence;
-        }
+        Err(_) => return unavailable(launch::EvidenceState::Unknown, recovery),
     };
     let record = &report.record;
     let lifecycle = match report.observed_lifecycle {
@@ -491,29 +818,95 @@ fn inspect_prefix(
             _ => false,
         }
     });
-    let initialized = record.lifecycle == prefixes::PrefixLifecycleState::Initialized
-        && record
-            .initialization_evidence
-            .as_ref()
-            .is_some_and(|evidence| {
-                evidence.outcome == prefixes::InitializationEvidenceOutcome::CompletedAndVerified
-            });
-    let state = if runtime_valid && lifecycle != launch::PrefixLifecycle::Blocked {
+    // P028 records claims but no runtime-specific completion verifier exists.
+    // A stored CompletedAndVerified label is not sufficient evidence for P034.
+    let initialization_verified = false;
+    let state = if runtime_valid
+        && !matches!(lifecycle, launch::PrefixLifecycle::Blocked | launch::PrefixLifecycle::Missing)
+    {
         launch::EvidenceState::Verified
     } else {
         launch::EvidenceState::Stale
     };
-    launch::PrefixEvidence {
-        state,
-        prefix_id: Some(record.id.as_str().into()),
-        lifecycle,
-        managed_ownership_verified: record.ownership
-            == prefixes::PrefixOwnership::EndfieldUnixManaged,
-        directory_identity_verified: record.filesystem_identity.is_some() && runtime_valid,
-        runtime_association_matches: runtime_matches && scope_matches,
+    let recovery_pending = recovery != RecoveryEvidence::Clear
+        || matches!(
+            lifecycle,
+            launch::PrefixLifecycle::Incomplete | launch::PrefixLifecycle::RecoveryRequired
+        );
+    let directory_identity_verified = record.filesystem_identity.is_some()
+        && !matches!(lifecycle, launch::PrefixLifecycle::Blocked | launch::PrefixLifecycle::Missing);
+    let expected_runtime = runtime.and_then(|current| {
+        let selection_source = match &current.source {
+            pins::SelectionSource::ProfilePin => prefixes::RuntimeSelectionSource::ProfilePin,
+            pins::SelectionSource::MachinePin => prefixes::RuntimeSelectionSource::MachinePin,
+            pins::SelectionSource::ExplicitOverride | pins::SelectionSource::None => return None,
+        };
+        Some(prefixes::PrefixRuntimeAssociation {
+            runtime: current.reference.clone(),
+            selection_source,
+            pin_id: current.pin_id.clone(),
+            pin_revision: current.pin_revision,
+            adapter_preference: current.pin_adapter,
+        })
+    });
+    let recovery_for_plan = match recovery {
+        RecoveryEvidence::Clear => Some(false),
+        RecoveryEvidence::Pending => Some(true),
+        RecoveryEvidence::Unknown => None,
+    };
+    let initialization_plan = expected_runtime.and_then(|expected| {
+        store
+            .plan_initialization(
+                &id,
+                report.registry_revision,
+                &expected,
+                recovery_for_plan,
+                super::runtime_pin::validate_reference,
+            )
+            .ok()
+    });
+    let associated_adapter = match record.runtime.adapter_preference {
+        Some(pins::AdapterPreference::ManagedWine) => Some(launch::RuntimeAdapter::ManagedWine),
+        Some(pins::AdapterPreference::ExternalWine) => Some(launch::RuntimeAdapter::ExternalWine),
+        Some(pins::AdapterPreference::UmuProton) => Some(launch::RuntimeAdapter::UmuProton),
+        None => None,
+    };
+    let (filesystem_device, filesystem_inode) = if directory_identity_verified {
+        record
+            .filesystem_identity
+            .map_or((None, None), |identity| (Some(identity.device), Some(identity.inode)))
+    } else {
+        (None, None)
+    };
+    PrefixObservation {
+        evidence: launch::PrefixEvidence {
+            state,
+            prefix_id: Some(record.id.as_str().into()),
+            lifecycle,
+            managed_ownership_verified: record.ownership
+                == prefixes::PrefixOwnership::EndfieldUnixManaged,
+            directory_identity_verified,
+            runtime_association_matches: runtime_matches && scope_matches,
+            registry_revision: Some(report.registry_revision),
+            filesystem_device,
+            filesystem_inode,
+            associated_runtime_pin_id: Some(record.runtime.pin_id.clone()),
+            associated_runtime_pin_revision: Some(record.runtime.pin_revision),
+            associated_runtime_reference_sha256:
+                hash_runtime_reference(&record.runtime.runtime).ok(),
+            associated_adapter,
+            initialization_plan_id: initialization_plan
+                .as_ref()
+                .map(|plan| plan.plan_id.clone()),
+            initialization_verified,
+            recovery_pending,
+        },
+        record: Some(record.clone()),
+        lifecycle: Some(lifecycle),
         registry_revision: Some(report.registry_revision),
-        initialization_verified: initialized,
-        recovery_pending,
+        initialization_evidence: Some(report.initialization_evidence),
+        recovery,
+        initialization_plan,
     }
 }
 
@@ -527,6 +920,8 @@ fn missing_executable(relative: &str) -> launch::GameExecutableEvidence {
         symlink_free: true,
         within_registered_root: false,
         root_identity_matches: false,
+        game_root_device: None,
+        game_root_inode: None,
         file_device: None,
         file_inode: None,
         file_size: None,
@@ -542,6 +937,10 @@ fn inspect_executable(
 ) -> launch::GameExecutableEvidence {
     let mut evidence = missing_executable(relative);
     evidence.root_identity_matches = root_identity_matches;
+    if root_identity_matches {
+        evidence.game_root_device = Some(record.root_identity.device);
+        evidence.game_root_inode = Some(record.root_identity.inode);
+    }
     let Ok(path) = launch::validate_relative_executable(relative).map(|_| PathBuf::from(relative))
     else {
         return evidence;
@@ -687,7 +1086,8 @@ fn is_pe(file: &File) -> bool {
     reader.read_exact(&mut signature).is_ok() && &signature == b"PE\0\0"
 }
 
-fn render_human(output: &mut impl Write, plan: &launch::LaunchPlan) -> io::Result<()> {
+fn render_human(output: &mut impl Write, report: &PreflightReport) -> io::Result<()> {
+    let plan = &report.plan;
     writeln!(output, "Launch plan: {}", plan.plan_id)?;
     writeln!(output, "Installation: {}", plan.installation_id)?;
     writeln!(
@@ -715,11 +1115,41 @@ fn render_human(output: &mut impl Write, plan: &launch::LaunchPlan) -> io::Resul
     writeln!(output, "Adapter: {:?}", plan.runtime.adapter)?;
     writeln!(
         output,
+        "Runtime invocation: {:?}; process creation supported: {}; {}",
+        report.runtime_invocation.state,
+        report.runtime_invocation.process_creation_supported,
+        report.runtime_invocation.reason
+    )?;
+    for effect in &report.runtime_invocation.expected_effects {
+        writeln!(output, "Invocation side effect: {effect}")?;
+    }
+    writeln!(
+        output,
         "Prefix: {} ({:?}, revision {:?})",
         plan.prefix.prefix_id.as_deref().unwrap_or("unavailable"),
         plan.prefix.lifecycle,
         plan.prefix.registry_revision
     )?;
+    writeln!(
+        output,
+        "Prefix initialization: lifecycle {:?}, evidence {:?}, P029 recovery {:?}",
+        report.prefix_initialization.lifecycle,
+        report.prefix_initialization.evidence,
+        report.prefix_initialization.recovery
+    )?;
+    if let Some(initialization) = &report.prefix_initialization.plan {
+        writeln!(
+            output,
+            "Initialization plan: {} ({:?}); execution supported: {}; blockers: {:?}",
+            initialization.plan_id,
+            initialization.state,
+            initialization.execution_supported,
+            initialization.blockers
+        )?;
+        for effect in &initialization.expected_effects {
+            writeln!(output, "Initialization side effect: {effect}")?;
+        }
+    }
     writeln!(output, "Approval required: {}", plan.approval_required)?;
     writeln!(
         output,

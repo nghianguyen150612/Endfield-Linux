@@ -122,7 +122,8 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
             })
             .await;
             match result {
-                Ok(Ok(plan)) => {
+                Ok(Ok(report)) => {
+                    let plan = &report.plan;
                     let blockers = plan
                         .blockers
                         .iter()
@@ -133,8 +134,37 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
                         .iter()
                         .map(|warning| format!("{warning:?}"))
                         .collect::<Vec<_>>();
+                    let initialization_blockers = report
+                        .prefix_initialization
+                        .plan
+                        .as_ref()
+                        .map(|initialization| {
+                            initialization
+                                .blockers
+                                .iter()
+                                .map(|blocker| format!("{blocker:?}"))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        })
+                        .unwrap_or_else(|| "unavailable".to_owned());
+                    let mut effects = report
+                        .runtime_invocation
+                        .expected_effects
+                        .iter()
+                        .map(|effect| (*effect).to_owned())
+                        .collect::<Vec<_>>();
+                    if let Some(initialization) = &report.prefix_initialization.plan {
+                        effects.extend(
+                            initialization
+                                .expected_effects
+                                .iter()
+                                .map(|effect| (*effect).to_owned()),
+                        );
+                    }
+                    let expected_effects = effects
+                        .join("; ");
                     status_label.set_text(&format!(
-                        "Plan {} — {:?}. Installation: {} (root identity matches: {}). Runtime: {} / {} ({:?}, source {}, pin revision {:?}); adapter {:?}. Prefix: {} ({:?}, lifecycle {:?}, revision {:?}). Executable: {} (exists: {}, format {:?}). Approval required: {}. Process creation allowed: {}. Production execution: {}. Blockers: {}. Warnings: {}.",
+                        "Plan {} — {:?}. Installation: {} (root identity matches: {}). Runtime: {} / {} ({:?}, source {}, pin revision {:?}); adapter {:?}. Invocation: {:?}, process creation supported: {}, {}. Expected effects: {}. Prefix: {} ({:?}, lifecycle {:?}, revision {:?}, initialization evidence {:?}, P029 recovery {:?}); initialization blockers: {}. Executable: {} (exists: {}, format {:?}). Approval required: {}. Process creation allowed: {}. Production execution: {}. Blockers: {}. Warnings: {}.",
                         plan.plan_id,
                         plan.state,
                         plan.installation_id,
@@ -145,10 +175,21 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
                         plan.runtime.selection_source.as_deref().unwrap_or("unknown"),
                         plan.runtime.pin_revision,
                         plan.runtime.adapter,
+                        report.runtime_invocation.state,
+                        report.runtime_invocation.process_creation_supported,
+                        report.runtime_invocation.reason,
+                        if expected_effects.is_empty() {
+                            "none"
+                        } else {
+                            &expected_effects
+                        },
                         plan.prefix.prefix_id.as_deref().unwrap_or("unknown"),
                         plan.prefix.state,
                         plan.prefix.lifecycle,
                         plan.prefix.registry_revision,
+                        report.prefix_initialization.evidence,
+                        report.prefix_initialization.recovery,
+                        initialization_blockers,
                         plan.executable_relative,
                         plan.executable.exists,
                         plan.executable.format,
