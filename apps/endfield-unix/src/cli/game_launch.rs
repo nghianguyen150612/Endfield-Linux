@@ -284,16 +284,16 @@ fn preflight(
         inspect_runtime(&paths, profile, adapter.into());
     let prefix_observation =
         inspect_prefix(&paths, prefix_id, profile, runtime_observation.as_ref());
-    let runtime_invocation = assess_runtime_invocation(
-        &paths,
-        adapter.into(),
-        runtime_observation.as_ref(),
-        &prefix_observation,
+    let runtime_invocation = assess_runtime_invocation(RuntimeInvocationContext {
+        paths: &paths,
+        adapter: adapter.into(),
+        runtime: runtime_observation.as_ref(),
+        prefix: &prefix_observation,
         game,
         executable_relative,
-        game_revision,
-        &exe,
-    );
+        game_registry_revision: game_revision,
+        executable: &exe,
+    });
     runtime_evidence.invocation_contract_verified = runtime_invocation.contract_verified;
     runtime_evidence.invocation_plan_id = runtime_invocation.invocation_plan_id.clone();
     runtime_evidence.invocation_executable_identity = runtime_invocation
@@ -515,16 +515,30 @@ fn hash_runtime_reference(
     Ok(format!("sha256:{:x}", Sha256::digest(bytes)))
 }
 
-fn assess_runtime_invocation(
-    paths: &endfield_unix_storage::AppPaths,
+struct RuntimeInvocationContext<'a> {
+    paths: &'a endfield_unix_storage::AppPaths,
     adapter: launch::RuntimeAdapter,
-    runtime: Option<&RuntimeObservation>,
-    prefix: &PrefixObservation,
-    game: Option<&GameInstallationRecord>,
-    executable_relative: &str,
+    runtime: Option<&'a RuntimeObservation>,
+    prefix: &'a PrefixObservation,
+    game: Option<&'a GameInstallationRecord>,
+    executable_relative: &'a str,
     game_registry_revision: Option<u64>,
-    executable: &launch::GameExecutableEvidence,
+    executable: &'a launch::GameExecutableEvidence,
+}
+
+fn assess_runtime_invocation(
+    context: RuntimeInvocationContext<'_>,
 ) -> RuntimeInvocationAssessment {
+    let RuntimeInvocationContext {
+        paths,
+        adapter,
+        runtime,
+        prefix,
+        game,
+        executable_relative,
+        game_registry_revision,
+        executable,
+    } = context;
     let unsupported = |reason| RuntimeInvocationAssessment {
         adapter,
         state: InvocationPreparationState::Unsupported,
