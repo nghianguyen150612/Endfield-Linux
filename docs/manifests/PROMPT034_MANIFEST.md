@@ -37,7 +37,7 @@ Managed Wine preparation does not authorize launch. `bin/wine` is inspected and 
 
 ## Validation status for this continuation
 
-The implementation head above is hosted-qualified; the final documentation-only head will receive its own required hosted run. Local genuine Rust 1.85 validation passes formatting, the 74-test prefix-management suite, warning-denied prefix-crate Clippy, P034 launch-plan/controlled-executor tests, P022 runtime and P027 selection tests, P019 session/supervisor tests, schema JSON parsing, GCC C17 ABI and GCC ASan/UBSan C17 tests, and `git diff --check`. A wider non-GTK workspace test attempt ran out of filesystem space; generated `target/debug` artifacts were removed before rerunning focused suites. This local environment lacks GTK4/libadwaita development metadata and Clang, so complete workspace and GUI validation comes from hosted CI.
+The documentation-only head `231d2e318e033cebcfdc24786a672409acc78d77` also passed all three required jobs in [CI run 42792298525](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42792298525). Local genuine Rust 1.85 validation passes formatting, the 74-test prefix-management suite, warning-denied prefix-crate Clippy, P034 launch-plan/controlled-executor tests, P022 runtime and P027 selection tests, P019 session/supervisor tests, schema JSON parsing, GCC C17 ABI and GCC ASan/UBSan C17 tests, and `git diff --check`. A wider non-GTK workspace test attempt ran out of filesystem space; generated `target/debug` artifacts were removed before rerunning focused suites. This local environment lacks GTK4/libadwaita development metadata and Clang, so complete workspace and GUI validation comes from hosted CI.
 
 ## Physical qualification and acceptance
 
