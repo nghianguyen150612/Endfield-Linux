@@ -125,7 +125,7 @@ pub enum ProcessLifetimePolicy {
     DirectChildOnlyNoDaemonOwnership,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ManagedWineInvocationPlan {
     pub plan_id: String,
     pub adapter_id: &'static str,
@@ -213,18 +213,11 @@ impl ManagedWineInvocationPlanBuilder {
         let game_root = checked_directory(&request.game_root)
             .ok_or(WinePlanError::GameExecutableUnavailable)?;
         validate_relative(&request.game_executable_relative)?;
-        let game_executable = game_root.join(&request.game_executable_relative);
-        let game_executable =
-            checked_executable(&game_executable).ok_or(WinePlanError::GameExecutableUnavailable)?;
+        let game_executable_path = game_root.join(&request.game_executable_relative);
+        let game_executable_identity = checked_executable(&game_executable_path)
+            .ok_or(WinePlanError::GameExecutableUnavailable)?;
         let game_root_identity = identity(
             &fs::metadata(&game_root).map_err(|_| WinePlanError::GameExecutableUnavailable)?,
-        );
-        let game_executable_identity = identity(
-            &fs::metadata(&game_executable_path(
-                &game_root,
-                &request.game_executable_relative,
-            )?)
-            .map_err(|_| WinePlanError::GameExecutableUnavailable)?,
         );
         if game_root_identity.device != request.binding.game_root_device
             || game_root_identity.inode != request.binding.game_root_inode
@@ -244,12 +237,7 @@ impl ManagedWineInvocationPlanBuilder {
             .iter()
             .map(|argument| argument.as_os_str().as_bytes().len())
             .sum::<usize>()
-            .saturating_add(
-                game_executable_path(&game_root, &request.game_executable_relative)?
-                    .as_os_str()
-                    .as_bytes()
-                    .len(),
-            );
+            .saturating_add(game_executable_path.as_os_str().as_bytes().len());
         if request.arguments.len().saturating_add(1) > MAX_ARGUMENTS
             || request.arguments.iter().any(|argument| {
                 argument.as_os_str().as_bytes().contains(&0)
@@ -260,7 +248,7 @@ impl ManagedWineInvocationPlanBuilder {
             return Err(WinePlanError::InvalidArguments);
         }
         let mut native_arguments = Vec::with_capacity(request.arguments.len() + 1);
-        native_arguments.push(game_executable.as_os_str().to_owned());
+        native_arguments.push(game_executable_path.as_os_str().to_owned());
         native_arguments.extend(request.arguments);
 
         let mut plan = ManagedWineInvocationPlan {
@@ -421,11 +409,6 @@ fn checked_executable(path: &Path) -> Option<FileIdentity> {
         return None;
     }
     Some(identity(&metadata))
-}
-
-fn game_executable_path(root: &Path, relative: &Path) -> Result<PathBuf, WinePlanError> {
-    validate_relative(relative)?;
-    Ok(root.join(relative))
 }
 
 fn identity(metadata: &fs::Metadata) -> FileIdentity {
