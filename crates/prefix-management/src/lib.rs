@@ -2402,19 +2402,17 @@ mod tests {
                 .is_err()
         );
         assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
-        for outcome in [PrefixInitializationProcessOutcome::ExitedNonzero(9)] {
-            assert!(
-                store
-                    .record_initialization_process_outcome(
-                        &id,
-                        &plan.plan_id,
-                        started_revision,
-                        outcome,
-                    )
-                    .is_err()
-            );
-            assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
-        }
+        assert!(
+            store
+                .record_initialization_process_outcome(
+                    &id,
+                    &plan.plan_id,
+                    started_revision,
+                    PrefixInitializationProcessOutcome::ExitedNonzero(9),
+                )
+                .is_err()
+        );
+        assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
 
         let failed_revision = store
             .record_initialization_process_outcome(
