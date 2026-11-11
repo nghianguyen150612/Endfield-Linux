@@ -2391,27 +2391,28 @@ mod tests {
         ));
 
         let starting_bytes = store.fs.load_registry_bytes().unwrap();
-        assert!(store
-            .record_initialization_process_outcome(
-                &id,
-                &plan.plan_id,
-                started_revision,
-                PrefixInitializationProcessOutcome::ExitedZero,
-            )
-            .is_err());
-        assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
-        for outcome in [
-            PrefixInitializationProcessOutcome::ExitedNonzero(9),
-            PrefixInitializationProcessOutcome::Interrupted,
-        ] {
-            assert!(store
+        assert!(
+            store
                 .record_initialization_process_outcome(
                     &id,
                     &plan.plan_id,
                     started_revision,
-                    outcome,
+                    PrefixInitializationProcessOutcome::ExitedZero,
                 )
-                .is_err());
+                .is_err()
+        );
+        assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
+        for outcome in [PrefixInitializationProcessOutcome::ExitedNonzero(9)] {
+            assert!(
+                store
+                    .record_initialization_process_outcome(
+                        &id,
+                        &plan.plan_id,
+                        started_revision,
+                        outcome,
+                    )
+                    .is_err()
+            );
             assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
         }
 
@@ -2425,7 +2426,10 @@ mod tests {
             .unwrap();
         let failed_record = store.load_snapshot().unwrap();
         let failed_record = failed_record.registry.record(&id).unwrap();
-        assert_eq!(failed_record.lifecycle, PrefixLifecycleState::RecoveryRequired);
+        assert_eq!(
+            failed_record.lifecycle,
+            PrefixLifecycleState::RecoveryRequired
+        );
         assert_eq!(
             failed_record.initialization_intent.as_ref().unwrap().phase,
             PrefixInitializationPhase::Failed
@@ -2434,6 +2438,41 @@ mod tests {
             store.mark_initialization_running(&id, &plan.plan_id, failed_revision),
             Err(PrefixError::InitializationIntentMismatch)
         ));
+
+        let (_temporary, store, scope, runtime) = wine_fixture(true);
+        let id = PrefixId::new("wine-intent-interrupted").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let mut plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+        make_supported_test_plan(&mut plan);
+        let approval = plan.approve(&plan.plan_id).unwrap();
+        let (_, started_revision) = store
+            .begin_initialization_intent(&plan, &approval, Some(false), |_| Ok(()))
+            .unwrap();
+        let interrupted_revision = store
+            .record_initialization_process_outcome(
+                &id,
+                &plan.plan_id,
+                started_revision,
+                PrefixInitializationProcessOutcome::Interrupted,
+            )
+            .unwrap();
+        let interrupted = store.load_snapshot().unwrap();
+        let interrupted = interrupted.registry.record(&id).unwrap();
+        assert_eq!(
+            interrupted.lifecycle,
+            PrefixLifecycleState::RecoveryRequired
+        );
+        assert_eq!(
+            interrupted.initialization_intent.as_ref().unwrap().phase,
+            PrefixInitializationPhase::Interrupted
+        );
+        assert!(
+            store
+                .mark_initialization_running(&id, &plan.plan_id, interrupted_revision)
+                .is_err()
+        );
 
         // A new fixture below exercises successful process creation and exit.
         let (_temporary, store, scope, runtime) = wine_fixture(true);
