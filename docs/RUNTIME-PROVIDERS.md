@@ -288,7 +288,7 @@ file-race and rollback limits, synthetic tests, and P025/P026 boundaries.
 
 ## P034 Managed Wine initialization scope
 
-P034 uses only the exact upstream Wine 10.0 `wineboot.exe --init` source semantics for its structural initialization contract. P025's signed archive digest and P026's complete reconstructed baseline cover the managed runtime payload, including internal Wine modules; P027's pin still must match provider, lineage, build, artifact, manifest, generation, trust, and ownership record. Other Wine versions, staging/custom lineages, external Wine, UMU-Proton, and direct Proton remain unsupported for P034 initialization. This source contract does not authorize process creation, and it does not establish Endfield or anti-cheat compatibility.
+P034 refers to upstream Wine 10.0 source that parses `--init` in the `wineboot.exe` module as candidate initialization semantics. It has not established how the selected managed Linux launcher must invoke that module, whether the selected package layout is compatible, or how helper processes complete. P025/P026 validate the managed installation according to their artifact and baseline contracts; this does not bind the dynamic loader, shared-library resolution, or helper closure at execution. Other Wine versions, staging/custom lineages, external Wine, UMU-Proton, and direct Proton remain unsupported for P034 initialization. No process creation is authorized by this source evidence, and it does not establish Endfield or anti-cheat compatibility.
 
 ## P025 runtime installation
 
@@ -304,3 +304,5 @@ P027 persists explicit preferences over exact P025 managed identity or a conserv
 ## P028 prefix association
 
 P028 stores P027's exact managed or external runtime reference, adapter preference, selection source, pin identity, and registry revision at directory creation. It revalidates managed references through P025/P026 and external references through P022. A later pin change is reported without migrating the prefix; stale profile pins keep P027's blocking/no-fallback behavior. P028 creates directories only. No P021 `LaunchPlan` is executed, no prefix is initialized, and compatibility remains unverified. See [P028 prefix management](PREFIX-MANAGEMENT.md).
+
+P034's Managed Wine preflight re-reads the exact P027 pin revision around P025/P026 validation, opens `bin/wine` under a held no-follow runtime root, and compares its descriptor identity and SHA-256 with the P026 baseline entry. This establishes point-in-time identity for the top-level ELF only. Linux `execveat(AT_EMPTY_PATH)` can bind that ELF and the executor can own its direct child, but the selected build's `PT_INTERP`, shared-library resolution, Wine helper closure, and `wineboot` runtime behavior are not bound to that descriptor. No Managed Wine process is started; the preflight is not a spawn authorization. External Wine, UMU, and Direct Proton remain outside the supported production execution boundary.

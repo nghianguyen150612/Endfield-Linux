@@ -4,7 +4,7 @@ P033 merged with outstanding acceptance debt; its preliminary dependency report 
 
 P033 dependency diagnostics remain incomplete and unqualified. See [current implementation and limitations](docs/DEPENDENCY-DIAGNOSTICS.md).
 
-P034 adds a schema-v2 launch preflight, a durable P028 initialization journal, and a descriptor-relative Wine 10.0 completion verifier. Managed Wine initialization and game launch remain blocked until the audited executable can be bound at process creation and helper ownership is enforced; GTK Play stays disabled. See [game launch](docs/GAME-LAUNCH.md).
+P034 adds a schema-v2 launch preflight, a durable P028 initialization journal, a descriptor-bound Linux ELF executor with owned direct-child handling, and a no-follow Wine 10.0 completion verifier. Managed Wine preflight now compares the opened `bin/wine` ELF with P026's exact baseline, while initialization and game launch remain blocked until the dynamic dependency/helper closure and initialization coordinator are qualified. GTK Play stays disabled. See [game launch](docs/GAME-LAUNCH.md).
 
 `endfield-unix` is an independent community launcher and goal-driven optimization application for Arknights: Endfield on Unix-like systems. Linux is the first implementation target. The frontend is Rust 2024 with GTK4, libadwaita, Relm4, GTK CSS, and locally included SVG resources. Optimization decisions belong to the portable C17 library; Rust will validate and execute only user-approved actions.
 

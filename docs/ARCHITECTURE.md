@@ -170,12 +170,17 @@ has no verified P027 adapter contract.
 Created prefix, P027 association, filesystem identity, runtime revalidation,
 P029 recovery state and expected effects. No initializer is registered, so
 the typed plan always remains unsupported or blocked. The game-launch crate
-also contains a Linux-only low-level ELF executor that opens the selected
-relative object without following symlinks and invokes its retained descriptor
-through `execveat(AT_EMPTY_PATH)`. It refuses script formats. This component
-does not authenticate the object against P026 or authorize an operation; no
-production caller uses it. P019 daemon ownership, initialized-prefix recovery
-and gameplay compatibility remain separate and unavailable.
+also contains a Linux-only ELF executor. It opens an expected absolute root
+without following symlinks, validates its device/inode/owner, rejects unsafe
+ancestors and mount crossings, and holds both executable and working-directory
+descriptors. It parses the native ELF64 header and `PT_INTERP`, then invokes
+the exact executable object with `execveat(AT_EMPTY_PATH)`; scripts remain
+unsupported. Managed Wine preflight binds `bin/wine` to the exact P026 baseline
+digest while rechecking the P027 pin and P025/P026 identity. The executor
+returns an owned direct-child wrapper with bounded output capture and explicit
+wait/cancel semantics. No production coordinator connects this object to P028
+or launch approval: loader/library/helper closure, initializer semantics and
+P019 integration remain unavailable.
 
 ## P015 normalized telemetry contracts
 

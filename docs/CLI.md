@@ -10,6 +10,8 @@ P034 launch planning is available as the headless command:
 
 The adapter is mandatory and accepts managed-wine, external-wine, umu-proton, or direct-proton. Omitting the profile selects the machine pin. The command revalidates the exact P027 selection and selected P031/P028 records, reports blockers with exit status 78, and never starts a process. No apply command exists while production execution is unsupported.
 
+Managed Wine JSON reports whether the exact opened `bin/wine` ELF matched the P026 baseline SHA-256, device, inode, and size. It separately reports that dynamic dependency closure remains unverified. This is a planning observation; it does not authorize a later process creation. `prefix init` remains an explicit blocked outcome, with no initialization-apply command exposed until the selected Wine initializer and completion contract are qualified.
+
 | Invocation | Behavior | Needs a graphical session |
 | --- | --- | --- |
 | `endfield-unix` | Start the GTK4 desktop application | Yes |

@@ -472,7 +472,9 @@
       "additionalProperties": false,
       "required": [
         "adapter", "state", "contract_verified", "invocation_plan_id",
-        "expected_executable_identity", "native_argument_count",
+        "expected_executable_identity", "executable_integrity_verified",
+        "dynamic_dependency_closure_verified", "executable_sha256",
+        "native_argument_count",
         "process_creation_supported", "reason", "expected_effects"
       ],
       "properties": {
@@ -483,6 +485,9 @@
         "expected_executable_identity": {
           "oneOf": [{"type": "null"}, {"$ref": "#/$defs/fileIdentity"}]
         },
+        "executable_integrity_verified": {"type": "boolean"},
+        "dynamic_dependency_closure_verified": {"type": "boolean", "const": false},
+        "executable_sha256": {"$ref": "#/$defs/sha256HexOrNull"},
         "native_argument_count": {"type": ["integer", "null"], "minimum": 0},
         "process_creation_supported": {"type": "boolean", "const": false},
         "reason": {"type": "string", "maxLength": 256},

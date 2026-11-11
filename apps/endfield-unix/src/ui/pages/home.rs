@@ -164,7 +164,7 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
                     let expected_effects = effects
                         .join("; ");
                     status_label.set_text(&format!(
-                        "Plan {} — {:?}. Installation: {} (root identity matches: {}). Runtime: {} / {} ({:?}, source {}, pin revision {:?}); adapter {:?}. Invocation: {:?}, process creation supported: {}, {}. Expected effects: {}. Prefix: {} ({:?}, lifecycle {:?}, revision {:?}, initialization evidence {:?}, P029 recovery {:?}); initialization blockers: {}. Executable: {} (exists: {}, format {:?}). Approval required: {}. Process creation allowed: {}. Production execution: {}. Blockers: {}. Warnings: {}.",
+                        "Plan {} — {:?}. Installation: {} (root identity matches: {}). Runtime: {} / {} ({:?}, source {}, pin revision {:?}); adapter {:?}. Invocation: {:?}, process creation supported: {}, {}. Managed Wine ELF P026 integrity: {}; dynamic dependency closure verified: {}. Expected effects: {}. Prefix: {} ({:?}, lifecycle {:?}, revision {:?}, initialization evidence {:?}, P029 recovery {:?}); initialization blockers: {}. Executable: {} (exists: {}, format {:?}). Approval required: {}. Process creation allowed: {}. Production execution: {}. Blockers: {}. Warnings: {}.",
                         plan.plan_id,
                         plan.state,
                         plan.installation_id,
@@ -178,6 +178,8 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
                         report.runtime_invocation.state,
                         report.runtime_invocation.process_creation_supported,
                         report.runtime_invocation.reason,
+                        report.runtime_invocation.executable_integrity_verified,
+                        report.runtime_invocation.dynamic_dependency_closure_verified,
                         if expected_effects.is_empty() {
                             "none"
                         } else {
@@ -249,7 +251,7 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
     statuses.insert(
         &card(
             "Optimization profile",
-            "Prefix initialization has a durable intent and Wine 10.0 completion check; execution stays blocked until launcher identity and helper ownership are enforced.",
+            "Prefix initialization has a durable intent and Wine 10.0 structural completion check; execution stays blocked until the runtime dependency closure and process coordinator are qualified.",
         ),
         -1,
     );
