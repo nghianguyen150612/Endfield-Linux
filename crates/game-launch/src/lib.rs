@@ -1,5 +1,6 @@
 //! Portable launch planning and approval contracts.
-//! This crate performs no filesystem access and starts no processes.
+//! The portable core performs no filesystem access and starts no processes;
+//! the Linux-only executor module is a separate explicit process boundary.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
