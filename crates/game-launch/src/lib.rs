@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+#[cfg(target_os = "linux")]
+pub mod linux_executor;
+
 pub const PLAN_SCHEMA_VERSION: u32 = 2;
 const MAX_ID: usize = 96;
 const MAX_PATH: usize = 4096;
