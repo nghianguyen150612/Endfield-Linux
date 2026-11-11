@@ -11,10 +11,13 @@ P033 merged with outstanding acceptance debt; the preliminary static dependency 
 - P034 adds schema-v2 runtime/prefix/game identity binding, a managed Wine
   native-argv preview with no shell or process creation, a deterministic
   P028 initialization intent journal, Wine 10.0 descriptor-relative prefix
-  completion verifier, P029 pending/unknown recovery reporting, and an
-  initialization plan CLI. Production initialization remains blocked because
-  the audited launcher inode is not bound through process creation and Wine
-  helper ownership is not integrated. Managed Wine game execution remains
+  completion verifier, P029 pending/unknown recovery reporting, an
+  initialization plan CLI, and a low-level Linux ELF executor bound to an
+  opened descriptor with `execveat(AT_EMPTY_PATH)`. The executor rejects
+  scripts and is covered by a native replacement-after-open test. Production
+  initialization remains blocked because runtime artifact provenance,
+  initializer/helper coverage, approval integration, output supervision, and
+  child ownership are not integrated. Managed Wine game execution remains
   non-executable; external Wine, UMU execution, direct Proton, P033 dependency
   readiness, anti-cheat compatibility, and real gameplay remain unsupported
   or unknown.

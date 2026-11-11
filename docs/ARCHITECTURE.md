@@ -169,10 +169,13 @@ has no verified P027 adapter contract.
 `PrefixStore::plan_initialization` is a read-only P028 boundary. It binds one
 Created prefix, P027 association, filesystem identity, runtime revalidation,
 P029 recovery state and expected effects. No initializer is registered, so
-the typed plan always remains unsupported or blocked. Stored completion labels
-are not trusted until a runtime-specific verifier exists. Process creation,
-P019 daemon ownership, initialized-prefix recovery and gameplay compatibility
-remain separate and unavailable.
+the typed plan always remains unsupported or blocked. The game-launch crate
+also contains a Linux-only low-level ELF executor that opens the selected
+relative object without following symlinks and invokes its retained descriptor
+through `execveat(AT_EMPTY_PATH)`. It refuses script formats. This component
+does not authenticate the object against P026 or authorize an operation; no
+production caller uses it. P019 daemon ownership, initialized-prefix recovery
+and gameplay compatibility remain separate and unavailable.
 
 ## P015 normalized telemetry contracts
 

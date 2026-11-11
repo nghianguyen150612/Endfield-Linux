@@ -2,6 +2,14 @@
 
 Status: partial implementation; production launch unsupported; PR #7 remains Draft and unmerged.
 
+## Continuation: descriptor-bound executor
+
+Recovered the remote head `cd174190185744af6d16609c9cb971a368b44236` on the existing branch with the prior local state-transition fix present. Committed that fix as `047954e`, added the Linux executor as `f5f207f`, and expanded interruption coverage as `51ec515`. The executor opens relative components with `O_NOFOLLOW`, validates an owner-controlled regular ELF, retains its descriptor and invokes that descriptor with `execveat(AT_EMPTY_PATH)`. Scripts and non-ELF formats are rejected. It returns the owned `std::process::Child` and does not claim descendant supervision. Native tests compile a repository-owned C fixture, rename and replace its pathname after opening, and observe literal Unicode/metacharacter arguments, controlled environment, and its exit status.
+
+This executor is a low-level component only. It is not connected to P025/P026/P027 identity approval, the P028 initialization lifecycle, P034 launch approval, CLI, GTK, or P019 child ownership. It does not authenticate ELF dynamic dependencies or Wine helpers, collect bounded process output, or support shebang launchers. Managed Wine initialization and production game launch remain blocked. The state transition matrix now rejects exit results from `Starting`, permits only `SpawnFailed` there, accepts exits from `Running`, and records interruption from `Starting` or `Running` as recovery-required.
+
+Local Rust 1.85 focused validation: prefix intent regression passed; game-launch crate tests passed (12 unit tests, 7 controlled execution integration tests); game-launch Clippy passed with warnings denied; formatting passed after applying `cargo fmt`. A new final-head hosted CI run is required for `51ec515`; the earlier results do not qualify it.
+
 ## Recovery and qualification history
 
 The continuation started on `feat/p034-secure-game-launch` at `2b219c251fa0faa6a48e08e5f95da9fe233418db`, with a clean worktree and no commits beyond the checkpoint. The remote branch and open Draft [PR #7](https://github.com/nghianguyen150612/Endfield-Linux/pull/7) matched that HEAD; `main` was `fb743f209fc7935fa86f05b58cbd380d76f245d3`. The exact checkpoint passed all required hosted jobs in [CI run 42760639371](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42760639371). This is historical evidence for the checkpoint, not qualification of this continuation.
