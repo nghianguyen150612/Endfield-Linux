@@ -10,15 +10,19 @@ P033 merged with outstanding acceptance debt; the preliminary static dependency 
 
 - P034 adds schema-v2 runtime/prefix/game identity binding, managed Wine
   native-argv preparation, P028 durable initialization intent, and a Wine
-  10.0 no-follow prefix completion verifier. The Linux ELF executor now
+  10.0 no-follow prefix completion verifier. An internal initialization
+  coordinator connects P028 transitions to the descriptor-bound Linux ELF
+  executor. Native synthetic tests cover Running-before-observation ordering,
+  direct-child ownership, interruption/revision conflicts, and structural
+  completion evidence; the evidence is labeled synthetic. The Linux ELF executor now
   validates and holds root, executable, and working-directory descriptors,
   rechecks held root/cwd identity and matched ELF content immediately before
   spawn,
   checks an opened `bin/wine` against its P026 baseline during preflight,
   rejects scripts, and retains an owned direct child with bounded output and
-  cancellation. Production initialization remains blocked because the
-  authenticated runtime invocation, dynamic dependency/helper closure, and
-  P028 process coordinator are not qualified. Managed Wine game execution
+  cancellation. Production initialization remains blocked because there is no
+  production authorization producer and the authenticated runtime invocation
+  and dynamic dependency/helper closure are not qualified. Managed Wine game execution
   remains disabled; external Wine, UMU execution, direct Proton, P033
   dependency readiness, anti-cheat compatibility, and real gameplay remain
   unsupported or unknown.

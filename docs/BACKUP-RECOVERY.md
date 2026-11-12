@@ -4,7 +4,7 @@ P029 extends the P028 headless library and `endfield-unix prefix` CLI. It never 
 
 P034's new initialization intent uses P028 registry schema v2, but does not expand P029's backup or restore boundary. A prefix with a pending, failed, or interrupted initialization intent is not eligible for P029 backup/restore, P028 generic recovery, unregister, or delete. The preserved files and durable intent require explicit investigation; no automatic cleanup or retry is performed. Schema-v1 prefix registries are checksum-validated and migrated in memory by P028, with schema v2 written on the next authorized registry mutation.
 
-The P034 descriptor-bound ELF executor does not alter this boundary. It rechecks a retained P026 digest and held root/cwd identity immediately before spawn, but it is not connected to an initialization coordinator, and no initialized or partially initialized prefix is backed up or restored by this change. A `Created` prefix remains uninitialized until a separately qualified, approved Managed Wine operation records and verifies its result.
+The P034 descriptor-bound ELF executor is connected to P028 by an internal initialization coordinator. Its native fixture tests exercise the durable state transitions, but no production authorization can reach it and no CLI/GTK operation starts Wine. The coordinator revalidates the P028 intent and recovery state before spawn, retains the direct child, and leaves an interrupted or ambiguous intent blocked. P029 still does not back up or restore initialized or partially initialized prefixes. A `Created` prefix remains uninitialized in production until a separately qualified, approved Managed Wine operation records and verifies its result.
 
 ## Version 1 storage
 

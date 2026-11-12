@@ -13,6 +13,7 @@ name = "endfield_unix_prefix_management"
 path = "src/lib.rs"
 
 [dependencies]
+endfield-unix-game-launch = { path = "../game-launch" }
 endfield-unix-runtime-selection = { path = "../runtime-selection" }
 endfield-unix-storage = { path = "../storage" }
 fs2 = "=0.4.3"

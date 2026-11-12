@@ -572,6 +572,18 @@ impl BoundExecutable {
         self.identity
     }
 
+    /// Identity of the held no-follow root from which this executable was
+    /// opened. The root descriptor remains held through the object's lifetime.
+    pub fn root_identity(&self) -> DirectoryIdentity {
+        self.root.identity()
+    }
+
+    /// The authenticated digest supplied to `open_matching`, when this
+    /// descriptor was opened against integrity evidence.
+    pub fn integrity_sha256(&self) -> Option<&str> {
+        self.expected_sha256.as_deref()
+    }
+
     /// Returns the ELF PT_INTERP path when this is a dynamically linked ELF.
     /// The interpreter and shared-library closure are outside the descriptor
     /// guarantee for the executable held by this object.
