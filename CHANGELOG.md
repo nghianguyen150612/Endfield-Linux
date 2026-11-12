@@ -12,6 +12,8 @@ P033 merged with outstanding acceptance debt; the preliminary static dependency 
   native-argv preparation, P028 durable initialization intent, and a Wine
   10.0 no-follow prefix completion verifier. The Linux ELF executor now
   validates and holds root, executable, and working-directory descriptors,
+  rechecks held root/cwd identity and matched ELF content immediately before
+  spawn,
   checks an opened `bin/wine` against its P026 baseline during preflight,
   rejects scripts, and retains an owned direct child with bounded output and
   cancellation. Production initialization remains blocked because the

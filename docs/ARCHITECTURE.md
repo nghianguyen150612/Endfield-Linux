@@ -177,10 +177,13 @@ descriptors. It parses the native ELF64 header and `PT_INTERP`, then invokes
 the exact executable object with `execveat(AT_EMPTY_PATH)`; scripts remain
 unsupported. Managed Wine preflight binds `bin/wine` to the exact P026 baseline
 digest while rechecking the P027 pin and P025/P026 identity. The executor
-returns an owned direct-child wrapper with bounded output capture and explicit
-wait/cancel semantics. No production coordinator connects this object to P028
-or launch approval: loader/library/helper closure, initializer semantics and
-P019 integration remain unavailable.
+retains the matched digest and rehashes the held ELF immediately before spawn,
+then rechecks the held runtime root and working-directory identity. This is a
+point-in-time check and does not prevent a same-UID content write racing after
+the hash. The executor returns an owned direct-child wrapper with bounded
+output capture and explicit wait/cancel semantics. No production coordinator
+connects this object to P028 or launch approval: loader/library/helper closure,
+initializer semantics and P019 integration remain unavailable.
 
 ## P015 normalized telemetry contracts
 

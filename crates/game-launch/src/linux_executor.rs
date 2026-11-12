@@ -291,6 +291,7 @@ pub struct DirectoryIdentity {
 pub struct TrustedRoot {
     directory: File,
     identity: DirectoryIdentity,
+    mode: u32,
     mount_id: u64,
 }
 
@@ -385,6 +386,7 @@ impl TrustedRoot {
         Ok(Self {
             directory: current,
             identity: actual,
+            mode: stat.st_mode,
             mount_id,
         })
     }
@@ -392,12 +394,35 @@ impl TrustedRoot {
     pub fn identity(&self) -> DirectoryIdentity {
         self.identity
     }
+
+    fn validate_identity(&self) -> Result<(), ExecutionError> {
+        // SAFETY: fstat initializes `stat` on success.
+        let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+        if unsafe { libc::fstat(self.directory.as_raw_fd(), &mut stat) } != 0 {
+            return Err(ExecutionError::Open(io::Error::last_os_error()));
+        }
+        let identity = DirectoryIdentity {
+            device: stat.st_dev,
+            inode: stat.st_ino,
+            owner_uid: stat.st_uid,
+        };
+        if identity != self.identity
+            || stat.st_mode != self.mode
+            || (stat.st_mode & libc::S_IFMT) != libc::S_IFDIR
+            || descriptor_mount_id(self.directory.as_raw_fd())? != self.mount_id
+        {
+            return Err(ExecutionError::InvalidRoot);
+        }
+        Ok(())
+    }
 }
 
 pub struct BoundExecutable {
     file: File,
     identity: ExecutableIdentity,
     dynamic_linker: Option<OsString>,
+    expected_sha256: Option<String>,
+    root: TrustedRoot,
 }
 
 impl BoundExecutable {
@@ -499,10 +524,18 @@ impl BoundExecutable {
             return Err(ExecutionError::InvalidExecutable);
         }
         let dynamic_linker = inspect_elf(&file, identity.size)?;
+        let held_root = TrustedRoot {
+            directory: root.directory.try_clone().map_err(ExecutionError::Open)?,
+            identity: root.identity,
+            mode: root.mode,
+            mount_id: root.mount_id,
+        };
         Ok(Self {
             file,
             identity,
             dynamic_linker,
+            expected_sha256: None,
+            root: held_root,
         })
     }
 
@@ -523,7 +556,7 @@ impl BoundExecutable {
         {
             return Err(ExecutionError::InvalidExecutable);
         }
-        let executable = Self::open(root, relative, expected_uid)?;
+        let mut executable = Self::open(root, relative, expected_uid)?;
         if executable.identity.device != expected_identity.device
             || executable.identity.inode != expected_identity.inode
             || executable.identity.size != expected_identity.size
@@ -531,6 +564,7 @@ impl BoundExecutable {
         {
             return Err(ExecutionError::InvalidExecutable);
         }
+        executable.expected_sha256 = Some(expected_sha256.to_owned());
         Ok(executable)
     }
 
@@ -598,6 +632,11 @@ impl BoundExecutable {
         {
             return Err(ExecutionError::InvalidExecutable);
         }
+        if let Some(expected_sha256) = self.expected_sha256.as_deref() {
+            if self.sha256()? != expected_sha256 {
+                return Err(ExecutionError::InvalidExecutable);
+            }
+        }
         Ok(())
     }
 
@@ -639,6 +678,8 @@ impl BoundExecutable {
         cancellation: Option<&CancellationToken>,
     ) -> Result<OwnedChild, ExecutionError> {
         self.validate_identity()?;
+        self.root.validate_identity()?;
+        current_directory.validate_identity()?;
         if arguments.len() > MAX_ARGUMENTS || environment.len() > MAX_ENVIRONMENT {
             return Err(ExecutionError::Bounds);
         }
@@ -924,6 +965,7 @@ fn cstrings(values: &[OsString], total: &mut usize) -> Result<Vec<CString>, Exec
 mod tests {
     use super::*;
     use std::{
+        io::Write,
         os::unix::fs::{MetadataExt, PermissionsExt},
         path::PathBuf,
     };
@@ -1014,6 +1056,19 @@ mod tests {
         assert!(
             BoundExecutable::open(&root, Path::new("link"), unsafe { libc::getuid() }).is_err()
         );
+
+        std::fs::create_dir(dir.path().join("real-parent")).unwrap();
+        std::fs::copy(dir.path().join("text"), dir.path().join("real-parent/text")).unwrap();
+        std::os::unix::fs::symlink("real-parent", dir.path().join("parent-link")).unwrap();
+        assert!(
+            BoundExecutable::open(
+                &root,
+                Path::new("parent-link/text"),
+                // SAFETY: getuid has no preconditions.
+                unsafe { libc::getuid() },
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1065,6 +1120,27 @@ mod tests {
     }
 
     #[test]
+    fn spawn_rejects_a_changed_held_runtime_root_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let executable = native_fixture(dir.path());
+        let root = trusted_root(dir.path());
+        let bound = BoundExecutable::open(
+            &root,
+            Path::new("identity-child"),
+            // SAFETY: getuid has no preconditions.
+            unsafe { libc::getuid() },
+        )
+        .unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert!(matches!(
+            bound.spawn(&[], &[], &root),
+            Err(ExecutionError::InvalidRoot)
+        ));
+        assert!(executable.exists());
+    }
+
+    #[test]
     fn held_root_and_cwd_descriptors_survive_parent_and_path_replacement() {
         let parent = tempfile::tempdir().unwrap();
         let root_path = parent.path().join("runtime");
@@ -1088,6 +1164,37 @@ mod tests {
         .unwrap();
         assert!(original.exists());
         let mut child = bound.spawn(&["identity-child".into()], &[], &root).unwrap();
+        assert_eq!(child.wait().unwrap().status.code(), Some(23));
+    }
+
+    #[test]
+    fn opened_executable_survives_intermediate_directory_replacement() {
+        let parent = tempfile::tempdir().unwrap();
+        let root_path = parent.path().join("runtime");
+        let bin_path = root_path.join("bin");
+        std::fs::create_dir(&root_path).unwrap();
+        std::fs::create_dir(&bin_path).unwrap();
+        let fixture = native_fixture(parent.path());
+        std::fs::rename(&fixture, bin_path.join("wine")).unwrap();
+        let root = trusted_root(&root_path);
+        let bound = BoundExecutable::open(
+            &root,
+            Path::new("bin/wine"),
+            // SAFETY: getuid has no preconditions.
+            unsafe { libc::getuid() },
+        )
+        .unwrap();
+
+        std::fs::rename(&bin_path, root_path.join("bin-held")).unwrap();
+        std::fs::create_dir(&bin_path).unwrap();
+        std::fs::write(bin_path.join("wine"), b"replacement").unwrap();
+        std::fs::set_permissions(
+            bin_path.join("wine"),
+            std::fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+
+        let mut child = bound.spawn(&[], &[], &root).unwrap();
         assert_eq!(child.wait().unwrap().status.code(), Some(23));
     }
 
@@ -1280,6 +1387,49 @@ mod tests {
                 },
                 &digest,
             ),
+            Err(ExecutionError::InvalidExecutable)
+        ));
+    }
+
+    #[test]
+    fn matching_descriptor_rechecks_content_before_spawn() {
+        let dir = tempfile::tempdir().unwrap();
+        let executable = native_fixture(dir.path());
+        let root = trusted_root(dir.path());
+        let opened = BoundExecutable::open(
+            &root,
+            Path::new("identity-child"),
+            // SAFETY: getuid has no preconditions.
+            unsafe { libc::getuid() },
+        )
+        .unwrap();
+        let identity = opened.identity();
+        let expected = ExpectedExecutableIdentity {
+            device: identity.device,
+            inode: identity.inode,
+            size: identity.size,
+        };
+        let digest = opened.sha256().unwrap();
+        let bound = BoundExecutable::open_matching(
+            &root,
+            Path::new("identity-child"),
+            // SAFETY: getuid has no preconditions.
+            unsafe { libc::getuid() },
+            expected,
+            &digest,
+        )
+        .unwrap();
+
+        let mut replacement = std::fs::OpenOptions::new()
+            .write(true)
+            .open(executable)
+            .unwrap();
+        replacement
+            .write_all(&vec![0u8; identity.size as usize])
+            .unwrap();
+
+        assert!(matches!(
+            bound.spawn(&[], &[], &root),
             Err(ExecutionError::InvalidExecutable)
         ));
     }

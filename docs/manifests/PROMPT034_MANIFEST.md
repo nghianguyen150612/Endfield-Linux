@@ -2,6 +2,10 @@
 
 Status: partial implementation; production launch unsupported; PR #7 remains Draft and unmerged.
 
+## Resume from current remote head
+
+The supplied checkpoint was `97a80df95d5a86919a9774f0437a1664078ca635`, but recovery found the existing branch advanced to `400bef9e383d1f511d6d5ccea2f6de68366e0919` with a clean worktree. PR #7 remained open and Draft. The newer branch already included root-bound executor hardening and P026 preflight binding. This continuation additionally retains/rechecks the P026 ELF digest before spawn, revalidates held runtime-root and cwd identities/modes, and tests in-place mutation, root permission changes, and intermediate symlinks. These checks do not close the same-UID hash-to-exec race. The P028 production coordinator and authenticated Wine invocation remain absent; execution stays blocked.
+
 ## Current continuation: root-bound executor and P026 artifact check
 
 Recovered clean branch `feat/p034-secure-game-launch` at `97a80df95d5a86919a9774f0437a1664078ca635`; remote HEAD matched, PR #7 remained open and Draft, and that exact checkpoint passed all hosted jobs in [CI run 42973478828](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42973478828). The current work adds a no-follow absolute `TrustedRoot` checked against an expected directory device/inode/UID, safe-ancestor permissions, and Linux mount IDs. Descendant files and the working directory are opened from held descriptors. The executor validates native ELF64 headers and exposes `PT_INTERP`, refuses scripts and non-native formats, uses `execveat(AT_EMPTY_PATH)`, and retains an `OwnedChild` with bounded captures, a unique in-process attempt identity, bounded wait, direct-child cancellation, and direct-child cleanup on drop.
@@ -47,7 +51,7 @@ The implementation head `384d178ac7a20bcc6ba224fd6d3b1efce16fad09` passed all th
 
 Prefix initialization process creation is not implemented. A ready authorization cannot currently be produced by the read-only plan builder. The durable state machine and verifier are implemented and tested with synthetic fixtures; they are not evidence of authentic Wine runtime behavior. P029 initialized-prefix backup/restore remains unsupported. Wine 10.0 source says `wineboot --init` performs setup, but `update_wineprefix` logs `wine.inf` failures without reporting them through process exit status. Wine may start helper processes and write user-scoped cache/configuration outside the selected prefix.
 
-Managed Wine preflight does not authorize launch. The P026-matched `bin/wine` descriptor is dropped after planning, and no production path consumes it through kernel exec. The executor can bind an ELF descriptor but does not bind its dynamic loader/library closure. The P034 child owner supervises only the direct process; it is not integrated with P019 or wineserver/helper descendants. P033 critical dependency readiness, Endfield compatibility, and anti-cheat compatibility are still blocking or unknown. No runtime fallback is added, and stale pins remain stale. `game launch apply` does not exist; GTK Play remains disabled.
+Managed Wine preflight does not authorize launch. The executor now retains the P026 digest with a matching descriptor and rehashes before spawn, but same-UID mutation can still race after that check; no production path consumes the descriptor through kernel exec. The executor does not bind its dynamic loader/library closure. The P034 child owner supervises only the direct process; it is not integrated with P019 or wineserver/helper descendants. P033 critical dependency readiness, Endfield compatibility, and anti-cheat compatibility are still blocking or unknown. No runtime fallback is added, and stale pins remain stale. `game launch apply` does not exist; GTK Play remains disabled.
 
 ## Validation status for this continuation
 
