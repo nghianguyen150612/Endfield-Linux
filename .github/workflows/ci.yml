@@ -333,10 +333,15 @@ jobs:
           assert all("bin" not in t["kind"] for t in selection["targets"])
           assert {d["name"] for d in selection["dependencies"]} == {"endfield-unix-runtime", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, selection["dependencies"]
           assert not ({d["name"] for d in selection["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
+          game_launch = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-game-launch")
+          assert any("lib" in t["kind"] for t in game_launch["targets"]), game_launch["targets"]
+          assert all("bin" not in t["kind"] for t in game_launch["targets"]), game_launch["targets"]
+          assert {d["name"] for d in game_launch["dependencies"]} == {"libc", "serde", "serde_json", "sha2", "tempfile", "thiserror"}, game_launch["dependencies"]
+          assert not ({d["name"] for d in game_launch["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           prefixes = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-prefix-management")
           assert any("lib" in t["kind"] for t in prefixes["targets"]), prefixes["targets"]
           assert all("bin" not in t["kind"] for t in prefixes["targets"]), prefixes["targets"]
-          assert {d["name"] for d in prefixes["dependencies"]} == {"endfield-unix-runtime-selection", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, prefixes["dependencies"]
+          assert {d["name"] for d in prefixes["dependencies"]} == {"endfield-unix-game-launch", "endfield-unix-runtime-selection", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, prefixes["dependencies"]
           assert not ({d["name"] for d in prefixes["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           sources = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-game-sources")
           assert all("bin" not in t["kind"] for t in sources["targets"])
