@@ -486,7 +486,7 @@ fn runtime_label(runtime: &pins::PinnedRuntimeReference) -> &str {
     }
 }
 
-fn external_reference(
+pub(super) fn external_reference(
     snapshot: endfield_unix_runtime_linux::ExternalRuntimeSnapshot,
 ) -> Result<pins::ExternalRuntimeReference, String> {
     let location = snapshot

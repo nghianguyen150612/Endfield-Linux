@@ -2,11 +2,11 @@
 
 The dependency adapter reuses P032 Steam observation and the shared P031 location match; reported source evidence stays ephemeral.
 
-P033 work in progress composes P030 read-only compatibility observations with a portable requirement catalog; see [current limitations](DEPENDENCY-DIAGNOSTICS.md).
+P033 is merged with outstanding acceptance debt; its preliminary report composes P030 read-only compatibility observations with a portable requirement catalog; see [current limitations](DEPENDENCY-DIAGNOSTICS.md).
 
 ## Status and dependency direction
 
-P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; P020 adds optional Linux user-service lifecycle management; P021 defines portable runtime provider, source verification, compatibility, ownership, and non-executable launch-plan contracts; P022 adds bounded read-only Linux Wine and Proton discovery; P023 adds bounded UMU discovery, explicit UMU-Proton preparation, and non-executable plan construction. Runtime acquisition, installed-file integrity audits, and production game launch remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
+P001 established these intended boundaries. P002 established the Rust workspace and shared executable; P003 added the C17 ABI skeleton; P004 adds the GTK shell; P005 completes the typed CLI foundation; P006 adds local persistence; P007 adds portable domain models and probe interfaces; P008 adds structured diagnostics and safe support reports; P009 adds the daemon lifecycle; P010 adds a versioned Linux local IPC channel; P011 adds Linux platform identity discovery; P012 adds read-only Linux CPU and memory resource inventory; P013 adds read-only Linux PCI/DRM, graphics-driver, and Vulkan discovery; P014 adds read-only Linux display-server/session and DRM connector discovery in the same adapter; P015 adds portable normalized telemetry contracts; P016 adds one-shot Linux CPU and memory telemetry; P017 adds optional PCI-correlated GPU gauges without Vulkan initialization; P018 adds bounded on-demand frame-log ingestion; P019 adds the in-memory daemon-owned process supervisor; P020 adds optional Linux user-service lifecycle management; P021 defines portable runtime provider, source verification, compatibility, ownership, and non-executable launch-plan contracts; P022 adds bounded read-only Linux Wine and Proton discovery; P023 adds bounded UMU discovery, explicit UMU-Proton preparation, and non-executable plan construction; P034 adds a portable schema-v2 launch plan, durable P028 initialization transitions, a descriptor-relative Wine 10.0 verifier, Linux preflight reporting, and a test-backed initialization coordinator. P034 still cannot create a production process: a production authorization producer, authenticated Wine invocation/dependency closure, and P019 handoff remain blocking. Runtime acquisition and production game launch remain unimplemented. The design is Linux-first while keeping portable lifecycle contracts independent from Linux process APIs. Dependency direction is:
 
 ```text
 GTK4 desktop / CLI ──> Rust application services ──> portable domain contracts
@@ -146,6 +146,50 @@ uses a mockable filesystem adapter, and adds no executable, GUI type, daemon,
 process runner, or C17 ABI surface. See
 [PREFIX-MANAGEMENT.md](PREFIX-MANAGEMENT.md) and
 [RUNTIME-PROVIDERS.md](RUNTIME-PROVIDERS.md).
+
+## P034 launch planning and invocation preparation
+
+The `endfield-unix-game-launch` crate owns a deterministic, data-only schema-v2
+plan. Its ID binds P027 runtime reference and pin revision, managed P025/P026
+identity, an adapter invocation-plan ID and runtime executable inode, P028
+record/revision/filesystem identity/adapter association/initialization-plan ID,
+P031 game root, P032 executable, policy and expected side effects. The Linux
+application builds this plan from fresh observations and never treats an
+external reference or a stale profile pin as a fallback candidate.
+
+`runtime-linux::wine_plan` prepares only the managed Wine direct-argv shape
+`bin/wine <game.exe> <args...>`. It takes an exact managed runtime root,
+application prefix, registered game root and durable identity bindings; it
+checks the observed files, constructs native `OsString` arguments, describes a
+clear-and-desktop-session-allowlist environment, and hashes the request. It
+cannot spawn a child. P022 external Wine lacks an exact execution binary
+binding; P023 UMU remains a separate non-executable plan builder; direct Proton
+has no verified P027 adapter contract.
+
+`PrefixStore::plan_initialization` is a read-only P028 boundary. It binds one
+Created prefix, P027 association, filesystem identity, runtime revalidation,
+P029 recovery state and expected effects. No initializer is registered, so
+the typed plan always remains unsupported or blocked. The game-launch crate
+also contains a Linux-only ELF executor. It opens an expected absolute root
+without following symlinks, validates its device/inode/owner, rejects unsafe
+ancestors and mount crossings, and holds both executable and working-directory
+descriptors. It parses the native ELF64 header and `PT_INTERP`, then invokes
+the exact executable object with `execveat(AT_EMPTY_PATH)`; scripts remain
+unsupported. Managed Wine preflight binds `bin/wine` to the exact P026 baseline
+digest while rechecking the P027 pin and P025/P026 identity. The executor
+retains the matched digest and rehashes the held ELF immediately before spawn,
+then rechecks the held runtime root and working-directory identity. This is a
+point-in-time check and does not prevent a same-UID content write racing after
+the hash. The executor returns an owned direct-child wrapper with bounded
+output capture and explicit wait/cancel semantics. The prefix-management
+crate now has an internal coordinator that connects this executor to P028's
+durable initialization transitions. Its test-only capability runs native ELF
+fixtures through the same executor and verifier while production authorization
+remains unconstructible. The coordinator revalidates approval, runtime, prefix,
+registry revision, and recovery after intent publication; it commits Running
+before observing exit and retains the direct child across publication failure.
+The dynamic loader/library/helper closure, authenticated Wine invocation,
+production authorization producer, and P019 integration remain unavailable.
 
 ## P015 normalized telemetry contracts
 
@@ -415,3 +459,5 @@ discovery. Source observations are ephemeral, with no P031 migration or associat
 writer. P021–P030 provenance, integrity and compatibility contracts stay independent.
 No third executable, daemon protocol or C17 ABI change is introduced. See
 [official sources](OFFICIAL-GAME-SOURCES.md).
+
+The P034 prefix library now owns shared P025/P026/P027 executable verification and retains private descriptor evidence. CLI previews call that same validator. Production coordinator validation repeats the independent registry/artifact checks before the process boundary; a caller callback cannot replace them. Capture worker lifetime belongs to the direct-child owner. P019 handoff and P035 daemon integration remain unimplemented.

@@ -11,6 +11,7 @@ pub use commands::{Command, HelpTopic};
 pub mod runtime_integrity;
 
 pub mod game_import;
+pub mod game_launch;
 pub mod game_sources;
 pub mod prefix;
 pub mod runtime_install;

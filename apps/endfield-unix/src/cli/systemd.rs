@@ -1549,6 +1549,10 @@ mod tests {
         temp: &TempDir,
         runner: MockRunner,
     ) -> (SystemdUserManager, SystemdPaths, PathBuf) {
+        // The installer correctly rejects group- or world-writable ancestors.
+        // tempfile honors the process umask, so make its fixture root private
+        // explicitly for environments that use a permissive umask.
+        fs::set_permissions(temp.path(), fs::Permissions::from_mode(0o700)).unwrap();
         let home = temp.path().join("home");
         fs::create_dir(&home).unwrap();
         fs::set_permissions(&home, fs::Permissions::from_mode(0o700)).unwrap();
@@ -1715,6 +1719,7 @@ mod tests {
         let (manager, paths, source) = test_manager(&temp, runner);
         validate_owner_directories(&paths, true).unwrap();
         fs::write(paths.unit_path(), b"user content").unwrap();
+        fs::set_permissions(paths.unit_path(), fs::Permissions::from_mode(0o600)).unwrap();
         assert_eq!(
             manager.install(Some(&source), false),
             Err(SystemdError::Conflict)
@@ -1832,6 +1837,7 @@ mod tests {
         let (manager, paths, source) = test_manager(&temp, runner);
         validate_owner_directories(&paths, true).unwrap();
         fs::write(paths.unit_path(), b"# existing user-managed unit\n").unwrap();
+        fs::set_permissions(paths.unit_path(), fs::Permissions::from_mode(0o600)).unwrap();
 
         manager.install(Some(&source), true).unwrap();
 

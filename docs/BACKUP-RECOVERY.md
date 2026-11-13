@@ -2,6 +2,10 @@
 
 P029 extends the P028 headless library and `endfield-unix prefix` CLI. It never executes Wine, Proton, UMU, wineboot or a game. This implementation is restricted to registered **Created**, uninitialized prefixes on the same machine and exact profile scope. Initialized-prefix evidence restoration is unsupported and blocked, rather than fabricated. Physical-device and real-prefix qualification remain UNVERIFIED.
 
+P034's new initialization intent uses P028 registry schema v2, but does not expand P029's backup or restore boundary. A prefix with a pending, failed, or interrupted initialization intent is not eligible for P029 backup/restore, P028 generic recovery, unregister, or delete. The preserved files and durable intent require explicit investigation; no automatic cleanup or retry is performed. Schema-v1 prefix registries are checksum-validated and migrated in memory by P028, with schema v2 written on the next authorized registry mutation.
+
+The P034 descriptor-bound ELF executor is connected to P028 by an internal initialization coordinator. Its native fixture tests exercise the durable state transitions, but no production authorization can reach it and no CLI/GTK operation starts Wine. The coordinator revalidates the P028 intent and recovery state before spawn, retains the direct child, and leaves an interrupted or ambiguous intent blocked. P029 still does not back up or restore initialized or partially initialized prefixes. A `Created` prefix remains uninitialized in production until a separately qualified, approved Managed Wine operation records and verifies its result.
+
 ## Version 1 storage
 
 P006 resolves the application data directory. Existing `prefixes/registry.json`, `prefixes/locks/` and `prefixes/data/<id>/` remain unchanged. The additional layout is:
@@ -125,3 +129,5 @@ Rollback is not automatic. The saved original and displaced restored payload are
 ## P030 metadata-only recovery observation
 
 P030 calls `BackupStore::compatibility_recovery_observation` for an explicitly selected registered prefix. It reads bounded restore intent/staged/completion and rollback markers, pending snapshot-deletion and P027 pin-recovery markers, and directory identities. Deletion markers are checked from bounded intent metadata; the observer does not call backup verification, inventory scanning, payload hashing, or prefix-content readers. Pending or inconsistent markers block positive readiness findings. The command does not mutate or replay P029 journals. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).
+
+P034 capture setup failure after child creation is an uncertain execution outcome. It persists `Interrupted` (or exposes unresolved Starting on publication failure), requires recovery, and does not delete prefix artifacts or automatically retry initialization.

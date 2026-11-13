@@ -1,8 +1,10 @@
 # endfield-unix
 
-The work-in-progress P033 report can inspect one explicitly selected Steam metadata path without storing an association.
+P033 merged with outstanding acceptance debt; its preliminary dependency report can inspect one explicitly selected Steam metadata path without storing an association.
 
-P033 dependency diagnostics are in progress and not qualified. See [current implementation and limitations](docs/DEPENDENCY-DIAGNOSTICS.md).
+P033 dependency diagnostics remain incomplete and unqualified. See [current implementation and limitations](docs/DEPENDENCY-DIAGNOSTICS.md).
+
+P034 adds a schema-v2 launch preflight, a durable P028 initialization journal, a descriptor-bound Linux ELF executor with owned direct-child handling, a no-follow Wine 10.0 completion verifier, and an internal initialization coordinator. Native fixture tests exercise the real executor and P028 lifecycle, including the spawn-to-Running race and completion verification. Synthetic execution does not qualify authentic Wine: production initialization and game launch remain blocked until a production authorization producer and the Wine helper/loader/library dependency closure are independently qualified. GTK Play stays disabled. See [game launch](docs/GAME-LAUNCH.md).
 
 `endfield-unix` is an independent community launcher and goal-driven optimization application for Arknights: Endfield on Unix-like systems. Linux is the first implementation target. The frontend is Rust 2024 with GTK4, libadwaita, Relm4, GTK CSS, and locally included SVG resources. Optimization decisions belong to the portable C17 library; Rust will validate and execute only user-approved actions.
 
@@ -207,3 +209,5 @@ are unsupported. Source association previews are read-only and preserve P031
 schema v1. Listing provenance never authenticates installed game files or proves
 Linux compatibility. See [official sources](docs/OFFICIAL-GAME-SOURCES.md) and
 [qualification](docs/manifests/PROMPT032_MANIFEST.md).
+
+P034 now shares independent managed Wine provenance validation between preview and the durable initializer coordinator, and bounds output-capture worker cleanup. Execution remains synthetic-test-only pending authentic Wine loader/helper and initialization qualification. See [GAME-LAUNCH.md](docs/GAME-LAUNCH.md).

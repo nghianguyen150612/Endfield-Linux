@@ -1,7 +1,10 @@
 //! Explicit, isolated Wine prefix directory management.
 //!
-//! This crate never runs Wine, Proton, UMU, `wineboot`, or a game. Prefix
-//! directory creation and Wine initialization are separate lifecycle steps.
+//! Generic prefix lifecycle APIs never run Wine, Proton, UMU, `wineboot`, or a
+//! game. P034's coordinator owns a narrow initialization process boundary,
+//! guarded by an opaque runtime authorization that production cannot currently
+//! construct. Prefix directory creation and Wine initialization remain separate
+//! lifecycle steps.
 
 use endfield_unix_runtime_selection::{
     AdapterPreference, MachineId, PinnedRuntimeReference, ProfileKey,
@@ -17,11 +20,22 @@ use std::{
 };
 use thiserror::Error;
 
+mod initialization_coordinator;
+#[cfg(target_os = "linux")]
+mod managed_wine;
+#[cfg(target_os = "linux")]
+pub use managed_wine::{VerifiedManagedWineExecutable, verify_managed_wine_executable};
 mod linux_fs;
+pub use initialization_coordinator::{
+    InitializationAttempt, InitializationAttemptError, InitializationAttemptPhase,
+    InitializationCoordinator, InitializationCoordinatorError, InitializationEvidenceSource,
+    InitializationExecutionAuthorization, InitializationObservation, InitializationStart,
+    InitializationStep, PreSpawnBlocker,
+};
 pub use linux_fs::LinuxPrefixFilesystem;
 pub use linux_fs::backup;
 
-pub const REGISTRY_SCHEMA_VERSION: u32 = 1;
+pub const REGISTRY_SCHEMA_VERSION: u32 = 2;
 pub const MAX_REGISTRY_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_PREFIXES: usize = 1024;
 
@@ -61,6 +75,12 @@ pub enum PrefixError {
     UsageUnknown,
     #[error("prefix initialization is unsupported by the validated runtime adapters")]
     InitializationUnsupported,
+    #[error("prefix initialization approval does not match the exact plan")]
+    ApprovalMismatch,
+    #[error("prefix initialization intent is stale or does not match the approved plan")]
+    InitializationIntentMismatch,
+    #[error("prefix initialization plan fields do not match its plan ID")]
+    PlanIntegrityMismatch,
     #[error("managed prefix filesystem state is unsafe or unverifiable")]
     Blocked,
     #[error("prefix ownership or lifecycle requirements are not satisfied")]
@@ -205,6 +225,110 @@ pub enum PrefixLifecycleState {
     Blocked,
 }
 
+/// Durable progress for an explicitly approved Wine initialization attempt.
+/// `VerificationPending`, `Failed`, and `Interrupted` never mean initialized.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixInitializationPhase {
+    Starting,
+    Running,
+    VerificationPending,
+    Failed,
+    Interrupted,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrefixInitializationIntent {
+    pub plan_id: String,
+    pub scope: PrefixScope,
+    pub adapter_id: String,
+    pub runtime_pin_id: String,
+    pub runtime_pin_revision: u64,
+    pub runtime_reference_sha256: String,
+    pub prefix_generation: u64,
+    pub filesystem_identity: FilesystemIdentity,
+    pub phase: PrefixInitializationPhase,
+    pub process_exit_code: Option<i32>,
+    pub started_at_unix_seconds: u64,
+    pub updated_at_unix_seconds: u64,
+}
+
+/// Hashes of the exact Wine 10.0 prefix artifacts checked through no-follow
+/// descriptors. This is structural completion evidence, not game compatibility.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Wine10PrefixCompletionEvidence {
+    pub directory_identity: FilesystemIdentity,
+    pub system_registry_sha256: String,
+    pub user_registry_sha256: String,
+    pub evidence_sha256: String,
+}
+
+impl PrefixInitializationIntent {
+    fn validate(&self, record: &PrefixRecord) -> Result<(), PrefixError> {
+        let phase_lifecycle_matches = matches!(
+            (self.phase, &record.lifecycle),
+            (
+                PrefixInitializationPhase::Starting,
+                PrefixLifecycleState::Incomplete
+            ) | (
+                PrefixInitializationPhase::Running,
+                PrefixLifecycleState::Incomplete
+            ) | (
+                PrefixInitializationPhase::VerificationPending,
+                PrefixLifecycleState::Incomplete
+            ) | (
+                PrefixInitializationPhase::Failed,
+                PrefixLifecycleState::RecoveryRequired
+            ) | (
+                PrefixInitializationPhase::Interrupted,
+                PrefixLifecycleState::RecoveryRequired
+            )
+        );
+        let phase_exit_matches = match self.phase {
+            PrefixInitializationPhase::Starting | PrefixInitializationPhase::Running => {
+                self.process_exit_code.is_none()
+            }
+            PrefixInitializationPhase::VerificationPending => self.process_exit_code == Some(0),
+            PrefixInitializationPhase::Failed => {
+                self.process_exit_code.is_none_or(|code| code != 0)
+            }
+            PrefixInitializationPhase::Interrupted => {
+                self.process_exit_code.is_none_or(|code| code == 0)
+            }
+        };
+        if !self.plan_id.strip_prefix("sha256:").is_some_and(is_sha256)
+            || self.adapter_id != "managed_wine"
+            || self.scope != record.scope
+            || self.runtime_pin_id != record.runtime.pin_id
+            || self.runtime_pin_revision != record.runtime.pin_revision
+            || !is_sha256(&self.runtime_reference_sha256)
+            || self.runtime_reference_sha256 != runtime_reference_sha256(&record.runtime.runtime)?
+            || !matches!(
+                &record.runtime.runtime,
+                PinnedRuntimeReference::Managed(runtime)
+                    if runtime.family == "wine"
+                        && runtime.lineage == "upstream-wine"
+                        && runtime.build == "wine-10.0"
+                        && runtime.trust
+                            == endfield_unix_runtime_selection::Provenance::
+                                IndependentlyAuthenticatedPublisher
+            )
+            || self.prefix_generation != record.generation
+            || Some(self.filesystem_identity) != record.filesystem_identity
+            || self.started_at_unix_seconds < record.creation_time_unix_seconds
+            || self.updated_at_unix_seconds < self.started_at_unix_seconds
+            || self.updated_at_unix_seconds > record.update_time_unix_seconds
+            || !phase_lifecycle_matches
+            || !phase_exit_matches
+            || record.initialization_evidence.is_some()
+        {
+            return Err(PrefixError::RegistryCorrupt);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PrefixOwnership {
@@ -282,6 +406,8 @@ pub struct PrefixRecord {
     pub update_time_unix_seconds: u64,
     pub generation: u64,
     pub initialization_evidence: Option<PrefixInitializationEvidence>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initialization_intent: Option<PrefixInitializationIntent>,
 }
 
 impl PrefixRecord {
@@ -316,6 +442,21 @@ impl PrefixRecord {
             .initialization_evidence
             .as_ref()
             .is_some_and(|evidence| evidence.validate(self).is_err())
+        {
+            return Err(PrefixError::RegistryCorrupt);
+        }
+        if self
+            .initialization_intent
+            .as_ref()
+            .is_some_and(|intent| intent.validate(self).is_err())
+        {
+            return Err(PrefixError::RegistryCorrupt);
+        }
+        if self.initialization_intent.is_some()
+            && !matches!(
+                self.lifecycle,
+                PrefixLifecycleState::Incomplete | PrefixLifecycleState::RecoveryRequired
+            )
         {
             return Err(PrefixError::RegistryCorrupt);
         }
@@ -381,8 +522,8 @@ impl PrefixRegistry {
         self.checksum_sha256 = format!("{:x}", Sha256::digest(bytes));
     }
 
-    fn validate(&self) -> Result<(), PrefixError> {
-        if self.schema_version != REGISTRY_SCHEMA_VERSION || self.records.len() > MAX_PREFIXES {
+    fn validate_schema(&self, schema_version: u32) -> Result<(), PrefixError> {
+        if self.schema_version != schema_version || self.records.len() > MAX_PREFIXES {
             return Err(PrefixError::RegistryCorrupt);
         }
         for (index, record) in self.records.iter().enumerate() {
@@ -401,6 +542,10 @@ impl PrefixRegistry {
             return Err(PrefixError::RegistryCorrupt);
         }
         Ok(())
+    }
+
+    fn validate(&self) -> Result<(), PrefixError> {
+        self.validate_schema(REGISTRY_SCHEMA_VERSION)
     }
 
     pub fn record(&self, id: &PrefixId) -> Option<&PrefixRecord> {
@@ -427,12 +572,19 @@ impl PrefixRegistry {
             .get("schema_version")
             .and_then(serde_json::Value::as_u64)
             .ok_or(PrefixError::RegistryCorrupt)?;
-        if schema_version != u64::from(REGISTRY_SCHEMA_VERSION) {
+        if schema_version != 1 && schema_version != u64::from(REGISTRY_SCHEMA_VERSION) {
             return Err(PrefixError::UnsupportedSchemaVersion(schema_version));
         }
-        let registry: Self =
+        let mut registry: Self =
             serde_json::from_value(value).map_err(|_| PrefixError::RegistryCorrupt)?;
-        registry.validate()?;
+        registry.validate_schema(schema_version as u32)?;
+        if schema_version == 1 {
+            // The optional initialization-intent field is absent in v1 records.
+            // Validate the legacy checksum first, then migrate in memory; the next
+            // authorized registry mutation publishes schema v2 atomically.
+            registry.schema_version = REGISTRY_SCHEMA_VERSION;
+            registry.refresh_checksum();
+        }
         Ok(registry)
     }
 }
@@ -471,6 +623,226 @@ pub struct PrefixValidationReport {
     pub observed_lifecycle: PrefixLifecycleState,
     pub runtime: RuntimeValidation,
     pub registry_revision: u64,
+    pub initialization_evidence: PrefixInitializationEvidenceStatus,
+}
+
+/// P028 stores the result claim but has no runtime-specific completion
+/// verifier yet. A stored `CompletedAndVerified` value is therefore reported
+/// as an unverified claim until a verifier can bind it to observed effects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixInitializationEvidenceStatus {
+    Absent,
+    CompletedClaimUnverified,
+    PartialClaim,
+    FailedClaim,
+    IntentStarting,
+    IntentRunning,
+    IntentVerificationPending,
+    IntentFailed,
+    IntentInterrupted,
+}
+
+/// Outcome of a read-only initialization assessment. `Unsupported` means the
+/// exact prefix/runtime facts were inspected, but no verified initializer is
+/// available. `Blocked` means at least one safety prerequisite also failed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixInitializationPlanState {
+    Blocked,
+    Unsupported,
+    Ready,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixInitializationBlocker {
+    PrefixNotCreated,
+    PrefixIdentityUnknown,
+    PrefixIdentityChanged,
+    PrefixContainsData,
+    PrefixActive,
+    PrefixUseUnknown,
+    RuntimeAssociationMismatch,
+    RuntimeStale,
+    RecoveryPending,
+    RecoveryUnknown,
+    AdapterUnsupported,
+    InitializerUnverified,
+    ExistingInitializationEvidenceUnverified,
+    InitializationInProgress,
+    InitializationInterrupted,
+    ExecutableIdentityNotBound,
+    InitializerChildOwnershipUnavailable,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixInitializationStrategy {
+    WineBootInitialize,
+    UmuManagedPrefixSetup,
+    Unsupported,
+}
+
+/// A redacted, deterministic initialization review. It contains no executable
+/// path, raw runtime reference, or command string. P028 does not execute plans.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct PrefixInitializationPlan {
+    pub schema_version: u32,
+    pub plan_id: String,
+    pub prefix_id: String,
+    pub scope: PrefixScope,
+    pub registry_revision: u64,
+    pub prefix_generation: u64,
+    pub filesystem_identity: Option<FilesystemIdentity>,
+    pub runtime_pin_id: String,
+    pub runtime_pin_revision: u64,
+    pub runtime_reference_sha256: String,
+    pub adapter_id: String,
+    pub strategy: PrefixInitializationStrategy,
+    pub state: PrefixInitializationPlanState,
+    pub blockers: Vec<PrefixInitializationBlocker>,
+    pub approval_required: bool,
+    pub execution_supported: bool,
+    pub expected_effects: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+struct PrefixInitializationPlanIdentity<'a> {
+    schema_version: u32,
+    prefix_id: &'a str,
+    scope: &'a PrefixScope,
+    registry_revision: u64,
+    prefix_generation: u64,
+    filesystem_identity: Option<FilesystemIdentity>,
+    runtime_pin_id: &'a str,
+    runtime_pin_revision: u64,
+    runtime_reference_sha256: &'a str,
+    adapter_id: &'a str,
+    strategy: PrefixInitializationStrategy,
+    state: PrefixInitializationPlanState,
+    blockers: &'a [PrefixInitializationBlocker],
+    approval_required: bool,
+    execution_supported: bool,
+    expected_effects: &'a [&'static str],
+}
+
+impl PrefixInitializationPlan {
+    fn validate_integrity(&self) -> Result<(), PrefixError> {
+        let identity = PrefixInitializationPlanIdentity {
+            schema_version: self.schema_version,
+            prefix_id: &self.prefix_id,
+            scope: &self.scope,
+            registry_revision: self.registry_revision,
+            prefix_generation: self.prefix_generation,
+            filesystem_identity: self.filesystem_identity,
+            runtime_pin_id: &self.runtime_pin_id,
+            runtime_pin_revision: self.runtime_pin_revision,
+            runtime_reference_sha256: &self.runtime_reference_sha256,
+            adapter_id: &self.adapter_id,
+            strategy: self.strategy,
+            state: self.state,
+            blockers: &self.blockers,
+            approval_required: self.approval_required,
+            execution_supported: self.execution_supported,
+            expected_effects: &self.expected_effects,
+        };
+        let bytes =
+            serde_json::to_vec(&identity).map_err(|_| PrefixError::PlanIntegrityMismatch)?;
+        if self.schema_version != 2 || self.plan_id != format!("sha256:{:x}", Sha256::digest(bytes))
+        {
+            return Err(PrefixError::PlanIntegrityMismatch);
+        }
+        Ok(())
+    }
+
+    /// Verify a caller's confirmation against the exact plan. Current runtime
+    /// contracts remain unsupported, so the production plan builder never
+    /// issues an approval today.
+    pub fn approve(
+        &self,
+        exact_plan_id: &str,
+    ) -> Result<PrefixInitializationApproval, PrefixError> {
+        self.validate_integrity()?;
+        if exact_plan_id != self.plan_id {
+            return Err(PrefixError::ApprovalMismatch);
+        }
+        if !self.approval_required || self.state == PrefixInitializationPlanState::Blocked {
+            return Err(PrefixError::InvalidState);
+        }
+        if !self.execution_supported {
+            return Err(PrefixError::InitializationUnsupported);
+        }
+        if self.state != PrefixInitializationPlanState::Ready {
+            return Err(PrefixError::InvalidState);
+        }
+        Ok(PrefixInitializationApproval {
+            plan_id: self.plan_id.clone(),
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn synthetic_approval_for_test(
+        &self,
+        exact_plan_id: &str,
+    ) -> Result<SyntheticInitializationApproval, PrefixError> {
+        self.validate_integrity()?;
+        if self.plan_id != exact_plan_id {
+            return Err(PrefixError::ApprovalMismatch);
+        }
+        if !self.approval_required
+            || self.execution_supported
+            || self.state != PrefixInitializationPlanState::Unsupported
+            || self.blockers.is_empty()
+            || self.blockers.iter().any(|blocker| {
+                !matches!(
+                    blocker,
+                    PrefixInitializationBlocker::ExecutableIdentityNotBound
+                        | PrefixInitializationBlocker::InitializerChildOwnershipUnavailable
+                )
+            })
+            || !self
+                .blockers
+                .contains(&PrefixInitializationBlocker::ExecutableIdentityNotBound)
+            || !self
+                .blockers
+                .contains(&PrefixInitializationBlocker::InitializerChildOwnershipUnavailable)
+        {
+            return Err(PrefixError::InvalidState);
+        }
+        Ok(SyntheticInitializationApproval {
+            plan_id: self.plan_id.clone(),
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrefixInitializationProcessOutcome {
+    /// Process creation failed. Conservatively preserve the write-ahead intent.
+    SpawnFailed,
+    ExitedZero,
+    ExitedNonzero(i32),
+    /// Timeout, cancellation, signal, or lost observation. Completion is unknown.
+    Interrupted,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrefixInitializationApproval {
+    plan_id: String,
+}
+
+impl PrefixInitializationApproval {
+    pub fn plan_id(&self) -> &str {
+        &self.plan_id
+    }
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SyntheticInitializationApproval {
+    plan_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -512,8 +884,25 @@ pub trait PrefixFilesystem: Send + Sync {
     fn backup_recovery_pending(&self, _id: &PrefixId) -> Result<bool, PrefixError> {
         Ok(false)
     }
+    fn verify_wine10_prefix(
+        &self,
+        _id: &PrefixId,
+        _expected: FilesystemIdentity,
+    ) -> Result<Wine10PrefixCompletionEvidence, PrefixError> {
+        Err(PrefixError::InitializationUnsupported)
+    }
 }
 
+struct InitializationTransition {
+    allowed_phases: &'static [PrefixInitializationPhase],
+    next_phase: PrefixInitializationPhase,
+    lifecycle: PrefixLifecycleState,
+    /// `None` preserves the old observation; `Some(None)` records an unknown
+    /// result such as spawn failure, and `Some(Some(code))` records an exit.
+    process_exit_code: Option<Option<i32>>,
+}
+
+#[derive(Clone)]
 pub struct PrefixStore {
     fs: Arc<dyn PrefixFilesystem>,
 }
@@ -587,6 +976,249 @@ impl PrefixStore {
             observed_lifecycle,
             runtime,
             registry_revision: snapshot.registry.revision,
+            initialization_evidence: match (
+                record.initialization_evidence.as_ref().map(|e| e.outcome),
+                record
+                    .initialization_intent
+                    .as_ref()
+                    .map(|intent| intent.phase),
+            ) {
+                (None, Some(PrefixInitializationPhase::Starting)) => {
+                    PrefixInitializationEvidenceStatus::IntentStarting
+                }
+                (None, Some(PrefixInitializationPhase::Running)) => {
+                    PrefixInitializationEvidenceStatus::IntentRunning
+                }
+                (None, Some(PrefixInitializationPhase::VerificationPending)) => {
+                    PrefixInitializationEvidenceStatus::IntentVerificationPending
+                }
+                (None, Some(PrefixInitializationPhase::Failed)) => {
+                    PrefixInitializationEvidenceStatus::IntentFailed
+                }
+                (None, Some(PrefixInitializationPhase::Interrupted)) => {
+                    PrefixInitializationEvidenceStatus::IntentInterrupted
+                }
+                (None, None) => PrefixInitializationEvidenceStatus::Absent,
+                (Some(InitializationEvidenceOutcome::CompletedAndVerified), _) => {
+                    PrefixInitializationEvidenceStatus::CompletedClaimUnverified
+                }
+                (Some(InitializationEvidenceOutcome::Partial), _) => {
+                    PrefixInitializationEvidenceStatus::PartialClaim
+                }
+                (Some(InitializationEvidenceOutcome::Failed), _) => {
+                    PrefixInitializationEvidenceStatus::FailedClaim
+                }
+            },
+        })
+    }
+
+    /// Produce a read-only initialization assessment for one exact Created
+    /// prefix and runtime association. The plan records all observations and
+    /// remains unsupported until P028 has a verified initializer, bounded
+    /// supervision, and completion verifier.
+    pub fn plan_initialization(
+        &self,
+        id: &PrefixId,
+        expected_registry_revision: u64,
+        expected_runtime: &PrefixRuntimeAssociation,
+        additional_recovery_pending: Option<bool>,
+        mut validate_runtime: impl FnMut(&PinnedRuntimeReference) -> Result<(), String>,
+    ) -> Result<PrefixInitializationPlan, PrefixError> {
+        expected_runtime.validate()?;
+        self.fs.prepare(false)?;
+        let snapshot = self.load_snapshot()?;
+        if snapshot.registry.revision != expected_registry_revision {
+            return Err(PrefixError::RevisionConflict);
+        }
+        let record = snapshot
+            .registry
+            .record(id)
+            .ok_or(PrefixError::NotRegistered)?;
+        let mut blockers = Vec::new();
+
+        if record.lifecycle != PrefixLifecycleState::Created {
+            blockers.push(PrefixInitializationBlocker::PrefixNotCreated);
+        }
+        if record.ownership != PrefixOwnership::EndfieldUnixManaged
+            || record.owner_uid != current_uid()
+        {
+            blockers.push(PrefixInitializationBlocker::PrefixIdentityUnknown);
+        }
+        if &record.runtime != expected_runtime {
+            blockers.push(PrefixInitializationBlocker::RuntimeAssociationMismatch);
+        }
+        let runtime_valid = validate_runtime(&record.runtime.runtime).is_ok();
+        if !runtime_valid {
+            blockers.push(PrefixInitializationBlocker::RuntimeStale);
+        }
+
+        let observed_identity = self.fs.inspect_directory(id)?;
+        if observed_identity.is_none() {
+            blockers.push(PrefixInitializationBlocker::PrefixIdentityUnknown);
+        } else if observed_identity != record.filesystem_identity {
+            blockers.push(PrefixInitializationBlocker::PrefixIdentityChanged);
+        }
+        match self.fs.directory_is_empty(id) {
+            Ok(true) => {}
+            Ok(false) => blockers.push(PrefixInitializationBlocker::PrefixContainsData),
+            Err(_) => blockers.push(PrefixInitializationBlocker::PrefixIdentityUnknown),
+        }
+        match self.fs.prefix_in_use(id) {
+            Ok(Some(false)) => {}
+            Ok(Some(true)) => blockers.push(PrefixInitializationBlocker::PrefixActive),
+            Ok(None) | Err(_) => blockers.push(PrefixInitializationBlocker::PrefixUseUnknown),
+        }
+        match additional_recovery_pending {
+            Some(true) => blockers.push(PrefixInitializationBlocker::RecoveryPending),
+            Some(false) => {}
+            None => blockers.push(PrefixInitializationBlocker::RecoveryUnknown),
+        }
+        match self.fs.backup_recovery_pending(id) {
+            Ok(true) => blockers.push(PrefixInitializationBlocker::RecoveryPending),
+            Ok(false) => {}
+            Err(_) => blockers.push(PrefixInitializationBlocker::RecoveryUnknown),
+        }
+        if matches!(
+            record.lifecycle,
+            PrefixLifecycleState::Incomplete | PrefixLifecycleState::RecoveryRequired
+        ) {
+            blockers.push(PrefixInitializationBlocker::RecoveryPending);
+        }
+        if record.lifecycle == PrefixLifecycleState::Initialized
+            && record.initialization_evidence.is_some()
+        {
+            blockers.push(PrefixInitializationBlocker::ExistingInitializationEvidenceUnverified);
+        }
+        if let Some(intent) = &record.initialization_intent {
+            blockers.push(match intent.phase {
+                PrefixInitializationPhase::Starting
+                | PrefixInitializationPhase::Running
+                | PrefixInitializationPhase::VerificationPending => {
+                    PrefixInitializationBlocker::InitializationInProgress
+                }
+                PrefixInitializationPhase::Failed | PrefixInitializationPhase::Interrupted => {
+                    PrefixInitializationBlocker::InitializationInterrupted
+                }
+            });
+        }
+
+        let (adapter_id, strategy) =
+            match (record.runtime.adapter_preference, &record.runtime.runtime) {
+                (
+                    Some(AdapterPreference::ManagedWine),
+                    PinnedRuntimeReference::Managed(runtime),
+                ) if runtime.family == "wine" => (
+                    "managed_wine".to_owned(),
+                    PrefixInitializationStrategy::WineBootInitialize,
+                ),
+                (
+                    Some(AdapterPreference::ExternalWine),
+                    PinnedRuntimeReference::External(runtime),
+                ) if runtime.family == "wine" => (
+                    "external_wine".to_owned(),
+                    PrefixInitializationStrategy::WineBootInitialize,
+                ),
+                (Some(AdapterPreference::UmuProton), runtime) if runtime.family() == "proton" => (
+                    "umu_proton".to_owned(),
+                    PrefixInitializationStrategy::UmuManagedPrefixSetup,
+                ),
+                _ => {
+                    blockers.push(PrefixInitializationBlocker::AdapterUnsupported);
+                    (
+                        "unsupported".to_owned(),
+                        PrefixInitializationStrategy::Unsupported,
+                    )
+                }
+            };
+
+        let verified_wine10_contract = matches!(
+            (&record.runtime.runtime, record.runtime.adapter_preference),
+            (
+                PinnedRuntimeReference::Managed(runtime),
+                Some(AdapterPreference::ManagedWine)
+            ) if runtime.family == "wine"
+                && runtime.lineage == "upstream-wine"
+                && runtime.build == "wine-10.0"
+                && runtime.trust
+                    == endfield_unix_runtime_selection::Provenance::
+                        IndependentlyAuthenticatedPublisher
+        ) && runtime_valid;
+        if verified_wine10_contract {
+            // Wine 10.0's documented `wineboot.exe --init` semantics are
+            // source-verified, but the selected launcher is not yet bound to
+            // the audited inode at exec and helper lifetime is not owned.
+            blockers.push(PrefixInitializationBlocker::ExecutableIdentityNotBound);
+            blockers.push(PrefixInitializationBlocker::InitializerChildOwnershipUnavailable);
+        } else {
+            blockers.push(PrefixInitializationBlocker::InitializerUnverified);
+        }
+        blockers.sort();
+        blockers.dedup();
+        let state = if blockers.iter().all(|blocker| {
+            matches!(
+                blocker,
+                PrefixInitializationBlocker::InitializerUnverified
+                    | PrefixInitializationBlocker::ExecutableIdentityNotBound
+                    | PrefixInitializationBlocker::InitializerChildOwnershipUnavailable
+            )
+        }) {
+            PrefixInitializationPlanState::Unsupported
+        } else {
+            PrefixInitializationPlanState::Blocked
+        };
+        let runtime_reference_sha256 = runtime_reference_sha256(&record.runtime.runtime)?;
+        let expected_effects: Vec<&'static str> = match strategy {
+            PrefixInitializationStrategy::WineBootInitialize => vec![
+                "The selected Wine runtime would write registry and system files into this prefix.",
+                "The initializer may start wineserver-related helper processes.",
+                "Wine may also write user-scoped cache or configuration data outside this prefix.",
+            ],
+            PrefixInitializationStrategy::UmuManagedPrefixSetup => vec![
+                "UMU/Proton may create or mutate prefix contents and runtime caches.",
+                "UMU may acquire or update Steam Linux Runtime components over the network.",
+            ],
+            PrefixInitializationStrategy::Unsupported => {
+                vec!["No initialization command will be started."]
+            }
+        };
+        let identity = PrefixInitializationPlanIdentity {
+            schema_version: 2,
+            prefix_id: id.as_str(),
+            scope: &record.scope,
+            registry_revision: snapshot.registry.revision,
+            prefix_generation: record.generation,
+            filesystem_identity: observed_identity,
+            runtime_pin_id: &record.runtime.pin_id,
+            runtime_pin_revision: record.runtime.pin_revision,
+            runtime_reference_sha256: &runtime_reference_sha256,
+            adapter_id: &adapter_id,
+            strategy,
+            state,
+            blockers: &blockers,
+            approval_required: true,
+            execution_supported: false,
+            expected_effects: &expected_effects,
+        };
+        let bytes = serde_json::to_vec(&identity).map_err(|_| PrefixError::RegistryCorrupt)?;
+        let plan_id = format!("sha256:{:x}", Sha256::digest(bytes));
+        Ok(PrefixInitializationPlan {
+            schema_version: 2,
+            plan_id,
+            prefix_id: id.as_str().to_owned(),
+            scope: record.scope.clone(),
+            registry_revision: snapshot.registry.revision,
+            prefix_generation: record.generation,
+            filesystem_identity: observed_identity,
+            runtime_pin_id: record.runtime.pin_id.clone(),
+            runtime_pin_revision: record.runtime.pin_revision,
+            runtime_reference_sha256,
+            adapter_id,
+            strategy,
+            state,
+            blockers,
+            approval_required: true,
+            execution_supported: false,
+            expected_effects,
         })
     }
 
@@ -701,6 +1333,7 @@ impl PrefixStore {
             update_time_unix_seconds: created_at,
             generation: snapshot.registry.revision.saturating_add(1),
             initialization_evidence: None,
+            initialization_intent: None,
         };
         let mut registry = snapshot.registry;
         registry.revision = registry.revision.saturating_add(1);
@@ -754,7 +1387,7 @@ impl PrefixStore {
         {
             return Err(PrefixError::InvalidState);
         }
-        if current.initialization_evidence.is_some() {
+        if current.initialization_evidence.is_some() || current.initialization_intent.is_some() {
             return Err(PrefixError::RecoveryBlocked);
         }
         let Some(identity) = self.fs.inspect_directory(id)? else {
@@ -796,6 +1429,13 @@ impl PrefixStore {
         let snapshot = self.load_snapshot()?;
         if snapshot.registry.revision != expected_revision {
             return Err(PrefixError::RevisionConflict);
+        }
+        if snapshot
+            .registry
+            .record(id)
+            .is_some_and(|record| record.initialization_intent.is_some())
+        {
+            return Err(PrefixError::RecoveryRequired);
         }
         let mut registry = snapshot.registry;
         let original_len = registry.records.len();
@@ -840,6 +1480,11 @@ impl PrefixStore {
             || current.owner_uid != current_uid()
         {
             return Err(PrefixError::Blocked);
+        }
+        if current.initialization_intent.is_some() {
+            // Initialization may have changed user data before it was
+            // interrupted. Deletion requires a separate safe recovery story.
+            return Err(PrefixError::RecoveryRequired);
         }
         match self.fs.prefix_in_use(id)? {
             Some(true) => return Err(PrefixError::ActiveUse),
@@ -887,6 +1532,474 @@ impl PrefixStore {
         Ok(journal.revision)
     }
 
+    /// Durably publish a write-ahead initialization intent. This method never
+    /// spawns Wine. A caller may spawn only after it receives this record, and
+    /// only if a production initializer contract has made the plan executable.
+    pub fn begin_initialization_intent(
+        &self,
+        plan: &PrefixInitializationPlan,
+        approval: &PrefixInitializationApproval,
+        recovery_state: Option<bool>,
+        validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String>,
+    ) -> Result<(PrefixInitializationIntent, u64), PrefixError> {
+        self.begin_initialization_intent_inner(
+            plan,
+            approval.plan_id(),
+            false,
+            recovery_state,
+            validate_runtime,
+        )
+    }
+
+    /// Recheck the durable Starting intent immediately before the coordinator
+    /// creates the direct child. The callback runs while the existing P028
+    /// registry-then-prefix locks are held, matching the lock order used by
+    /// intent publication and terminal transitions.
+    pub(crate) fn validate_starting_initialization(
+        &self,
+        plan: &PrefixInitializationPlan,
+        expected_revision: u64,
+        additional_recovery_pending: Option<bool>,
+        mut validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String>,
+    ) -> Result<(), PrefixError> {
+        plan.validate_integrity()?;
+        if additional_recovery_pending != Some(false) {
+            return Err(PrefixError::RecoveryRequired);
+        }
+        let id = PrefixId::new(plan.prefix_id.clone())?;
+        self.fs.prepare(true)?;
+        let _registry_guard = self.fs.lock_registry()?;
+        let _prefix_guard = self.fs.lock_prefix(&id)?;
+        if self.fs.backup_recovery_pending(&id)? {
+            return Err(PrefixError::RecoveryRequired);
+        }
+        let snapshot = self.load_snapshot()?;
+        if snapshot.registry.revision != expected_revision {
+            return Err(PrefixError::RevisionConflict);
+        }
+        let current = snapshot
+            .registry
+            .record(&id)
+            .ok_or(PrefixError::NotRegistered)?;
+        let Some(intent) = current.initialization_intent.as_ref() else {
+            return Err(PrefixError::InitializationIntentMismatch);
+        };
+        let expected_identity = plan.filesystem_identity.ok_or(PrefixError::Blocked)?;
+        let runtime_hash = runtime_reference_sha256(&current.runtime.runtime)?;
+        if current.ownership != PrefixOwnership::EndfieldUnixManaged
+            || current.owner_uid != current_uid()
+            || current.lifecycle != PrefixLifecycleState::Incomplete
+            || current.scope != plan.scope
+            || current.generation != plan.prefix_generation
+            || current.filesystem_identity != Some(expected_identity)
+            || current.runtime.pin_id != plan.runtime_pin_id
+            || current.runtime.pin_revision != plan.runtime_pin_revision
+            || runtime_hash != plan.runtime_reference_sha256
+            || intent.plan_id != plan.plan_id
+            || intent.phase != PrefixInitializationPhase::Starting
+            || intent.scope != plan.scope
+            || intent.runtime_pin_id != plan.runtime_pin_id
+            || intent.runtime_pin_revision != plan.runtime_pin_revision
+            || intent.runtime_reference_sha256 != plan.runtime_reference_sha256
+            || intent.prefix_generation != plan.prefix_generation
+            || intent.filesystem_identity != expected_identity
+            || self.fs.inspect_directory(&id)? != Some(expected_identity)
+            || !self.fs.directory_is_empty(&id)?
+            || self.fs.prefix_in_use(&id)? != Some(false)
+            || current.initialization_evidence.is_some()
+        {
+            return Err(PrefixError::Blocked);
+        }
+        validate_runtime(&current.runtime).map_err(|_| PrefixError::Blocked)?;
+        // Runtime revalidation may take time or inspect independent stores.
+        // Repeat prefix filesystem checks after it returns so any identity,
+        // contents, or use change during that work is caught before spawn.
+        if self.fs.inspect_directory(&id)? != Some(expected_identity)
+            || !self.fs.directory_is_empty(&id)?
+            || self.fs.prefix_in_use(&id)? != Some(false)
+        {
+            return Err(PrefixError::Blocked);
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn begin_synthetic_initialization_intent(
+        &self,
+        plan: &PrefixInitializationPlan,
+        approval: &SyntheticInitializationApproval,
+        recovery_state: Option<bool>,
+        validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String>,
+    ) -> Result<(PrefixInitializationIntent, u64), PrefixError> {
+        self.begin_initialization_intent_inner(
+            plan,
+            &approval.plan_id,
+            true,
+            recovery_state,
+            validate_runtime,
+        )
+    }
+
+    fn begin_initialization_intent_inner(
+        &self,
+        plan: &PrefixInitializationPlan,
+        approval_plan_id: &str,
+        allow_synthetic_test: bool,
+        recovery_state: Option<bool>,
+        mut validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String>,
+    ) -> Result<(PrefixInitializationIntent, u64), PrefixError> {
+        plan.validate_integrity()?;
+        if approval_plan_id != plan.plan_id {
+            return Err(PrefixError::ApprovalMismatch);
+        }
+        let production_ready = plan.execution_supported
+            && plan.state == PrefixInitializationPlanState::Ready
+            && plan.blockers.is_empty();
+        let synthetic_test_ready = allow_synthetic_test
+            && !plan.execution_supported
+            && plan.state == PrefixInitializationPlanState::Unsupported
+            && plan.blockers.len() == 2
+            && plan
+                .blockers
+                .contains(&PrefixInitializationBlocker::ExecutableIdentityNotBound)
+            && plan
+                .blockers
+                .contains(&PrefixInitializationBlocker::InitializerChildOwnershipUnavailable);
+        if (!production_ready && !synthetic_test_ready)
+            || plan.strategy != PrefixInitializationStrategy::WineBootInitialize
+            || plan.adapter_id != "managed_wine"
+        {
+            return Err(PrefixError::InitializationUnsupported);
+        }
+        if recovery_state != Some(false) {
+            return Err(PrefixError::RecoveryRequired);
+        }
+        let id = PrefixId::new(plan.prefix_id.clone())?;
+        self.fs.prepare(true)?;
+        let _registry_guard = self.fs.lock_registry()?;
+        let _prefix_guard = self.fs.lock_prefix(&id)?;
+        if self.fs.backup_recovery_pending(&id)? {
+            return Err(PrefixError::RecoveryRequired);
+        }
+        let snapshot = self.load_snapshot()?;
+        if snapshot.registry.revision != plan.registry_revision {
+            return Err(PrefixError::RevisionConflict);
+        }
+        let record = snapshot
+            .registry
+            .record(&id)
+            .cloned()
+            .ok_or(PrefixError::NotRegistered)?;
+        let reference_hash = runtime_reference_sha256(&record.runtime.runtime)?;
+        let Some(expected_identity) = plan.filesystem_identity else {
+            return Err(PrefixError::Blocked);
+        };
+        let managed_wine = matches!(
+            (&record.runtime.runtime, record.runtime.adapter_preference),
+            (
+                PinnedRuntimeReference::Managed(runtime),
+                Some(AdapterPreference::ManagedWine)
+            ) if runtime.family == "wine"
+                && runtime.lineage == "upstream-wine"
+                && runtime.build == "wine-10.0"
+                && runtime.trust
+                    == endfield_unix_runtime_selection::Provenance::IndependentlyAuthenticatedPublisher
+        );
+        if !managed_wine
+            || record.scope != plan.scope
+            || record.lifecycle != PrefixLifecycleState::Created
+            || record.initialization_evidence.is_some()
+            || record.initialization_intent.is_some()
+            || record.ownership != PrefixOwnership::EndfieldUnixManaged
+            || record.owner_uid != current_uid()
+            || record.generation != plan.prefix_generation
+            || record.filesystem_identity != Some(expected_identity)
+            || record.runtime.pin_id != plan.runtime_pin_id
+            || record.runtime.pin_revision != plan.runtime_pin_revision
+            || reference_hash != plan.runtime_reference_sha256
+            || self.fs.inspect_directory(&id)? != Some(expected_identity)
+            || !self.fs.directory_is_empty(&id)?
+            || self.fs.prefix_in_use(&id)? != Some(false)
+        {
+            return Err(PrefixError::Blocked);
+        }
+        validate_runtime(&record.runtime).map_err(|_| PrefixError::Blocked)?;
+
+        let timestamp = now().max(record.update_time_unix_seconds);
+        let intent = PrefixInitializationIntent {
+            plan_id: plan.plan_id.clone(),
+            scope: record.scope.clone(),
+            adapter_id: "managed_wine".into(),
+            runtime_pin_id: record.runtime.pin_id.clone(),
+            runtime_pin_revision: record.runtime.pin_revision,
+            runtime_reference_sha256: reference_hash,
+            prefix_generation: record.generation,
+            filesystem_identity: expected_identity,
+            phase: PrefixInitializationPhase::Starting,
+            process_exit_code: None,
+            started_at_unix_seconds: timestamp,
+            updated_at_unix_seconds: timestamp,
+        };
+        let mut registry = snapshot.registry;
+        registry.revision = registry.revision.saturating_add(1);
+        let stored = registry
+            .records
+            .iter_mut()
+            .find(|stored| stored.id == id)
+            .ok_or(PrefixError::RegistryCorrupt)?;
+        stored.lifecycle = PrefixLifecycleState::Incomplete;
+        stored.initialization_intent = Some(intent.clone());
+        stored.update_time_unix_seconds = timestamp;
+        let bytes = registry.encode()?;
+        self.fs
+            .save_registry_bytes(snapshot.bytes.as_deref(), &bytes)?;
+        Ok((intent, registry.revision))
+    }
+
+    /// Record that the approved initializer process was created. The durable
+    /// Starting state is committed before the caller may spawn the child.
+    pub fn mark_initialization_running(
+        &self,
+        id: &PrefixId,
+        plan_id: &str,
+        expected_revision: u64,
+    ) -> Result<u64, PrefixError> {
+        self.transition_initialization_intent(
+            id,
+            plan_id,
+            expected_revision,
+            InitializationTransition {
+                allowed_phases: &[PrefixInitializationPhase::Starting],
+                next_phase: PrefixInitializationPhase::Running,
+                lifecycle: PrefixLifecycleState::Incomplete,
+                process_exit_code: None,
+            },
+        )
+    }
+
+    /// Record process termination without claiming prefix initialization.
+    /// Exit zero advances only to `VerificationPending`; every other result
+    /// remains recovery-required and preserves all prefix bytes.
+    pub fn record_initialization_process_outcome(
+        &self,
+        id: &PrefixId,
+        plan_id: &str,
+        expected_revision: u64,
+        outcome: PrefixInitializationProcessOutcome,
+    ) -> Result<u64, PrefixError> {
+        let (phase, lifecycle, exit_code) = match outcome {
+            PrefixInitializationProcessOutcome::ExitedZero => (
+                PrefixInitializationPhase::VerificationPending,
+                PrefixLifecycleState::Incomplete,
+                Some(0),
+            ),
+            PrefixInitializationProcessOutcome::SpawnFailed => (
+                PrefixInitializationPhase::Failed,
+                PrefixLifecycleState::RecoveryRequired,
+                None,
+            ),
+            PrefixInitializationProcessOutcome::ExitedNonzero(code) if code != 0 => (
+                PrefixInitializationPhase::Failed,
+                PrefixLifecycleState::RecoveryRequired,
+                Some(code),
+            ),
+            PrefixInitializationProcessOutcome::ExitedNonzero(_) => {
+                return Err(PrefixError::InvalidState);
+            }
+            PrefixInitializationProcessOutcome::Interrupted => (
+                PrefixInitializationPhase::Interrupted,
+                PrefixLifecycleState::RecoveryRequired,
+                None,
+            ),
+        };
+        let allowed_phases: &[PrefixInitializationPhase] = match outcome {
+            PrefixInitializationProcessOutcome::ExitedZero
+            | PrefixInitializationProcessOutcome::ExitedNonzero(_) => {
+                &[PrefixInitializationPhase::Running]
+            }
+            PrefixInitializationProcessOutcome::SpawnFailed => {
+                &[PrefixInitializationPhase::Starting]
+            }
+            PrefixInitializationProcessOutcome::Interrupted => &[
+                PrefixInitializationPhase::Starting,
+                PrefixInitializationPhase::Running,
+            ],
+        };
+        self.transition_initialization_intent(
+            id,
+            plan_id,
+            expected_revision,
+            InitializationTransition {
+                allowed_phases,
+                next_phase: phase,
+                lifecycle,
+                process_exit_code: Some(exit_code),
+            },
+        )
+    }
+
+    /// Promote only a Wine 10.0 initialization intent that reached a zero-exit
+    /// observation and whose prefix artifacts pass the runtime-specific,
+    /// no-follow completion verifier. This method never executes Wine.
+    pub fn complete_verified_wine10_initialization(
+        &self,
+        id: &PrefixId,
+        plan_id: &str,
+        expected_revision: u64,
+        mut validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String>,
+    ) -> Result<(PrefixRecord, u64), PrefixError> {
+        self.fs.prepare(true)?;
+        let _registry_guard = self.fs.lock_registry()?;
+        let _prefix_guard = self.fs.lock_prefix(id)?;
+        if self.fs.backup_recovery_pending(id)? {
+            return Err(PrefixError::RecoveryRequired);
+        }
+        let snapshot = self.load_snapshot()?;
+        if snapshot.registry.revision != expected_revision {
+            return Err(PrefixError::RevisionConflict);
+        }
+        let current = snapshot
+            .registry
+            .record(id)
+            .cloned()
+            .ok_or(PrefixError::NotRegistered)?;
+        let runtime = match &current.runtime.runtime {
+            PinnedRuntimeReference::Managed(runtime)
+                if runtime.family == "wine"
+                    && runtime.lineage == "upstream-wine"
+                    && runtime.build == "wine-10.0"
+                    && runtime.trust
+                        == endfield_unix_runtime_selection::Provenance::
+                            IndependentlyAuthenticatedPublisher => runtime,
+            _ => return Err(PrefixError::InitializationUnsupported),
+        };
+        let _ = runtime;
+        let intent = current
+            .initialization_intent
+            .as_ref()
+            .ok_or(PrefixError::InitializationIntentMismatch)?;
+        let identity = current.filesystem_identity.ok_or(PrefixError::Blocked)?;
+        if current.owner_uid != current_uid()
+            || current.ownership != PrefixOwnership::EndfieldUnixManaged
+            || current.lifecycle != PrefixLifecycleState::Incomplete
+            || intent.phase != PrefixInitializationPhase::VerificationPending
+            || intent.plan_id != plan_id
+            || intent.adapter_id != "managed_wine"
+            || intent.filesystem_identity != identity
+            || self.fs.inspect_directory(id)? != Some(identity)
+            || self.fs.prefix_in_use(id)? != Some(false)
+        {
+            return Err(PrefixError::InitializationIntentMismatch);
+        }
+        validate_runtime(&current.runtime).map_err(|_| PrefixError::Blocked)?;
+        let verified = self.fs.verify_wine10_prefix(id, identity)?;
+        if verified.directory_identity != identity
+            || !is_sha256(&verified.system_registry_sha256)
+            || !is_sha256(&verified.user_registry_sha256)
+            || !is_sha256(&verified.evidence_sha256)
+        {
+            return Err(PrefixError::Blocked);
+        }
+
+        let timestamp = now().max(current.update_time_unix_seconds);
+        let mut registry = snapshot.registry;
+        registry.revision = registry.revision.saturating_add(1);
+        let record = registry
+            .records
+            .iter_mut()
+            .find(|record| &record.id == id)
+            .ok_or(PrefixError::RegistryCorrupt)?;
+        record.lifecycle = PrefixLifecycleState::Initialized;
+        record.initialization_intent = None;
+        record.initialization_evidence = Some(PrefixInitializationEvidence {
+            adapter_id: "managed_wine".into(),
+            runtime_reference_sha256: intent.runtime_reference_sha256.clone(),
+            verification_evidence_sha256: verified.evidence_sha256,
+            outcome: InitializationEvidenceOutcome::CompletedAndVerified,
+            observed_at_unix_seconds: timestamp,
+        });
+        record.update_time_unix_seconds = timestamp;
+        let completed = record.clone();
+        let bytes = registry.encode()?;
+        self.fs
+            .save_registry_bytes(snapshot.bytes.as_deref(), &bytes)?;
+        Ok((completed, registry.revision))
+    }
+
+    /// Convert an unobserved Starting/Running/VerificationPending transaction
+    /// into an explicit interruption record. This never retries the operation.
+    pub fn mark_initialization_interrupted(
+        &self,
+        id: &PrefixId,
+        plan_id: &str,
+        expected_revision: u64,
+    ) -> Result<u64, PrefixError> {
+        self.transition_initialization_intent(
+            id,
+            plan_id,
+            expected_revision,
+            InitializationTransition {
+                allowed_phases: &[
+                    PrefixInitializationPhase::Starting,
+                    PrefixInitializationPhase::Running,
+                    PrefixInitializationPhase::VerificationPending,
+                ],
+                next_phase: PrefixInitializationPhase::Interrupted,
+                lifecycle: PrefixLifecycleState::RecoveryRequired,
+                process_exit_code: None,
+            },
+        )
+    }
+
+    fn transition_initialization_intent(
+        &self,
+        id: &PrefixId,
+        plan_id: &str,
+        expected_revision: u64,
+        transition: InitializationTransition,
+    ) -> Result<u64, PrefixError> {
+        self.fs.prepare(true)?;
+        let _registry_guard = self.fs.lock_registry()?;
+        let _prefix_guard = self.fs.lock_prefix(id)?;
+        let snapshot = self.load_snapshot()?;
+        if snapshot.registry.revision != expected_revision {
+            return Err(PrefixError::RevisionConflict);
+        }
+        let mut registry = snapshot.registry;
+        let record = registry
+            .records
+            .iter_mut()
+            .find(|record| &record.id == id)
+            .ok_or(PrefixError::NotRegistered)?;
+        if record.owner_uid != current_uid()
+            || record.ownership != PrefixOwnership::EndfieldUnixManaged
+            || record.initialization_evidence.is_some()
+            || self.fs.inspect_directory(id)? != record.filesystem_identity
+        {
+            return Err(PrefixError::Blocked);
+        }
+        let intent = record
+            .initialization_intent
+            .as_mut()
+            .ok_or(PrefixError::InitializationIntentMismatch)?;
+        if intent.plan_id != plan_id || !transition.allowed_phases.contains(&intent.phase) {
+            return Err(PrefixError::InitializationIntentMismatch);
+        }
+        let timestamp = now().max(record.update_time_unix_seconds);
+        intent.phase = transition.next_phase;
+        if let Some(process_exit_code) = transition.process_exit_code {
+            intent.process_exit_code = process_exit_code;
+        }
+        intent.updated_at_unix_seconds = timestamp;
+        record.lifecycle = transition.lifecycle;
+        record.update_time_unix_seconds = timestamp;
+        registry.revision = registry.revision.saturating_add(1);
+        let bytes = registry.encode()?;
+        self.fs
+            .save_registry_bytes(snapshot.bytes.as_deref(), &bytes)?;
+        Ok(registry.revision)
+    }
+
     pub fn initialize(&self, _id: &PrefixId) -> Result<(), PrefixError> {
         Err(PrefixError::InitializationUnsupported)
     }
@@ -905,7 +2018,7 @@ impl PrefixStore {
         record: &PrefixRecord,
         mut validate_runtime: impl FnMut(&PinnedRuntimeReference) -> Result<(), String>,
     ) -> Result<(PrefixLifecycleState, RuntimeValidation), PrefixError> {
-        let lifecycle = match self.fs.inspect_directory(&record.id) {
+        let mut lifecycle = match self.fs.inspect_directory(&record.id) {
             Ok(Some(identity)) if Some(identity) == record.filesystem_identity => {
                 record.lifecycle.clone()
             }
@@ -922,6 +2035,21 @@ impl PrefixStore {
             Err(PrefixError::Blocked) => PrefixLifecycleState::Blocked,
             Err(error) => return Err(error),
         };
+        if let Some(intent) = &record.initialization_intent {
+            lifecycle = match intent.phase {
+                PrefixInitializationPhase::Starting | PrefixInitializationPhase::Running => {
+                    match self.fs.prefix_in_use(&record.id) {
+                        Ok(Some(true)) => PrefixLifecycleState::Incomplete,
+                        Ok(Some(false)) => PrefixLifecycleState::RecoveryRequired,
+                        Ok(None) | Err(_) => PrefixLifecycleState::Blocked,
+                    }
+                }
+                PrefixInitializationPhase::VerificationPending => PrefixLifecycleState::Incomplete,
+                PrefixInitializationPhase::Failed | PrefixInitializationPhase::Interrupted => {
+                    PrefixLifecycleState::RecoveryRequired
+                }
+            };
+        }
         let lifecycle = if record.owner_uid != current_uid() {
             PrefixLifecycleState::Blocked
         } else {
@@ -981,7 +2109,7 @@ pub fn path_exists_without_following(path: &Path) -> Result<bool, PrefixError> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use endfield_unix_runtime_selection::{ManagedRuntimeReference, Provenance};
     use std::{
@@ -996,6 +2124,15 @@ mod tests {
     struct FixedUsageFilesystem {
         inner: LinuxPrefixFilesystem,
         in_use: Option<bool>,
+        synthetic_wine_completion: bool,
+    }
+
+    pub(crate) fn coordinator_prefix_store(data_dir: PathBuf) -> PrefixStore {
+        PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(data_dir),
+            in_use: Some(false),
+            synthetic_wine_completion: false,
+        }))
     }
 
     impl PrefixFilesystem for FixedUsageFilesystem {
@@ -1066,6 +2203,22 @@ mod tests {
         fn free_bytes(&self) -> Option<u64> {
             self.inner.free_bytes()
         }
+
+        fn verify_wine10_prefix(
+            &self,
+            id: &PrefixId,
+            expected: FilesystemIdentity,
+        ) -> Result<Wine10PrefixCompletionEvidence, PrefixError> {
+            if self.synthetic_wine_completion {
+                return Ok(Wine10PrefixCompletionEvidence {
+                    directory_identity: expected,
+                    system_registry_sha256: "a".repeat(64),
+                    user_registry_sha256: "b".repeat(64),
+                    evidence_sha256: "c".repeat(64),
+                });
+            }
+            self.inner.verify_wine10_prefix(id, expected)
+        }
     }
 
     pub(crate) fn fixture() -> (TempDir, PrefixStore, PrefixScope, PrefixRuntimeAssociation) {
@@ -1098,6 +2251,53 @@ mod tests {
             adapter_preference: Some(AdapterPreference::UmuProton),
         };
         (temporary, PrefixStore::for_app(&paths), scope, runtime)
+    }
+
+    fn managed_wine_runtime() -> PrefixRuntimeAssociation {
+        PrefixRuntimeAssociation {
+            runtime: PinnedRuntimeReference::Managed(ManagedRuntimeReference {
+                installation_id: "wine-fixture".into(),
+                family: "wine".into(),
+                lineage: "upstream-wine".into(),
+                provider: "fixture".into(),
+                project: "fixture".into(),
+                build: "wine-10.0".into(),
+                artifact_sha256: "a".repeat(64),
+                manifest_sha256: "b".repeat(64),
+                generation: 1,
+                ownership_record_sha256: "c".repeat(64),
+                trust: Provenance::IndependentlyAuthenticatedPublisher,
+            }),
+            selection_source: super::RuntimeSelectionSource::MachinePin,
+            pin_id: "wine-pin".into(),
+            pin_revision: 9,
+            adapter_preference: Some(AdapterPreference::ManagedWine),
+        }
+    }
+
+    fn wine_fixture(
+        synthetic_completion: bool,
+    ) -> (TempDir, PrefixStore, PrefixScope, PrefixRuntimeAssociation) {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = endfield_unix_storage::AppPaths::from_base_dirs(
+            temporary.path().join("config"),
+            temporary.path().join("data"),
+            temporary.path().join("cache"),
+        )
+        .unwrap();
+        let data_dir = paths.data_dir().to_path_buf();
+        let store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(data_dir),
+            in_use: Some(false),
+            synthetic_wine_completion: synthetic_completion,
+        }));
+        let machine = MachineId::from_digest("a".repeat(64)).unwrap();
+        (
+            temporary,
+            store,
+            PrefixScope::machine(machine),
+            managed_wine_runtime(),
+        )
     }
 
     #[test]
@@ -1232,6 +2432,495 @@ mod tests {
     }
 
     #[test]
+    fn initialization_plan_is_deterministic_read_only_and_never_authorizes_execution() {
+        let (_temporary, original_store, scope, runtime) = fixture();
+        let data_dir = original_store
+            .fs
+            .root_path()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
+            inner: LinuxPrefixFilesystem::new(&data_dir),
+            in_use: Some(false),
+            synthetic_wine_completion: false,
+        }));
+        let id = PrefixId::new("init-plan").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let registry_before = store.fs.load_registry_bytes().unwrap();
+        let prefix_before = store.fs.inspect_directory(&id).unwrap();
+
+        let plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+        let repeated = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+
+        assert_eq!(plan, repeated);
+        assert_eq!(plan.state, PrefixInitializationPlanState::Unsupported);
+        assert_eq!(
+            plan.blockers,
+            vec![PrefixInitializationBlocker::InitializerUnverified]
+        );
+        assert!(!plan.execution_supported);
+        assert!(plan.approval_required);
+        assert!(matches!(
+            plan.approve(&plan.plan_id),
+            Err(PrefixError::InitializationUnsupported)
+        ));
+        assert!(matches!(
+            plan.approve("sha256:wrong"),
+            Err(PrefixError::ApprovalMismatch)
+        ));
+        let mut altered = plan.clone();
+        altered
+            .blockers
+            .push(PrefixInitializationBlocker::PrefixContainsData);
+        assert!(matches!(
+            altered.approve(&plan.plan_id),
+            Err(PrefixError::PlanIntegrityMismatch)
+        ));
+        let mut changed_scope = plan.clone();
+        changed_scope.scope = PrefixScope::machine(MachineId::from_digest("b".repeat(64)).unwrap());
+        assert!(matches!(
+            changed_scope.approve(&plan.plan_id),
+            Err(PrefixError::PlanIntegrityMismatch)
+        ));
+        assert_eq!(store.fs.load_registry_bytes().unwrap(), registry_before);
+        assert_eq!(store.fs.inspect_directory(&id).unwrap(), prefix_before);
+        assert!(store.fs.directory_is_empty(&id).unwrap());
+        assert_eq!(
+            store.show(&id, |_| Ok(())).unwrap().observed_lifecycle,
+            PrefixLifecycleState::Created
+        );
+    }
+
+    #[test]
+    fn managed_wine_plan_names_the_execution_gates_that_still_block_it() {
+        let (_temporary, store, scope, runtime) = wine_fixture(false);
+        let id = PrefixId::new("wine-plan").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+
+        assert_eq!(plan.state, PrefixInitializationPlanState::Unsupported);
+        assert!(!plan.execution_supported);
+        assert!(
+            plan.blockers
+                .contains(&PrefixInitializationBlocker::ExecutableIdentityNotBound)
+        );
+        assert!(
+            plan.blockers
+                .contains(&PrefixInitializationBlocker::InitializerChildOwnershipUnavailable)
+        );
+        assert!(matches!(
+            plan.approve(&plan.plan_id),
+            Err(PrefixError::InitializationUnsupported)
+        ));
+        assert!(store.fs.directory_is_empty(&id).unwrap());
+    }
+
+    #[test]
+    fn durable_initialization_intent_requires_exact_approval_and_verification() {
+        let (_temporary, store, scope, runtime) = wine_fixture(true);
+        let id = PrefixId::new("wine-intent").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+        let approval = plan.synthetic_approval_for_test(&plan.plan_id).unwrap();
+        let (intent, started_revision) = store
+            .begin_synthetic_initialization_intent(&plan, &approval, Some(false), |_| Ok(()))
+            .unwrap();
+        assert_eq!(intent.phase, PrefixInitializationPhase::Starting);
+        assert_eq!(intent.scope, record.scope);
+        assert_eq!(started_revision, revision + 1);
+        assert!(store.fs.directory_is_empty(&id).unwrap());
+        assert!(matches!(
+            store.begin_synthetic_initialization_intent(&plan, &approval, Some(false), |_| Ok(())),
+            Err(PrefixError::RevisionConflict)
+        ));
+
+        let starting_bytes = store.fs.load_registry_bytes().unwrap();
+        assert!(
+            store
+                .record_initialization_process_outcome(
+                    &id,
+                    &plan.plan_id,
+                    started_revision,
+                    PrefixInitializationProcessOutcome::ExitedZero,
+                )
+                .is_err()
+        );
+        assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
+        assert!(
+            store
+                .record_initialization_process_outcome(
+                    &id,
+                    &plan.plan_id,
+                    started_revision,
+                    PrefixInitializationProcessOutcome::ExitedNonzero(9),
+                )
+                .is_err()
+        );
+        assert_eq!(store.fs.load_registry_bytes().unwrap(), starting_bytes);
+
+        let failed_revision = store
+            .record_initialization_process_outcome(
+                &id,
+                &plan.plan_id,
+                started_revision,
+                PrefixInitializationProcessOutcome::SpawnFailed,
+            )
+            .unwrap();
+        let failed_record = store.load_snapshot().unwrap();
+        let failed_record = failed_record.registry.record(&id).unwrap();
+        assert_eq!(
+            failed_record.lifecycle,
+            PrefixLifecycleState::RecoveryRequired
+        );
+        assert_eq!(
+            failed_record.initialization_intent.as_ref().unwrap().phase,
+            PrefixInitializationPhase::Failed
+        );
+        assert!(matches!(
+            store.mark_initialization_running(&id, &plan.plan_id, failed_revision),
+            Err(PrefixError::InitializationIntentMismatch)
+        ));
+
+        let (_temporary, store, scope, runtime) = wine_fixture(true);
+        let id = PrefixId::new("wine-intent-interrupted").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+        let approval = plan.synthetic_approval_for_test(&plan.plan_id).unwrap();
+        let (_, started_revision) = store
+            .begin_synthetic_initialization_intent(&plan, &approval, Some(false), |_| Ok(()))
+            .unwrap();
+        let interrupted_revision = store
+            .record_initialization_process_outcome(
+                &id,
+                &plan.plan_id,
+                started_revision,
+                PrefixInitializationProcessOutcome::Interrupted,
+            )
+            .unwrap();
+        let interrupted = store.load_snapshot().unwrap();
+        let interrupted = interrupted.registry.record(&id).unwrap();
+        assert_eq!(
+            interrupted.lifecycle,
+            PrefixLifecycleState::RecoveryRequired
+        );
+        assert_eq!(
+            interrupted.initialization_intent.as_ref().unwrap().phase,
+            PrefixInitializationPhase::Interrupted
+        );
+        assert!(
+            store
+                .mark_initialization_running(&id, &plan.plan_id, interrupted_revision)
+                .is_err()
+        );
+
+        // A new fixture below exercises successful process creation and exit.
+        let (_temporary, store, scope, runtime) = wine_fixture(true);
+        let id = PrefixId::new("wine-intent-running").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+        let approval = plan.synthetic_approval_for_test(&plan.plan_id).unwrap();
+        let (_, started_revision) = store
+            .begin_synthetic_initialization_intent(&plan, &approval, Some(false), |_| Ok(()))
+            .unwrap();
+
+        let running_revision = store
+            .mark_initialization_running(&id, &plan.plan_id, started_revision)
+            .unwrap();
+        let running_bytes = store.fs.load_registry_bytes().unwrap();
+        assert!(matches!(
+            store.record_initialization_process_outcome(
+                &id,
+                &plan.plan_id,
+                running_revision,
+                PrefixInitializationProcessOutcome::ExitedNonzero(0),
+            ),
+            Err(PrefixError::InvalidState)
+        ));
+        assert_eq!(store.fs.load_registry_bytes().unwrap(), running_bytes);
+        let verification_revision = store
+            .record_initialization_process_outcome(
+                &id,
+                &plan.plan_id,
+                running_revision,
+                PrefixInitializationProcessOutcome::ExitedZero,
+            )
+            .unwrap();
+        let pending = store.load_snapshot().unwrap();
+        let pending_record = pending.registry.record(&id).unwrap();
+        assert_eq!(pending_record.lifecycle, PrefixLifecycleState::Incomplete);
+        assert_eq!(
+            pending_record.initialization_intent.as_ref().unwrap().phase,
+            PrefixInitializationPhase::VerificationPending
+        );
+
+        let (completed, completed_revision) = store
+            .complete_verified_wine10_initialization(
+                &id,
+                &plan.plan_id,
+                verification_revision,
+                |_| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(completed.lifecycle, PrefixLifecycleState::Initialized);
+        assert!(completed.initialization_intent.is_none());
+        assert_eq!(completed_revision, verification_revision + 1);
+        assert_eq!(
+            completed.initialization_evidence.unwrap().outcome,
+            InitializationEvidenceOutcome::CompletedAndVerified
+        );
+    }
+
+    #[test]
+    fn interrupted_initialization_is_never_retried_or_recovered_implicitly() {
+        let (_temporary, store, scope, runtime) = wine_fixture(false);
+        let id = PrefixId::new("wine-interrupted").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+        let approval = plan.synthetic_approval_for_test(&plan.plan_id).unwrap();
+        let (_, started_revision) = store
+            .begin_synthetic_initialization_intent(&plan, &approval, Some(false), |_| Ok(()))
+            .unwrap();
+        assert_eq!(
+            store.show(&id, |_| Ok(())).unwrap().observed_lifecycle,
+            PrefixLifecycleState::RecoveryRequired
+        );
+        let interrupted_revision = store
+            .mark_initialization_interrupted(&id, &plan.plan_id, started_revision)
+            .unwrap();
+        let record = store.load_snapshot().unwrap().registry.records[0].clone();
+        assert_eq!(record.lifecycle, PrefixLifecycleState::RecoveryRequired);
+        assert_eq!(
+            record.initialization_intent.as_ref().unwrap().phase,
+            PrefixInitializationPhase::Interrupted
+        );
+        assert!(matches!(
+            store.recover(&id, interrupted_revision),
+            Err(PrefixError::RecoveryBlocked)
+        ));
+        assert!(matches!(
+            store.begin_synthetic_initialization_intent(&plan, &approval, Some(false), |_| Ok(())),
+            Err(PrefixError::RevisionConflict)
+        ));
+        assert!(store.fs.inspect_directory(&id).unwrap().is_some());
+        assert!(store.fs.directory_is_empty(&id).unwrap());
+    }
+
+    #[test]
+    fn wine10_completion_verifier_requires_nofollow_prefix_artifacts() {
+        use std::os::unix::fs::symlink;
+
+        let (_temporary, store, scope, runtime) = wine_fixture(false);
+        let id = PrefixId::new("wine-structure").unwrap();
+        let (_, _) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let prefix = store.target_path(&id);
+        fs::create_dir(prefix.join("drive_c")).unwrap();
+        fs::create_dir(prefix.join("dosdevices")).unwrap();
+        symlink("../drive_c", prefix.join("dosdevices/c:")).unwrap();
+        fs::write(
+            prefix.join("system.reg"),
+            b"WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\WineConfig] 1234\n",
+        )
+        .unwrap();
+        fs::write(
+            prefix.join("user.reg"),
+            b"WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\Drivers] 1234\n",
+        )
+        .unwrap();
+        let identity = store.fs.inspect_directory(&id).unwrap().unwrap();
+        let verified = store.fs.verify_wine10_prefix(&id, identity).unwrap();
+        assert_eq!(verified.directory_identity, identity);
+        assert_ne!(
+            verified.system_registry_sha256,
+            verified.user_registry_sha256
+        );
+
+        fs::remove_file(prefix.join("dosdevices/c:")).unwrap();
+        symlink("/tmp", prefix.join("dosdevices/c:")).unwrap();
+        assert!(matches!(
+            store.fs.verify_wine10_prefix(&id, identity),
+            Err(PrefixError::Blocked)
+        ));
+    }
+
+    #[test]
+    fn registry_v1_migrates_only_after_validating_its_original_checksum() {
+        let (_temporary, store, scope, runtime) = fixture();
+        let id = PrefixId::new("v1-registry").unwrap();
+        let (_, _) = store.create(id, scope, runtime, 0).unwrap();
+        let mut legacy = store.load_snapshot().unwrap().registry;
+        legacy.schema_version = 1;
+        legacy.refresh_checksum();
+        let bytes = serde_json::to_vec(&legacy).unwrap();
+        let migrated = PrefixRegistry::decode(&bytes).unwrap();
+        assert_eq!(migrated.schema_version, REGISTRY_SCHEMA_VERSION);
+        assert_eq!(migrated.revision, legacy.revision);
+        assert_eq!(migrated.records.len(), 1);
+        assert!(migrated.records[0].initialization_intent.is_none());
+
+        let mut tampered = legacy;
+        tampered.checksum_sha256 = "0".repeat(64);
+        assert!(matches!(
+            PrefixRegistry::decode(&serde_json::to_vec(&tampered).unwrap()),
+            Err(PrefixError::RegistryCorrupt)
+        ));
+    }
+
+    #[test]
+    fn initialization_plan_blocks_existing_data_and_unknown_recovery_state() {
+        let (_temporary, store, scope, runtime) = fixture();
+        let id = PrefixId::new("init-data").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let data = store.target_path(&id).join("user-data");
+        fs::write(&data, b"must remain unchanged").unwrap();
+        let before = fs::read(&data).unwrap();
+
+        let data_plan = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| Ok(()))
+            .unwrap();
+        assert_eq!(data_plan.state, PrefixInitializationPlanState::Blocked);
+        assert!(
+            data_plan
+                .blockers
+                .contains(&PrefixInitializationBlocker::PrefixContainsData)
+        );
+
+        let unknown_recovery = store
+            .plan_initialization(&id, revision, &record.runtime, None, |_| Ok(()))
+            .unwrap();
+        assert_eq!(
+            unknown_recovery.state,
+            PrefixInitializationPlanState::Blocked
+        );
+        assert!(
+            unknown_recovery
+                .blockers
+                .contains(&PrefixInitializationBlocker::RecoveryUnknown)
+        );
+        let pending_recovery = store
+            .plan_initialization(&id, revision, &record.runtime, Some(true), |_| Ok(()))
+            .unwrap();
+        assert!(
+            pending_recovery
+                .blockers
+                .contains(&PrefixInitializationBlocker::RecoveryPending)
+        );
+        assert_eq!(fs::read(&data).unwrap(), before);
+    }
+
+    #[test]
+    fn initialization_plan_binds_the_exact_runtime_and_revalidation_result() {
+        let (_temporary, store, scope, runtime) = fixture();
+        let id = PrefixId::new("init-runtime").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime.clone(), 0).unwrap();
+
+        let mut changed_association = runtime.clone();
+        changed_association.pin_id = "replacement-pin".into();
+        let mismatch = store
+            .plan_initialization(&id, revision, &changed_association, Some(false), |_| Ok(()))
+            .unwrap();
+        assert!(
+            mismatch
+                .blockers
+                .contains(&PrefixInitializationBlocker::RuntimeAssociationMismatch)
+        );
+
+        let stale = store
+            .plan_initialization(&id, revision, &record.runtime, Some(false), |_| {
+                Err("runtime audit failed".into())
+            })
+            .unwrap();
+        assert!(
+            stale
+                .blockers
+                .contains(&PrefixInitializationBlocker::RuntimeStale)
+        );
+    }
+
+    #[test]
+    fn concurrent_initialization_requests_only_produce_the_same_read_only_plan() {
+        let (_temporary, store, scope, runtime) = fixture();
+        let id = PrefixId::new("init-concurrent").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let registry_before = store.fs.load_registry_bytes().unwrap();
+        let prefix_before = store.fs.inspect_directory(&id).unwrap();
+        let barrier = Arc::new(Barrier::new(2));
+        let mut workers = Vec::new();
+        for _ in 0..2 {
+            let worker_store = PrefixStore::with_filesystem(Arc::clone(&store.fs));
+            let worker_id = id.clone();
+            let worker_runtime = record.runtime.clone();
+            let worker_barrier = Arc::clone(&barrier);
+            workers.push(thread::spawn(move || {
+                worker_barrier.wait();
+                worker_store
+                    .plan_initialization(&worker_id, revision, &worker_runtime, Some(false), |_| {
+                        Ok(())
+                    })
+                    .unwrap()
+            }));
+        }
+        let plans = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(plans[0], plans[1]);
+        assert!(!plans[0].execution_supported);
+        assert_eq!(store.fs.load_registry_bytes().unwrap(), registry_before);
+        assert_eq!(store.fs.inspect_directory(&id).unwrap(), prefix_before);
+        assert!(store.fs.directory_is_empty(&id).unwrap());
+    }
+
+    #[test]
+    fn stored_completed_initialization_claim_is_not_reported_as_verified() {
+        let (_temporary, store, scope, runtime) = fixture();
+        let id = PrefixId::new("forged-init-evidence").unwrap();
+        let (record, revision) = store.create(id.clone(), scope, runtime, 0).unwrap();
+        let snapshot = store.load_snapshot().unwrap();
+        let mut registry = snapshot.registry;
+        let stored = registry
+            .records
+            .iter_mut()
+            .find(|record| record.id == id)
+            .unwrap();
+        stored.lifecycle = PrefixLifecycleState::Initialized;
+        stored.initialization_evidence = Some(PrefixInitializationEvidence {
+            adapter_id: "claimed-adapter".into(),
+            runtime_reference_sha256: runtime_reference_sha256(&record.runtime.runtime).unwrap(),
+            verification_evidence_sha256: "f".repeat(64),
+            outcome: InitializationEvidenceOutcome::CompletedAndVerified,
+            observed_at_unix_seconds: record.update_time_unix_seconds,
+        });
+        let encoded = registry.encode().unwrap();
+        store
+            .fs
+            .save_registry_bytes(snapshot.bytes.as_deref(), &encoded)
+            .unwrap();
+
+        let report = store.validate(&id, |_| Ok(())).unwrap();
+        assert_eq!(report.registry_revision, revision);
+        assert_eq!(report.observed_lifecycle, PrefixLifecycleState::Initialized);
+        assert_eq!(
+            report.initialization_evidence,
+            PrefixInitializationEvidenceStatus::CompletedClaimUnverified
+        );
+    }
+
+    #[test]
     fn unregister_preserves_bytes_and_prevents_silent_adoption() {
         let (_temporary, store, scope, runtime) = fixture();
         let id = PrefixId::new("unregistered").unwrap();
@@ -1316,6 +3005,7 @@ mod tests {
             update_time_unix_seconds: now,
             generation: 1,
             initialization_evidence: None,
+            initialization_intent: None,
         };
         let mut registry = snapshot.registry;
         registry.revision = 1;
@@ -1340,6 +3030,7 @@ mod tests {
         let store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
             inner: LinuxPrefixFilesystem::new(&data_dir),
             in_use: Some(false),
+            synthetic_wine_completion: false,
         }));
         let id = PrefixId::new("delete-me").unwrap();
         store.create(id.clone(), scope, runtime, 0).unwrap();
@@ -1372,6 +3063,7 @@ mod tests {
         let store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
             inner: LinuxPrefixFilesystem::new(&data_dir),
             in_use: Some(true),
+            synthetic_wine_completion: false,
         }));
         let id = PrefixId::new("active").unwrap();
         store.create(id.clone(), scope, runtime, 0).unwrap();
@@ -1384,6 +3076,7 @@ mod tests {
         let unknown_store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
             inner: LinuxPrefixFilesystem::new(&data_dir),
             in_use: None,
+            synthetic_wine_completion: false,
         }));
         assert!(matches!(
             unknown_store.delete_data(&id, 2, &target),
@@ -1392,6 +3085,7 @@ mod tests {
         let inactive_store = PrefixStore::with_filesystem(Arc::new(FixedUsageFilesystem {
             inner: LinuxPrefixFilesystem::new(&data_dir),
             in_use: Some(false),
+            synthetic_wine_completion: false,
         }));
         assert_eq!(inactive_store.delete_data(&id, 2, &target).unwrap(), 4);
     }
@@ -1446,12 +3140,12 @@ mod tests {
             .join("data/endfield-unix/prefixes/registry.json");
         let mut value: serde_json::Value =
             serde_json::from_slice(&fs::read(&registry).unwrap()).unwrap();
-        value["schema_version"] = serde_json::Value::from(2);
+        value["schema_version"] = serde_json::Value::from(3);
         let unsupported = serde_json::to_vec(&value).unwrap();
         fs::write(&registry, &unsupported).unwrap();
         assert!(matches!(
             store.list(|_| Ok(())),
-            Err(PrefixError::UnsupportedSchemaVersion(2))
+            Err(PrefixError::UnsupportedSchemaVersion(3))
         ));
         assert_eq!(fs::read(registry).unwrap(), unsupported);
     }

@@ -1,8 +1,9 @@
 use crate::{
     FilesystemIdentity, MAX_REGISTRY_BYTES, PrefixError, PrefixFilesystem, PrefixGuard, PrefixId,
-    read_bounded,
+    Wine10PrefixCompletionEvidence, read_bounded,
 };
 use fs2::FileExt;
+use sha2::{Digest, Sha256};
 use std::{
     ffi::{CString, OsStr},
     fs::{self, File},
@@ -430,6 +431,46 @@ impl PrefixFilesystem for LinuxPrefixFilesystem {
         Ok(child_dir(&restores, OsStr::new(id.as_str()), false)?.is_some())
     }
 
+    fn verify_wine10_prefix(
+        &self,
+        id: &PrefixId,
+        expected: FilesystemIdentity,
+    ) -> Result<Wine10PrefixCompletionEvidence, PrefixError> {
+        const MAX_REGISTRY_FILE_BYTES: usize = 16 * 1024 * 1024;
+        let layout = self.layout(false)?.ok_or(PrefixError::Missing)?;
+        let prefix = self.open_prefix(&layout, id)?.ok_or(PrefixError::Missing)?;
+        let prefix_metadata = prefix.metadata()?;
+        let directory_identity = FilesystemIdentity {
+            device: prefix_metadata.dev(),
+            inode: prefix_metadata.ino(),
+        };
+        if directory_identity != expected || mount_id(&prefix)? != layout.root_mount {
+            return Err(PrefixError::Blocked);
+        }
+
+        verify_prefix_child_directory(&prefix, "drive_c", layout.root_mount)?;
+        let dosdevices = verify_prefix_child_directory(&prefix, "dosdevices", layout.root_mount)?;
+        if read_symlink_at(&dosdevices, "c:")?.as_slice() != b"../drive_c" {
+            return Err(PrefixError::Blocked);
+        }
+
+        let system_registry =
+            read_registry_artifact(&prefix, "system.reg", MAX_REGISTRY_FILE_BYTES)?;
+        let user_registry = read_registry_artifact(&prefix, "user.reg", MAX_REGISTRY_FILE_BYTES)?;
+        let mut evidence_hash = Sha256::new();
+        evidence_hash.update(b"endfield-unix:p028:wine-10.0-prefix-completion:v1\0");
+        evidence_hash.update(directory_identity.device.to_le_bytes());
+        evidence_hash.update(directory_identity.inode.to_le_bytes());
+        evidence_hash.update(system_registry.as_bytes());
+        evidence_hash.update(user_registry.as_bytes());
+        Ok(Wine10PrefixCompletionEvidence {
+            directory_identity,
+            system_registry_sha256: system_registry,
+            user_registry_sha256: user_registry,
+            evidence_sha256: format!("{:x}", evidence_hash.finalize()),
+        })
+    }
+
     fn free_bytes(&self) -> Option<u64> {
         self.reject_external_alias().ok()?;
         if let Some(layout) = self.layout(false).ok().flatten() {
@@ -459,6 +500,77 @@ fn free_bytes_for(directory: &File) -> Option<u64> {
     }
     let stats = unsafe { stats.assume_init() };
     Some(stats.f_bavail.saturating_mul(stats.f_frsize))
+}
+
+fn verify_prefix_child_directory(
+    prefix: &File,
+    name: &str,
+    expected_mount: u64,
+) -> Result<File, PrefixError> {
+    let directory = open_at(prefix, name, libc::O_RDONLY | libc::O_DIRECTORY, 0)?;
+    let metadata = directory.metadata()?;
+    if !metadata.is_dir()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.mode() & 0o6000 != 0
+        || mount_id(&directory)? != expected_mount
+    {
+        return Err(PrefixError::Blocked);
+    }
+    Ok(directory)
+}
+
+fn read_symlink_at(parent: &File, name: &str) -> Result<Vec<u8>, PrefixError> {
+    let name = cstring(name)?;
+    let mut bytes = [0_u8; 4096];
+    let count = unsafe {
+        libc::readlinkat(
+            parent.as_raw_fd(),
+            name.as_ptr(),
+            bytes.as_mut_ptr().cast(),
+            bytes.len(),
+        )
+    };
+    if count < 0 {
+        return Err(PrefixError::Io(std::io::Error::last_os_error()));
+    }
+    let count = usize::try_from(count).map_err(|_| PrefixError::Blocked)?;
+    if count == bytes.len() {
+        return Err(PrefixError::Blocked);
+    }
+    Ok(bytes[..count].to_vec())
+}
+
+fn read_registry_artifact(
+    prefix: &File,
+    name: &str,
+    maximum: usize,
+) -> Result<String, PrefixError> {
+    let mut file = open_at(prefix, name, libc::O_RDONLY, 0)?;
+    let before = file.metadata()?;
+    if !before.is_file()
+        || before.uid() != unsafe { libc::geteuid() }
+        || before.nlink() != 1
+        || before.len() == 0
+        || before.len() > maximum as u64
+    {
+        return Err(PrefixError::Blocked);
+    }
+    let bytes = read_bounded(&mut file, maximum)?;
+    let after = file.metadata()?;
+    if before.dev() != after.dev()
+        || before.ino() != after.ino()
+        || before.len() != after.len()
+        || before.mtime() != after.mtime()
+        || before.mtime_nsec() != after.mtime_nsec()
+        || before.ctime() != after.ctime()
+        || before.ctime_nsec() != after.ctime_nsec()
+        || u64::try_from(bytes.len()).map_err(|_| PrefixError::Blocked)? != after.len()
+        || !(bytes.starts_with(b"WINE REGISTRY Version 2\n")
+            || bytes.starts_with(b"WINE REGISTRY Version 2\r\n"))
+    {
+        return Err(PrefixError::Blocked);
+    }
+    Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
 impl LinuxPrefixFilesystem {

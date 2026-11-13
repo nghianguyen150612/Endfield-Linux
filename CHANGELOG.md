@@ -1,19 +1,38 @@
 # Changelog
 
-P033 work in progress adds explicit read-only Steam metadata observation and more precise selected-storage failure states.
+P033 merged with outstanding acceptance debt; it adds explicit read-only Steam metadata observation and more precise selected-storage failure states.
 
-P033 work in progress adds a preliminary static dependency report; it is incomplete and not qualified. See [status](docs/DEPENDENCY-DIAGNOSTICS.md).
+P033 merged with outstanding acceptance debt; the preliminary static dependency report remains incomplete and unqualified. See [status](docs/DEPENDENCY-DIAGNOSTICS.md).
 
 ## Unreleased
 
 ### Added
 
+- P034 adds schema-v2 runtime/prefix/game identity binding, managed Wine
+  native-argv preparation, P028 durable initialization intent, and a Wine
+  10.0 no-follow prefix completion verifier. An internal initialization
+  coordinator connects P028 transitions to the descriptor-bound Linux ELF
+  executor. Native synthetic tests cover Running-before-observation ordering,
+  direct-child ownership, interruption/revision conflicts, and structural
+  completion evidence; the evidence is labeled synthetic. The Linux ELF executor now
+  validates and holds root, executable, and working-directory descriptors,
+  rechecks held root/cwd identity and matched ELF content immediately before
+  spawn,
+  checks an opened `bin/wine` against its P026 baseline during preflight,
+  rejects scripts, and retains an owned direct child with bounded output and
+  cancellation. Production initialization remains blocked because there is no
+  production authorization producer and the authenticated runtime invocation
+  and dynamic dependency/helper closure are not qualified. Managed Wine game execution
+  remains disabled; external Wine, UMU execution, direct Proton, P033
+  dependency readiness, anti-cheat compatibility, and real gameplay remain
+  unsupported or unknown.
+
 - P028 isolated prefix management: explicit machine/profile-scoped managed
   directories, P027 runtime association, read-only preflight and inspection,
   recovery, registry-only removal, and confirmed managed-data deletion.
-- `prefix init` returns `initialization_unsupported` until a Wine/Proton/UMU
-  initialization adapter can be validated. No runtime or game process is
-  started, and Endfield compatibility remains unverified.
+- `prefix init` remains `initialization_unsupported`. The separate
+  `prefix init-plan` reports the exact managed Wine plan; no runtime or game
+  process is started, and Endfield compatibility remains unverified.
 - P031 adds explicit headless registration, inspection, bounded revalidation,
   and metadata-only unregistering for one user-selected existing game directory.
   Game identity remains user-declared and unverified; no game files are read,
@@ -44,3 +63,5 @@ P029B adds bounded, journaled deletion replay for verified empty and nonempty sn
 ## P030 — hosted-qualified compatibility diagnostics
 
 Adds a portable typed assessment core and headless `diagnose compatibility` command. The report combines exact P027 selection and P022/P025/P026 revalidation, P013 PCI/DRM/Vulkan observations, P028 lifecycle and runtime association, and P029 metadata-only recovery state. It never executes a runtime or game, changes a pin, initializes a prefix, or claims Endfield compatibility. PR #3 merged at `6f383c6390462cd4da64a97d372fee739b20fd2c`; final-head hosted qualification passed in [CI run 41207736864](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41207736864). See [the P030 manifest](docs/manifests/PROMPT030_MANIFEST.md).
+
+P034 continuation: move P025/P026/P027 descriptor validation into the prefix library and recheck it in the production coordinator; join capture workers despite inherited descendant pipes; classify post-spawn capture setup failure as recovery-required interruption. Add adversarial tests. Production Wine/game execution remains disabled.

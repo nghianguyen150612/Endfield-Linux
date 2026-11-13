@@ -20,7 +20,7 @@ jobs:
       - name: Install GTK build and smoke-test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes libgtk-4-dev libadwaita-1-dev pkg-config dbus-daemon xvfb python3-jsonschema
+          sudo apt-get install --yes libgtk-4-dev libadwaita-1-dev librsvg2-common pkg-config dbus-daemon xvfb python3-jsonschema
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
@@ -75,6 +75,37 @@ jobs:
 
       - name: Build application binaries for the Linux IPC subprocess tests
         run: cargo build --locked -p endfield-unix -p endfield-unixd
+
+      - name: Validate P034 blocked launch plan JSON and schema
+        run: |
+          root="$(mktemp -d)"
+          set +e
+          HOME="$root" XDG_CONFIG_HOME="$root/config" XDG_DATA_HOME="$root/data" XDG_CACHE_HOME="$root/cache" \
+            ./target/debug/endfield-unix game launch plan --id endfield-main --prefix-id prefix-main --profile desktop --adapter managed-wine --executable-relative SelectedExecutable.exe --json \
+            > /tmp/p034-launch-plan.json
+          status=$?
+          set -e
+          test "$status" -eq 78
+          python3 - <<'PY'
+          import json
+          from jsonschema import Draft202012Validator
+          from pathlib import Path
+
+          schema = json.loads(Path("docs/schema/game-launch-plan-v2.schema.json").read_text())
+          report = json.loads(Path("/tmp/p034-launch-plan.json").read_text())
+          Draft202012Validator.check_schema(schema)
+          Draft202012Validator(schema).validate(report)
+          assert report["state"] == "blocked"
+          assert report["process_execution_supported"] is False
+          assert report["expected_process_behavior"] == "no_process_created"
+          assert report["policy"]["process_creation_allowed"] is False
+          assert report["runtime_invocation"]["process_creation_supported"] is False
+          assert report["prefix_initialization"]["recovery"] == "clear"
+          assert "game_not_registered" in report["blockers"]
+          assert "execution_policy_unknown" in report["blockers"]
+          print("P034 blocked launch plan matches the versioned JSON schema.")
+          PY
+          test ! -e "$root/config" && test ! -e "$root/data" && test ! -e "$root/cache"
 
       - name: Run P024 offline cryptographic CLI smoke
         run: scripts/runtime-integrity-smoke.sh
@@ -198,8 +229,8 @@ jobs:
       - name: Run P022 Linux runtime discovery contracts
         run: cargo test --locked -p endfield-unix-runtime-linux --all-targets
 
-      - name: Run workspace, CLI, FFI, storage, domain, and diagnostics contract tests
-        run: cargo test --locked --workspace
+      - name: Run serialized workspace, CLI, FFI, storage, domain, and diagnostics tests
+        run: umask 077; cargo test --locked --workspace -- --test-threads=1
 
       - name: Run session lifecycle, registry, child-process, and shutdown contracts
         run: cargo test --locked -p endfield-unix-sessions --all-targets -- --test-threads=1
@@ -283,7 +314,7 @@ jobs:
           runtime_linux = next(package for package in metadata["packages"] if package["name"] == "endfield-unix-runtime-linux")
           assert any("lib" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
           assert not any("bin" in target["kind"] for target in runtime_linux["targets"]), runtime_linux["targets"]
-          assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc", "sha2"}, runtime_linux["dependencies"]
+          assert {dependency["name"] for dependency in runtime_linux["dependencies"]} == {"endfield-unix-runtime", "libc", "sha2", "tempfile"}, runtime_linux["dependencies"]
           assert not any(dependency["name"] in gui_dependencies | {"endfield-unixd", "ash", "nix", "vulkan", "vulkano", "wayland-client", "wayland-protocols", "x11rb"} for dependency in runtime_linux["dependencies"]), runtime_linux["dependencies"]
           verification = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-runtime-verification")
           assert all("bin" not in t["kind"] for t in verification["targets"])
@@ -302,10 +333,15 @@ jobs:
           assert all("bin" not in t["kind"] for t in selection["targets"])
           assert {d["name"] for d in selection["dependencies"]} == {"endfield-unix-runtime", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, selection["dependencies"]
           assert not ({d["name"] for d in selection["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
+          game_launch = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-game-launch")
+          assert any("lib" in t["kind"] for t in game_launch["targets"]), game_launch["targets"]
+          assert all("bin" not in t["kind"] for t in game_launch["targets"]), game_launch["targets"]
+          assert {d["name"] for d in game_launch["dependencies"]} == {"libc", "serde", "serde_json", "sha2", "tempfile", "thiserror"}, game_launch["dependencies"]
+          assert not ({d["name"] for d in game_launch["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           prefixes = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-prefix-management")
           assert any("lib" in t["kind"] for t in prefixes["targets"]), prefixes["targets"]
           assert all("bin" not in t["kind"] for t in prefixes["targets"]), prefixes["targets"]
-          assert {d["name"] for d in prefixes["dependencies"]} == {"endfield-unix-runtime-selection", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, prefixes["dependencies"]
+          assert {d["name"] for d in prefixes["dependencies"]} == {"endfield-unix-game-launch", "endfield-unix-runtime-audit", "endfield-unix-runtime-install", "endfield-unix-runtime-selection", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, prefixes["dependencies"]
           assert not ({d["name"] for d in prefixes["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           sources = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-game-sources")
           assert all("bin" not in t["kind"] for t in sources["targets"])
