@@ -65,6 +65,8 @@ pub enum InitializationEvidenceSource {
 /// added before production can construct this value.
 pub struct InitializationExecutionAuthorization {
     binding: ExecutionBinding,
+    #[cfg(not(test))]
+    paths: endfield_unix_storage::AppPaths,
     executable: BoundExecutable,
     working_directory: TrustedRoot,
     wine_prefix: PathBuf,
@@ -144,6 +146,7 @@ pub enum InitializationCoordinatorError {
 pub enum ExecutorFailure {
     CancelledBeforeSpawn,
     SpawnOrExecFailed,
+    ChildCreatedObservationUnavailable,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -437,7 +440,10 @@ impl InitializationCoordinator {
             Ok(child) => child,
             Err(error) => {
                 let failure = execution_failure(&error);
-                let outcome = if matches!(error, ExecutionError::Cancelled) {
+                let outcome = if matches!(
+                    error,
+                    ExecutionError::Cancelled | ExecutionError::Capture(_)
+                ) {
                     PrefixInitializationProcessOutcome::Interrupted
                 } else {
                     PrefixInitializationProcessOutcome::SpawnFailed
@@ -794,6 +800,22 @@ fn validate_execution_authorization(
                     == authorization.binding.runtime_ownership_record_sha256
                 && runtime.artifact_sha256 == authorization.binding.runtime_artifact_sha256
     );
+    #[cfg(not(test))]
+    {
+        let verified = crate::verify_managed_wine_executable(
+            &authorization.paths,
+            &plan.runtime_pin_id,
+            plan.runtime_pin_revision,
+            runtime_reference,
+            authorization.binding.executable_identity,
+        )
+        .map_err(|_| InitializationCoordinatorError::AuthorizationMismatch)?;
+        if verified.sha256() != authorization.binding.executable_sha256
+            || verified.executable.root_identity() != authorization.binding.runtime_root
+        {
+            return Err(InitializationCoordinatorError::AuthorizationMismatch);
+        }
+    }
     let executable_identity = authorization.executable.identity();
     let root_identity = authorization.executable.root_identity();
     let expected = authorization.binding.executable_identity;
@@ -854,6 +876,8 @@ fn valid_sha256(value: &str) -> bool {
 fn execution_failure(error: &ExecutionError) -> ExecutorFailure {
     if matches!(error, ExecutionError::Cancelled) {
         ExecutorFailure::CancelledBeforeSpawn
+    } else if matches!(error, ExecutionError::Capture(_)) {
+        ExecutorFailure::ChildCreatedObservationUnavailable
     } else {
         ExecutorFailure::SpawnOrExecFailed
     }
@@ -1305,6 +1329,49 @@ mod tests {
         assert_eq!(
             record.initialization_intent.unwrap().phase,
             PrefixInitializationPhase::VerificationPending
+        );
+    }
+
+    #[test]
+    fn capture_failure_after_native_spawn_records_interrupted_not_spawn_failed() {
+        struct LostCapture;
+        impl InitializationProcessExecutor for LostCapture {
+            fn spawn(
+                &self,
+                authorization: &InitializationExecutionAuthorization,
+                cancellation: &CancellationToken,
+            ) -> Result<OwnedChild, ExecutionError> {
+                // Model the executor's post-spawn capture setup failure: it
+                // cleans up its direct child, but cannot promise no side effects.
+                let child = DescriptorBoundExecutor.spawn(authorization, cancellation)?;
+                drop(child);
+                Err(ExecutionError::Capture(std::io::Error::other(
+                    "injected capture failure",
+                )))
+            }
+        }
+        let fixture = Fixture::new("coordinator-capture-failure");
+        let coordinator = InitializationCoordinator::new(fixture.store.clone());
+        let cancellation = CancellationToken::default();
+        let result = coordinator.start_synthetic_with_adapter(
+            &fixture.plan,
+            &fixture.approval,
+            fixture.authorization("complete"),
+            InitializationStartHooks::new(|| Some(false), |_| Ok(()), &cancellation),
+            &LostCapture,
+        );
+        assert!(matches!(
+            result,
+            Err(InitializationCoordinatorError::SpawnFailed {
+                failure: ExecutorFailure::ChildCreatedObservationUnavailable,
+                durable_state: SpawnFailureState::Interrupted { .. },
+            })
+        ));
+        let record = fixture.store.show(&fixture.id, |_| Ok(())).unwrap().record;
+        assert_eq!(record.lifecycle, PrefixLifecycleState::RecoveryRequired);
+        assert_eq!(
+            record.initialization_intent.unwrap().phase,
+            PrefixInitializationPhase::Interrupted
         );
     }
 

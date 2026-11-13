@@ -341,7 +341,7 @@ jobs:
           prefixes = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-prefix-management")
           assert any("lib" in t["kind"] for t in prefixes["targets"]), prefixes["targets"]
           assert all("bin" not in t["kind"] for t in prefixes["targets"]), prefixes["targets"]
-          assert {d["name"] for d in prefixes["dependencies"]} == {"endfield-unix-game-launch", "endfield-unix-runtime-selection", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, prefixes["dependencies"]
+          assert {d["name"] for d in prefixes["dependencies"]} == {"endfield-unix-game-launch", "endfield-unix-runtime-audit", "endfield-unix-runtime-install", "endfield-unix-runtime-selection", "endfield-unix-storage", "fs2", "libc", "serde", "serde_json", "sha2", "thiserror", "tempfile"}, prefixes["dependencies"]
           assert not ({d["name"] for d in prefixes["dependencies"]} & (gui_dependencies | {"endfield-unixd", "ash", "vulkan", "systemd", "x11rb"}))
           sources = next(p for p in metadata["packages"] if p["name"] == "endfield-unix-game-sources")
           assert all("bin" not in t["kind"] for t in sources["targets"])

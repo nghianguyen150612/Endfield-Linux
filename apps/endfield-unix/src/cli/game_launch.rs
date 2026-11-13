@@ -533,154 +533,24 @@ struct RuntimeInvocationContext<'a> {
 fn verify_managed_wine_executable(
     paths: &endfield_unix_storage::AppPaths,
     runtime: &RuntimeObservation,
-    identity: &endfield_unix_runtime_install::PinIdentity,
+    _identity: &endfield_unix_runtime_install::PinIdentity,
     expected: endfield_unix_runtime_linux::wine_plan::FileIdentity,
 ) -> Result<(String, bool), &'static str> {
-    use endfield_unix_runtime_audit::{Completeness, EntryKind, FindingKind, TrustClassification};
-    use std::os::unix::fs::MetadataExt;
-
-    let registry = pins::PinStore::for_app(paths)
-        .load_read_only()
-        .map_err(|_| "P027 runtime pin registry could not be revalidated")?;
-    if registry.revision != runtime.pin_revision {
-        return Err("P027 runtime pin revision changed during executable validation");
-    }
-    let pin = registry
-        .pins
-        .iter()
-        .find(|pin| pin.pin_id == runtime.pin_id)
-        .ok_or("exact P027 runtime pin disappeared")?;
-    if pin.adapter_preference != Some(pins::AdapterPreference::ManagedWine)
-        || pin.runtime != runtime.reference
-    {
-        return Err("P027 runtime pin identity or adapter changed");
-    }
-    super::runtime_pin::validate_reference(&pin.runtime)
-        .map_err(|_| "P025/P026 runtime revalidation failed")?;
-
-    let pins::PinnedRuntimeReference::Managed(reference) = &runtime.reference else {
-        return Err("selected runtime is not a managed Wine installation");
-    };
-    if identity.installation_id != reference.installation_id
-        || identity.family != "wine"
-        || identity.lineage != "upstream-wine"
-        || identity.build != "wine-10.0"
-        || identity.generation != reference.generation
-        || identity.ownership_record_sha256 != reference.ownership_record_sha256
-        || identity.artifact_sha256 != reference.artifact_sha256
-        || identity.manifest_sha256 != reference.manifest_sha256
-        || identity.trust != endfield_unix_runtime_install::TrustClassification::IndependentlyAuthenticatedPublisher
-        || identity.audit.completeness != Completeness::Complete
-        || identity
-            .audit
-            .findings
-            .iter()
-            .any(|finding| finding.kind != FindingKind::Match)
-    {
-        return Err("P025 ownership or P026 full runtime integrity evidence changed");
-    }
-
-    let runtime_root = paths
-        .data_dir()
-        .join("runtimes")
-        .join("wine")
-        .join(&reference.installation_id);
-    let root_metadata = std::fs::symlink_metadata(&runtime_root)
-        .map_err(|_| "managed Wine runtime root is unavailable")?;
-    // SAFETY: geteuid has no preconditions.
-    let expected_uid = unsafe { libc::geteuid() };
-    if !root_metadata.is_dir()
-        || root_metadata.file_type().is_symlink()
-        || root_metadata.uid() != expected_uid
-    {
-        return Err("managed Wine runtime root owner or directory type is invalid");
-    }
-    let root = launch::linux_executor::TrustedRoot::open(
-        &runtime_root,
-        launch::linux_executor::DirectoryIdentity {
-            device: root_metadata.dev(),
-            inode: root_metadata.ino(),
-            owner_uid: root_metadata.uid(),
-        },
-        expected_uid,
-    )
-    .map_err(|_| "managed Wine runtime root failed no-follow identity validation")?;
-    let baseline = endfield_unix_runtime_audit::load_baseline(&runtime_root)
-        .map_err(|_| "P026 runtime baseline could not be reloaded")?;
-    let expected_trust = match identity.trust {
-        endfield_unix_runtime_install::TrustClassification::IndependentlyAuthenticatedPublisher => {
-            TrustClassification::IndependentlyAuthenticatedPublisher
-        }
-        endfield_unix_runtime_install::TrustClassification::UserPinnedLimitedTrust => {
-            TrustClassification::UserPinnedLimitedTrust
-        }
-    };
-    if baseline.installation_id != identity.installation_id
-        || baseline.generation != identity.generation
-        || baseline.family != identity.family
-        || baseline.build != identity.build
-        || baseline.artifact_sha256 != identity.artifact_sha256
-        || baseline.manifest_sha256 != identity.manifest_sha256
-        || baseline.trust != expected_trust
-    {
-        return Err("P026 baseline does not bind the selected Wine generation");
-    }
-    let entry = baseline
-        .entries
-        .iter()
-        .find(|entry| entry.path == "bin/wine")
-        .ok_or("P026 baseline has no exact bin/wine entry")?;
-    let (size, digest) = match &entry.kind {
-        EntryKind::File {
-            size,
-            sha256,
-            executable: true,
-            setid: false,
-        } => (*size, sha256.as_str()),
-        _ => return Err("P026 bin/wine entry is not an approved executable regular file"),
-    };
-    let executable = launch::linux_executor::BoundExecutable::open_matching(
-        &root,
-        Path::new("bin/wine"),
-        expected_uid,
+    let verified = endfield_unix_prefix_management::verify_managed_wine_executable(
+        paths,
+        &runtime.pin_id,
+        runtime.pin_revision,
+        &runtime.reference,
         launch::linux_executor::ExpectedExecutableIdentity {
             device: expected.device,
             inode: expected.inode,
             size: expected.size,
         },
-        digest,
-    )
-    .map_err(|_| "opened bin/wine ELF identity or bytes differ from P026 baseline")?;
-    if size != executable.identity().size {
-        return Err("opened bin/wine size differs from the P026 baseline");
-    }
-
-    let fresh = endfield_unix_runtime_install::pin_identity(paths, &reference.installation_id)
-        .map_err(|_| "P025/P026 final runtime revalidation failed")?;
-    if fresh.ownership_record_sha256 != identity.ownership_record_sha256
-        || fresh.generation != identity.generation
-        || fresh.audit.completeness != Completeness::Complete
-        || fresh
-            .audit
-            .findings
-            .iter()
-            .any(|finding| finding.kind != FindingKind::Match)
-    {
-        return Err("P025/P026 runtime identity changed during executable validation");
-    }
-    let final_registry = pins::PinStore::for_app(paths)
-        .load_read_only()
-        .map_err(|_| "P027 final pin revalidation failed")?;
-    if final_registry.revision != runtime.pin_revision
-        || !final_registry.pins.iter().any(|candidate| {
-            candidate.pin_id == runtime.pin_id
-                && candidate.runtime == runtime.reference
-                && candidate.adapter_preference == Some(pins::AdapterPreference::ManagedWine)
-        })
-    {
-        return Err("P027 runtime pin changed during executable validation");
-    }
-    Ok((digest.to_owned(), executable.dynamic_linker().is_some()))
+    )?;
+    Ok((
+        verified.sha256().to_owned(),
+        verified.dynamic_linker_present(),
+    ))
 }
 
 fn assess_runtime_invocation(context: RuntimeInvocationContext<'_>) -> RuntimeInvocationAssessment {

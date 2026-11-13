@@ -21,6 +21,10 @@ use std::{
 use thiserror::Error;
 
 mod initialization_coordinator;
+#[cfg(target_os = "linux")]
+mod managed_wine;
+#[cfg(target_os = "linux")]
+pub use managed_wine::{VerifiedManagedWineExecutable, verify_managed_wine_executable};
 mod linux_fs;
 pub use initialization_coordinator::{
     InitializationAttempt, InitializationAttemptError, InitializationAttemptPhase,

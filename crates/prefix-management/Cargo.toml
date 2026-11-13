@@ -13,6 +13,8 @@ name = "endfield_unix_prefix_management"
 path = "src/lib.rs"
 
 [dependencies]
+endfield-unix-runtime-install = { path = "../runtime-install" }
+endfield-unix-runtime-audit = { path = "../runtime-audit" }
 endfield-unix-game-launch = { path = "../game-launch" }
 endfield-unix-runtime-selection = { path = "../runtime-selection" }
 endfield-unix-storage = { path = "../storage" }

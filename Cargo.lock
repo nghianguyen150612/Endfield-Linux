@@ -446,6 +446,8 @@ name = "endfield-unix-prefix-management"
 version = "0.1.0"
 dependencies = [
  "endfield-unix-game-launch",
+ "endfield-unix-runtime-audit",
+ "endfield-unix-runtime-install",
  "endfield-unix-runtime-selection",
  "endfield-unix-storage",
  "fs2",

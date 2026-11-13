@@ -128,6 +128,23 @@ pub struct OwnedChild {
     status: Option<ExitStatus>,
     stdout: Arc<Mutex<OutputCapture>>,
     stderr: Arc<Mutex<OutputCapture>>,
+    _capture_workers: CaptureWorkers,
+}
+
+/// Capture workers must be joined even when a descendant retains a pipe.
+#[derive(Default)]
+struct CaptureWorkers {
+    stop: Arc<AtomicBool>,
+    threads: Vec<thread::JoinHandle<()>>,
+}
+
+impl Drop for CaptureWorkers {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        for worker in self.threads.drain(..) {
+            let _ = worker.join();
+        }
+    }
 }
 
 impl OwnedChild {
@@ -766,6 +783,7 @@ impl BoundExecutable {
             return Err(ExecutionError::Cancelled);
         }
         let mut child = command.spawn().map_err(ExecutionError::Spawn)?;
+        let mut capture_workers = CaptureWorkers::default();
         let stdout_capture = Arc::new(Mutex::new(OutputCapture::default()));
         let stderr_capture = Arc::new(Mutex::new(OutputCapture::default()));
         let Some(stdout) = child.stdout.take() else {
@@ -775,10 +793,18 @@ impl BoundExecutable {
                 "stdout pipe missing",
             )));
         };
-        if let Err(error) = start_output_capture(stdout, stdout_capture.clone(), "p034-stdout") {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(ExecutionError::Capture(error));
+        match start_output_capture(
+            stdout,
+            stdout_capture.clone(),
+            capture_workers.stop.clone(),
+            "p034-stdout",
+        ) {
+            Ok(worker) => capture_workers.threads.push(worker),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(ExecutionError::Capture(error));
+            }
         }
         let Some(stderr) = child.stderr.take() else {
             let _ = child.kill();
@@ -787,10 +813,18 @@ impl BoundExecutable {
                 "stderr pipe missing",
             )));
         };
-        if let Err(error) = start_output_capture(stderr, stderr_capture.clone(), "p034-stderr") {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(ExecutionError::Capture(error));
+        match start_output_capture(
+            stderr,
+            stderr_capture.clone(),
+            capture_workers.stop.clone(),
+            "p034-stderr",
+        ) {
+            Ok(worker) => capture_workers.threads.push(worker),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(ExecutionError::Capture(error));
+            }
         }
         Ok(OwnedChild {
             child: Some(child),
@@ -801,20 +835,47 @@ impl BoundExecutable {
             status: None,
             stdout: stdout_capture,
             stderr: stderr_capture,
+            _capture_workers: capture_workers,
         })
     }
 }
 
 fn start_output_capture(
-    mut reader: impl Read + Send + 'static,
+    mut reader: impl Read + AsRawFd + Send + 'static,
     capture: Arc<Mutex<OutputCapture>>,
+    stop: Arc<AtomicBool>,
     thread_name: &'static str,
-) -> io::Result<()> {
+) -> io::Result<thread::JoinHandle<()>> {
+    // Nonblocking reads prevent poll/read races from pinning a capture worker.
+    let fd = reader.as_raw_fd();
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
     thread::Builder::new()
         .name(thread_name.into())
         .spawn(move || {
             let mut buffer = [0u8; 8192];
             let reached_eof = loop {
+                if stop.load(Ordering::Acquire) {
+                    break false;
+                }
+                let mut event = libc::pollfd {
+                    fd,
+                    events: libc::POLLIN,
+                    revents: 0,
+                };
+                // SAFETY: event is a valid single pollfd; timeout bounds shutdown.
+                let ready = unsafe { libc::poll(&mut event, 1, 25) };
+                if ready == 0 {
+                    continue;
+                }
+                if ready < 0 {
+                    if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+                        continue;
+                    }
+                    break false;
+                }
                 match reader.read(&mut buffer) {
                     Ok(0) => break true,
                     Ok(read) => {
@@ -827,7 +888,14 @@ fn start_output_capture(
                         capture.bytes.extend_from_slice(&buffer[..copied]);
                         capture.truncated |= copied < read;
                     }
-                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            io::ErrorKind::Interrupted | io::ErrorKind::WouldBlock
+                        ) =>
+                    {
+                        continue;
+                    }
                     Err(_) => break false,
                 }
             };
@@ -835,8 +903,7 @@ fn start_output_capture(
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .complete = reached_eof;
-        })?;
-    Ok(())
+        })
 }
 
 fn valid_environment_name(entry: &[u8]) -> bool {
@@ -1010,6 +1077,28 @@ mod tests {
             unsafe { libc::getuid() },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn capture_shutdown_joins_even_when_a_writer_keeps_the_pipe_open() {
+        use std::os::unix::net::UnixStream;
+        let (reader, _held_writer) = UnixStream::pair().unwrap();
+        let capture = Arc::new(Mutex::new(OutputCapture::default()));
+        let mut workers = CaptureWorkers::default();
+        workers.threads.push(
+            start_output_capture(
+                reader,
+                capture.clone(),
+                workers.stop.clone(),
+                "p034-held-pipe",
+            )
+            .unwrap(),
+        );
+        let started = Instant::now();
+        drop(workers);
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert!(!capture_snapshot(&capture).complete);
+        assert_eq!(Arc::strong_count(&capture), 1);
     }
 
     #[test]
