@@ -80,3 +80,5 @@ P029B also journals deletion before retiring a snapshot. Resume applies only to 
 ## P030 read-only prefix assessment
 
 `diagnose compatibility --prefix-id ID` inspects exactly one registered prefix with the existing P028 `show` operation. It reports lifecycle, ownership/filesystem state, saved and current P027 association, and initialization evidence. `Created` remains uninitialized, and `initialization_unsupported` is unchanged. Unregistered external prefix directories are not searched or adopted. P030 also reads P029 restore/rollback transaction metadata through a bounded observer that does not traverse or hash prefix payloads. It does not replay or repair recovery state. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).
+
+The production coordinator now independently reloads P025/P026/P027 evidence through the shared managed Wine validator at both authorization checks. A post-spawn capture failure records `Interrupted`, never a claim that no process was created. Both outcomes require explicit recovery; prefix data is preserved.

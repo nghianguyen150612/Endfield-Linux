@@ -353,3 +353,5 @@ Epic/GRYPHLINK inspection and all acquisition protocols remain unsupported.
 P031 remains schema v1 without new mutation. Source reports preserve unknown
 build/readiness and `not_tested` compatibility. See
 [official sources](OFFICIAL-GAME-SOURCES.md) for evidence and privacy limits.
+
+P034 provenance checking is now a library boundary used by preview and the production coordinator, rather than only CLI code plus a caller callback. A persisted authenticated-publisher claim without P025/P026 evidence is rejected. Capture workers are stopped and joined on owner cleanup; inherited descendant pipes cannot retain these workers indefinitely. Post-spawn capture failure is an interruption requiring recovery.

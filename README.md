@@ -209,3 +209,5 @@ are unsupported. Source association previews are read-only and preserve P031
 schema v1. Listing provenance never authenticates installed game files or proves
 Linux compatibility. See [official sources](docs/OFFICIAL-GAME-SOURCES.md) and
 [qualification](docs/manifests/PROMPT032_MANIFEST.md).
+
+P034 now shares independent managed Wine provenance validation between preview and the durable initializer coordinator, and bounds output-capture worker cleanup. Execution remains synthetic-test-only pending authentic Wine loader/helper and initialization qualification. See [GAME-LAUNCH.md](docs/GAME-LAUNCH.md).

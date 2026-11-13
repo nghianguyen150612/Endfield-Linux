@@ -129,3 +129,5 @@ Rollback is not automatic. The saved original and displaced restored payload are
 ## P030 metadata-only recovery observation
 
 P030 calls `BackupStore::compatibility_recovery_observation` for an explicitly selected registered prefix. It reads bounded restore intent/staged/completion and rollback markers, pending snapshot-deletion and P027 pin-recovery markers, and directory identities. Deletion markers are checked from bounded intent metadata; the observer does not call backup verification, inventory scanning, payload hashing, or prefix-content readers. Pending or inconsistent markers block positive readiness findings. The command does not mutate or replay P029 journals. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md).
+
+P034 capture setup failure after child creation is an uncertain execution outcome. It persists `Interrupted` (or exposes unresolved Starting on publication failure), requires recovery, and does not delete prefix artifacts or automatically retry initialization.

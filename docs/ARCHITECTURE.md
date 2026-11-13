@@ -459,3 +459,5 @@ discovery. Source observations are ephemeral, with no P031 migration or associat
 writer. P021–P030 provenance, integrity and compatibility contracts stay independent.
 No third executable, daemon protocol or C17 ABI change is introduced. See
 [official sources](OFFICIAL-GAME-SOURCES.md).
+
+The P034 prefix library now owns shared P025/P026/P027 executable verification and retains private descriptor evidence. CLI previews call that same validator. Production coordinator validation repeats the independent registry/artifact checks before the process boundary; a caller callback cannot replace them. Capture worker lifetime belongs to the direct-child owner. P019 handoff and P035 daemon integration remain unimplemented.

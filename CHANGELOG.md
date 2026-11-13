@@ -63,3 +63,5 @@ P029B adds bounded, journaled deletion replay for verified empty and nonempty sn
 ## P030 — hosted-qualified compatibility diagnostics
 
 Adds a portable typed assessment core and headless `diagnose compatibility` command. The report combines exact P027 selection and P022/P025/P026 revalidation, P013 PCI/DRM/Vulkan observations, P028 lifecycle and runtime association, and P029 metadata-only recovery state. It never executes a runtime or game, changes a pin, initializes a prefix, or claims Endfield compatibility. PR #3 merged at `6f383c6390462cd4da64a97d372fee739b20fd2c`; final-head hosted qualification passed in [CI run 41207736864](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41207736864). See [the P030 manifest](docs/manifests/PROMPT030_MANIFEST.md).
+
+P034 continuation: move P025/P026/P027 descriptor validation into the prefix library and recheck it in the production coordinator; join capture workers despite inherited descendant pipes; classify post-spawn capture setup failure as recovery-required interruption. Add adversarial tests. Production Wine/game execution remains disabled.
