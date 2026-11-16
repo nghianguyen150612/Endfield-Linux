@@ -13,7 +13,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::Read,
     os::unix::fs::{MetadataExt, OpenOptionsExt},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 const MAX_OBJECTS: usize = 128;
@@ -304,14 +304,70 @@ fn managed_bytes(
 /// canonical ancestor are root-owned and not group/world writable. Canonical
 /// symlink aliases are accepted only within this system trust domain. No cache
 /// interpretation; any report remains blocked by unmodelled loader resolution.
-fn system_bytes(path: &Path, budget: &mut usize) -> Result<(PathBuf, Vec<u8>), DependencyState> {
-    let canonical = fs::canonicalize(path).map_err(|e| {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            DependencyState::Missing
-        } else {
-            DependencyState::Unverifiable
+// Inspect every component in the actual symlink resolution chain. Checking
+// only the final canonical target would accept a user-writable alias to ld.so.
+fn trusted_system_path(path: &Path) -> Result<PathBuf, DependencyState> {
+    if !path.is_absolute() {
+        return Err(DependencyState::Untrusted);
+    }
+    let mut pending: VecDeque<PathBuf> = path
+        .components()
+        .map(|c| PathBuf::from(c.as_os_str()))
+        .collect();
+    let mut resolved = PathBuf::from("/");
+    let mut links = 0;
+    while let Some(part) = pending.pop_front() {
+        match part.components().next() {
+            Some(Component::RootDir) => {
+                resolved = PathBuf::from("/");
+                continue;
+            }
+            Some(Component::CurDir) => continue,
+            Some(Component::ParentDir) => {
+                resolved.pop();
+                continue;
+            }
+            Some(Component::Normal(_)) => {}
+            _ => return Err(DependencyState::Untrusted),
         }
-    })?;
+        let candidate = resolved.join(&part);
+        let metadata = fs::symlink_metadata(&candidate).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                DependencyState::Missing
+            } else {
+                DependencyState::Unverifiable
+            }
+        })?;
+        if metadata.uid() != 0 {
+            return Err(DependencyState::Untrusted);
+        }
+        if metadata.file_type().is_symlink() {
+            links += 1;
+            if links > 40 {
+                return Err(DependencyState::Unverifiable);
+            }
+            let target = fs::read_link(&candidate).map_err(|_| DependencyState::Unverifiable)?;
+            if target.as_os_str().len() > 4096 {
+                return Err(DependencyState::Unverifiable);
+            }
+            for component in target.components().rev() {
+                pending.push_front(PathBuf::from(component.as_os_str()));
+            }
+            if pending.len() > 256 {
+                return Err(DependencyState::Unverifiable);
+            }
+        } else {
+            if metadata.mode() & 0o6022 != 0 || (!pending.is_empty() && !metadata.is_dir()) {
+                return Err(DependencyState::Untrusted);
+            }
+            resolved = candidate;
+        }
+    }
+    Ok(resolved)
+}
+
+fn system_bytes(path: &Path, budget: &mut usize) -> Result<(PathBuf, Vec<u8>), DependencyState> {
+    let canonical = trusted_system_path(path)?;
     if !canonical.starts_with("/usr/lib") && !canonical.starts_with("/usr/lib64") {
         return Err(DependencyState::Untrusted);
     }
@@ -825,6 +881,20 @@ mod tests {
             Err(DependencyState::Untrusted)
         );
     }
+    #[test]
+    fn writable_alias_to_a_trusted_system_library_is_rejected() {
+        let system = Path::new("/usr/lib/x86_64-linux-gnu/libc.so.6");
+        if system.exists() {
+            let temp = tempfile::tempdir().unwrap();
+            let alias = temp.path().join("loader");
+            std::os::unix::fs::symlink(system, &alias).unwrap();
+            assert_eq!(
+                system_bytes(&alias, &mut 1024),
+                Err(DependencyState::Untrusted)
+            );
+        }
+    }
+
     #[test]
     fn host_library_classification_is_conditional_on_root_owned_system_policy() {
         let path = Path::new("/usr/lib/x86_64-linux-gnu/libc.so.6");
