@@ -105,11 +105,14 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
         slice(bytes, offset, size)?;
         match tag {
             1 => {
+                if size > number(bytes, base + 40, 8)? {
+                    return Err(ElfError::Invalid);
+                }
                 address.checked_add(size).ok_or(ElfError::Limit)?;
                 loads.push((address, size, offset));
             }
             2 => {
-                if dynamic.replace((offset, size)).is_some() {
+                if dynamic.replace((offset, size, address)).is_some() {
                     return Err(ElfError::Invalid);
                 }
             }
@@ -137,9 +140,24 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
         runpath: None,
         dynamic_loading_not_established: true,
     };
-    let Some((offset, size)) = dynamic else {
+    let Some((offset, size, address)) = dynamic else {
         return Ok(result);
     };
+    // The runtime loader consumes PT_DYNAMIC at its virtual address. Require
+    // that address to map uniquely to the same file bytes we inspect.
+    let dynamic_mappings = loads
+        .iter()
+        .filter(|(start, len, file_offset)| {
+            address >= *start
+                && address
+                    .checked_add(size)
+                    .is_some_and(|end| end <= start + len)
+                && file_offset.checked_add(address - start) == Some(offset)
+        })
+        .count();
+    if dynamic_mappings != 1 {
+        return Err(ElfError::Invalid);
+    }
     if size % 16 != 0 || size / 16 > MAX_DYNAMIC as u64 {
         return Err(ElfError::Limit);
     }
@@ -286,8 +304,10 @@ mod tests {
             (72, 0, 8),
             (80, 0x1000, 8),
             (96, 1024, 8),
+            (104, 1024, 8),
             (120, 2, 4),
             (128, 256, 8),
+            (136, 0x1100, 8),
             (152, 80, 8),
             (256, 5, 8),
             (264, 0x1200, 8),
@@ -323,6 +343,15 @@ mod tests {
             b[at] = value;
             assert_eq!(inspect(&b), Err(ElfError::UnsupportedArchitecture));
         }
+    }
+    #[test]
+    fn rejects_dynamic_address_that_does_not_map_to_inspected_bytes() {
+        let mut b = fixture();
+        put(&mut b, 136, 0x1300, 8);
+        assert_eq!(inspect(&b), Err(ElfError::Invalid));
+        let mut b = fixture();
+        put(&mut b, 104, 10, 8);
+        assert_eq!(inspect(&b), Err(ElfError::Invalid));
     }
     #[test]
     fn rejects_missing_string_table_and_invalid_needed() {
