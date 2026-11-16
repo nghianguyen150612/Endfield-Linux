@@ -107,6 +107,25 @@ jobs:
           PY
           test ! -e "$root/config" && test ! -e "$root/data" && test ! -e "$root/cache"
 
+      - name: Validate read-only Managed Wine qualification JSON
+        run: |
+          root="$(mktemp -d)"
+          HOME="$root" XDG_CONFIG_HOME="$root/config" XDG_DATA_HOME="$root/data" XDG_CACHE_HOME="$root/cache" \
+            ./target/debug/endfield-unix diagnose wine-runtime --profile desktop --json > /tmp/p034-wine-qualification.json
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+          schema = json.loads(Path("docs/schema/wine-runtime-qualification-v1.schema.json").read_text())
+          report = json.loads(Path("/tmp/p034-wine-qualification.json").read_text())
+          Draft202012Validator.check_schema(schema)
+          Draft202012Validator(schema).validate(report)
+          assert report["production_initialization"] == "blocked"
+          assert report["authentic_qualification"] == "not_run"
+          PYTHON
+          test ! -e "$root/config" && test ! -e "$root/data" && test ! -e "$root/cache"
+          cargo test --locked -p endfield-unix --test wine_runtime_cli
+
       - name: Run P024 offline cryptographic CLI smoke
         run: scripts/runtime-integrity-smoke.sh
 

@@ -408,6 +408,47 @@ impl TrustedRoot {
         })
     }
 
+    /// Read-only descriptor-relative access for dependency inventory inspection.
+    /// No symlink or subordinate mount is accepted; bytes still need P026 evidence.
+    pub fn open_regular(&self, relative: &Path) -> Result<File, ExecutionError> {
+        self.validate_identity()?;
+        let parts: Vec<_> = relative.components().collect();
+        if parts.is_empty()
+            || parts
+                .iter()
+                .any(|p| !matches!(p, std::path::Component::Normal(_)))
+        {
+            return Err(ExecutionError::InvalidPath);
+        }
+        let mut current = self.directory.try_clone().map_err(ExecutionError::Open)?;
+        for (index, part) in parts.iter().enumerate() {
+            let final_part = index + 1 == parts.len();
+            let name = CString::new(part.as_os_str().as_bytes())
+                .map_err(|_| ExecutionError::InvalidPath)?;
+            let flags = libc::O_RDONLY
+                | libc::O_NOFOLLOW
+                | libc::O_CLOEXEC
+                | libc::O_NONBLOCK
+                | if final_part { 0 } else { libc::O_DIRECTORY };
+            // SAFETY: current is owned, name is one normal NUL-terminated component.
+            let fd = unsafe { libc::openat(current.as_raw_fd(), name.as_ptr(), flags) };
+            if fd < 0 {
+                return Err(ExecutionError::Open(io::Error::last_os_error()));
+            }
+            // SAFETY: openat returned a newly owned descriptor.
+            current = unsafe { File::from_raw_fd(fd) };
+            let metadata = current.metadata().map_err(ExecutionError::Open)?;
+            if metadata.uid() != self.identity.owner_uid
+                || metadata.mode() & 0o6022 != 0
+                || descriptor_mount_id(fd)? != self.mount_id
+                || (final_part && !metadata.is_file())
+            {
+                return Err(ExecutionError::InvalidExecutable);
+            }
+        }
+        Ok(current)
+    }
+
     pub fn identity(&self) -> DirectoryIdentity {
         self.identity
     }

@@ -275,6 +275,28 @@ impl InitializationCoordinator {
         validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String> + Send + 'static,
         cancellation: &CancellationToken,
     ) -> Result<InitializationStart, InitializationCoordinatorError> {
+        #[cfg(not(test))]
+        let validate_runtime = {
+            let paths = authorization.paths.clone();
+            let pin_id = authorization.binding.runtime_pin_id.clone();
+            let revision = authorization.binding.runtime_pin_revision;
+            let mut caller_validation = validate_runtime;
+            move |association: &PrefixRuntimeAssociation| {
+                caller_validation(association)?;
+                let report = crate::wine_qualification::qualify_managed_wine(
+                    &paths,
+                    &pin_id,
+                    revision,
+                    &association.runtime,
+                );
+                if report.production_initialization
+                    != crate::wine_qualification::QualificationState::Verified
+                {
+                    return Err("runtime initialization qualification blocked".into());
+                }
+                Ok(())
+            }
+        };
         self.start_with_adapter(
             plan,
             approval.plan_id(),
@@ -810,6 +832,17 @@ fn validate_execution_authorization(
             authorization.binding.executable_identity,
         )
         .map_err(|_| InitializationCoordinatorError::AuthorizationMismatch)?;
+        let qualification = crate::wine_qualification::qualify_managed_wine(
+            &authorization.paths,
+            &plan.runtime_pin_id,
+            plan.runtime_pin_revision,
+            runtime_reference,
+        );
+        if qualification.production_initialization
+            != crate::wine_qualification::QualificationState::Verified
+        {
+            return Err(InitializationCoordinatorError::AuthorizationMismatch);
+        }
         if verified.sha256() != authorization.binding.executable_sha256
             || verified.executable.root_identity() != authorization.binding.runtime_root
         {

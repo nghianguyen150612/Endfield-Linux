@@ -80,10 +80,30 @@ pub(crate) fn view(navigate: impl Fn(Page) + Clone + 'static) -> gtk::Widget {
     let play = gtk::Button::with_label("Play unavailable");
     play.set_sensitive(false);
     play.set_tooltip_text(Some(
-        "Production launch is unsupported: the managed Wine launcher inode is not bound through process creation, and Wine helper-process ownership is not integrated.",
+        "Production launch is unsupported. Wine dependency, helper, authentic initialization and game-launch authorization requirements remain blocked.",
     ));
     play.add_css_class("suggested-action");
     actions.append(&play);
+
+    let qualify = gtk::Button::with_label("Inspect Wine qualification");
+    let qualification_profile = profile.clone();
+    let qualification_status = preflight_status.clone();
+    qualify.connect_clicked(move |_| {
+        let profile = qualification_profile.text().to_string();
+        let profile = (!profile.is_empty()).then_some(profile);
+        let label = qualification_status.clone();
+        label.set_text("Inspecting Wine dependencies and qualification…");
+        gtk::glib::MainContext::default().spawn_local(async move {
+            let result =
+                gtk::gio::spawn_blocking(move || crate::cli::wine_runtime::collect(profile)).await;
+            label.set_text(&match result {
+                Ok(Ok(report)) => crate::cli::wine_runtime::summary(&report),
+                _ => "Wine qualification inspection unavailable; initialization remains blocked."
+                    .into(),
+            });
+        });
+    });
+    actions.append(&qualify);
 
     let check = gtk::Button::with_label("Prepare launch plan");
     let status = preflight_status.clone();

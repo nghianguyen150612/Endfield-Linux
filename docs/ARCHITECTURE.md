@@ -461,3 +461,5 @@ No third executable, daemon protocol or C17 ABI change is introduced. See
 [official sources](OFFICIAL-GAME-SOURCES.md).
 
 The P034 prefix library now owns shared P025/P026/P027 executable verification and retains private descriptor evidence. CLI previews call that same validator. Production coordinator validation repeats the independent registry/artifact checks before the process boundary; a caller callback cannot replace them. Capture worker lifetime belongs to the direct-child owner. P019 handoff and P035 daemon integration remain unimplemented.
+
+game-launch::elf_dependencies is a bounded memory-safe parser. prefix-management::wine_qualification performs read-only provenance, dependency/helper observation and production gate evaluation. CLI diagnose wine-runtime and the GTK background action consume the same report. The existing coordinator retains all durable transitions and independently rechecks production qualification. The ignored authentic harness calls that same coordinator after policy and exact approval, without introducing a supervisor. See [Wine qualification](WINE-QUALIFICATION.md).

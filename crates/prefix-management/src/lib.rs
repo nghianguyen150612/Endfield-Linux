@@ -23,6 +23,7 @@ use thiserror::Error;
 mod initialization_coordinator;
 #[cfg(target_os = "linux")]
 mod managed_wine;
+pub mod wine_qualification;
 #[cfg(target_os = "linux")]
 pub use managed_wine::{VerifiedManagedWineExecutable, verify_managed_wine_executable};
 mod linux_fs;

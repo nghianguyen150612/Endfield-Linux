@@ -16,3 +16,5 @@ pub mod game_sources;
 pub mod prefix;
 pub mod runtime_install;
 pub mod runtime_pin;
+
+pub mod wine_runtime;

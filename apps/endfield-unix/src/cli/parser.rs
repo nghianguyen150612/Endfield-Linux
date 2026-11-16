@@ -104,6 +104,13 @@ enum RuntimeArgs {
 
 #[derive(Debug, Subcommand)]
 enum DiagnoseArgs {
+    /// Inspect selected Managed Wine without executing it or creating storage.
+    WineRuntime {
+        #[arg(long)]
+        profile: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Write a privacy-safe JSON support report to an explicit path.
     Report {
         /// Destination file for the generated report.
@@ -384,6 +391,9 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Hardware,
         }) => Command::DiagnoseHardware,
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::WineRuntime { profile, json },
+        }) => Command::DiagnoseWineRuntime { profile, json },
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Gpu,
         }) => Command::DiagnoseGpu,

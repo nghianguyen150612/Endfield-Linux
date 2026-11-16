@@ -32,6 +32,10 @@ pub enum Command {
         output: std::path::PathBuf,
         overwrite: bool,
     },
+    DiagnoseWineRuntime {
+        profile: Option<String>,
+        json: bool,
+    },
     DiagnosePlatform,
     DiagnoseHardware,
     DiagnoseGpu,

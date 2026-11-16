@@ -355,3 +355,5 @@ build/readiness and `not_tested` compatibility. See
 [official sources](OFFICIAL-GAME-SOURCES.md) for evidence and privacy limits.
 
 P034 provenance checking is now a library boundary used by preview and the production coordinator, rather than only CLI code plus a caller callback. A persisted authenticated-publisher claim without P025/P026 evidence is rejected. Capture workers are stopped and joined on owner cleanup; inherited descendant pipes cannot retain these workers indefinitely. Post-spawn capture failure is an interruption requiring recovery.
+
+P034 statically parses bounded ELF program/dynamic headers without ldd or execution. Managed dependencies require no-follow P026 byte evidence; system candidates use the explicit root-owned distribution policy. Loader cache, inherited RPATH, dynamic modules and helper lifetime remain blockers. Same-UID adversarial mutation is outside the integrity guarantee; hashes are not immutability or publisher authentication. Reports are not capabilities. See [Wine qualification](WINE-QUALIFICATION.md).

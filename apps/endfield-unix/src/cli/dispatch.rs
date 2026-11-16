@@ -576,6 +576,9 @@ where
             stdout,
         )
         .map_err(CliError::Compatibility),
+        Command::DiagnoseWineRuntime { profile, json } => {
+            super::wine_runtime::run(profile, json, stdout).map_err(CliError::Compatibility)
+        }
         Command::DiagnoseCompatibility {
             profile,
             prefix_id,

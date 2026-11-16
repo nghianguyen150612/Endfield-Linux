@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+pub mod elf_dependencies;
 #[cfg(target_os = "linux")]
 pub mod linux_executor;
 
