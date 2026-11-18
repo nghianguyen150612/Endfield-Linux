@@ -1,4 +1,8 @@
 //! Conservative Wine qualification. Reports are observations, never capabilities.
+use crate::authentic_qualification::RecordedQualificationStatus;
+use crate::wine_artifact_profile::VerifiedProfile;
+pub use crate::wine_artifact_profile::{ArtifactProfileBlocker, ComponentUse};
+pub use crate::wine_host_abi::{HostAbiEvidence, HostAbiState};
 use endfield_unix_game_launch::{
     elf_dependencies as elf,
     linux_executor::{DirectoryIdentity, ExpectedExecutableIdentity, TrustedRoot},
@@ -57,6 +61,7 @@ pub enum QualificationState {
 pub struct WineHelperEvidence {
     pub role: String,
     pub candidate_count: usize,
+    pub usage: Option<ComponentUse>,
     pub integrity: QualificationState,
 }
 #[derive(Clone, Debug, Serialize)]
@@ -92,6 +97,11 @@ pub struct WineRuntimeQualification {
     pub completion_verifier: QualificationState,
     pub descendant_completion: QualificationState,
     pub authentic_qualification: QualificationState,
+    pub recorded_qualification: Option<RecordedQualificationStatus>,
+    pub artifact_profile_id: Option<String>,
+    pub artifact_profile_blocker: Option<ArtifactProfileBlocker>,
+    pub host_abi: HostAbiEvidence,
+    pub isolated_qualification_readiness: QualificationState,
     pub host_compatible: bool,
     pub host_architecture: &'static str,
     pub host_os: &'static str,
@@ -128,6 +138,11 @@ impl WineRuntimeQualification {
             completion_verifier: QualificationState::Verified,
             descendant_completion: QualificationState::Unknown,
             authentic_qualification: QualificationState::NotRun,
+            recorded_qualification: None,
+            artifact_profile_id: None,
+            artifact_profile_blocker: Some(ArtifactProfileBlocker::Missing),
+            host_abi: HostAbiEvidence::issue(HostAbiState::Unverifiable, "artifact_profile"),
+            isolated_qualification_readiness: QualificationState::Blocked,
             host_compatible: false,
             host_architecture: std::env::consts::ARCH,
             host_os: std::env::consts::OS,
@@ -139,8 +154,8 @@ impl WineRuntimeQualification {
                 "dynamic_modules_not_established".into(),
                 "descendant_completion_not_established".into(),
                 "authentic_qualification_not_run".into(),
-                "descriptor_runtime_path_discovery_unqualified".into(),
-                "isolated_xdg_execution_contract_unqualified".into(),
+                "descriptor_runtime_loading_observation_required".into(),
+                "disposable_root_and_exact_approval_required".into(),
             ],
         }
     }
@@ -212,17 +227,66 @@ pub fn qualify_managed_wine(
                 .blockers
                 .push("static_dependency_inspection_incomplete".into());
         }
-        // P024 schema 1 has no exact package-layout or helper-role mapping.
-        // Basenames are candidates only: never upgrade them to a qualified profile.
-        report.helpers = inspect_helpers(&root, &baseline);
-        report.helper_inventory = QualificationState::Unsupported;
-        // Repeat P025/P026/P027 after all helper/dependency reads, not just before.
+        match VerifiedProfile::load(paths, runtime, &root, &baseline) {
+            Ok(profile) => {
+                report.artifact_profile_id = Some(profile.id);
+                report.artifact_profile_blocker = None;
+                report.host_abi = crate::wine_host_abi::inspect(&root, &baseline, &profile.profile);
+                report.host_compatible =
+                    report.host_abi.state == HostAbiState::SupportedUnderHostAssumptions;
+                report.helpers = profile
+                    .profile
+                    .components
+                    .into_iter()
+                    .map(|component| WineHelperEvidence {
+                        role: component.role,
+                        candidate_count: 1,
+                        usage: Some(component.usage),
+                        integrity: if matches!(
+                            component.usage,
+                            ComponentUse::Initialization | ComponentUse::HostDependent
+                        ) {
+                            QualificationState::Verified
+                        } else {
+                            QualificationState::Unknown
+                        },
+                    })
+                    .collect();
+                report.helper_inventory = QualificationState::Verified;
+                report.invocation.artifact_mapping = QualificationState::Verified;
+                report.invocation_contract = QualificationState::Verified;
+                report
+                    .blockers
+                    .retain(|blocker| blocker != "artifact_layout_contract_unavailable");
+                if report.host_compatible {
+                    report.isolated_qualification_readiness = QualificationState::Unknown;
+                }
+            }
+            Err(error) => {
+                report.artifact_profile_blocker = Some(error);
+                report.helpers = inspect_helpers(&root, &baseline);
+                report.helper_inventory = QualificationState::Unsupported;
+            }
+        }
+        // Repeat P025/P026/P027 after all helper/dependency reads.
         crate::verify_managed_wine_executable(paths, pin_id, revision, reference, expected).ok()?;
+        if endfield_unix_runtime_audit::load_baseline(&path).ok()? != baseline {
+            return None;
+        }
         Some(())
     })();
     if result.is_none() {
         report.ownership = QualificationState::Unknown;
         report.integrity = QualificationState::Unknown;
+        report.isolated_qualification_readiness = QualificationState::Blocked;
+        report.host_compatible = false;
+        if report.artifact_profile_id.take().is_some() {
+            report.artifact_profile_blocker = Some(ArtifactProfileBlocker::BaselineMismatch);
+            report.helper_inventory = QualificationState::Unknown;
+            report.invocation.artifact_mapping = QualificationState::Unknown;
+            report.invocation_contract = QualificationState::Unknown;
+        }
+        report.host_abi = HostAbiEvidence::issue(HostAbiState::Unverifiable, "volatile_provenance");
         report
             .blockers
             .push("runtime_changed_or_unverifiable".into());
@@ -235,7 +299,24 @@ pub fn qualify_managed_wine(
     report
 }
 
-fn bounded_bytes(mut file: File, budget: &mut usize) -> Result<Vec<u8>, DependencyState> {
+pub(crate) fn trusted_directory(path: &Path) -> std::io::Result<TrustedRoot> {
+    let metadata = fs::symlink_metadata(path)?;
+    TrustedRoot::open(
+        path,
+        DirectoryIdentity {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+            owner_uid: metadata.uid(),
+        },
+        crate::current_uid(),
+    )
+    .map_err(std::io::Error::other)
+}
+
+pub(crate) fn bounded_bytes(
+    mut file: File,
+    budget: &mut usize,
+) -> Result<Vec<u8>, DependencyState> {
     let before = file.metadata().map_err(|_| DependencyState::Unverifiable)?;
     let size = usize::try_from(before.len()).map_err(|_| DependencyState::Unverifiable)?;
     if size > elf::MAX_ELF_BYTES || size > *budget {
@@ -271,7 +352,7 @@ fn bounded_bytes(mut file: File, budget: &mut usize) -> Result<Vec<u8>, Dependen
     *budget -= bytes.len();
     Ok(bytes)
 }
-fn managed_bytes(
+pub(crate) fn managed_bytes(
     root: &TrustedRoot,
     baseline: &Baseline,
     path: &Path,
@@ -306,7 +387,7 @@ fn managed_bytes(
 /// interpretation; any report remains blocked by unmodelled loader resolution.
 // Inspect every component in the actual symlink resolution chain. Checking
 // only the final canonical target would accept a user-writable alias to ld.so.
-fn trusted_system_path(path: &Path) -> Result<PathBuf, DependencyState> {
+pub(crate) fn trusted_system_path(path: &Path) -> Result<PathBuf, DependencyState> {
     if !path.is_absolute() {
         return Err(DependencyState::Untrusted);
     }
@@ -366,7 +447,10 @@ fn trusted_system_path(path: &Path) -> Result<PathBuf, DependencyState> {
     Ok(resolved)
 }
 
-fn system_bytes(path: &Path, budget: &mut usize) -> Result<(PathBuf, Vec<u8>), DependencyState> {
+pub(crate) fn system_bytes(
+    path: &Path,
+    budget: &mut usize,
+) -> Result<(PathBuf, Vec<u8>), DependencyState> {
     let canonical = trusted_system_path(path)?;
     if !canonical.starts_with("/usr/lib") && !canonical.starts_with("/usr/lib64") {
         return Err(DependencyState::Untrusted);
@@ -434,6 +518,7 @@ fn inspect_helpers(root: &TrustedRoot, baseline: &Baseline) -> Vec<WineHelperEvi
         WineHelperEvidence {
             role: role.into(),
             candidate_count: candidates.len(),
+            usage: None,
             integrity,
         }
     })

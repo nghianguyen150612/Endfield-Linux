@@ -2,17 +2,17 @@
 //!
 //! The durable state transitions live in `PrefixStore`. This module owns the
 //! ordering between those transitions and the descriptor-bound executor. The
-//! authorization type is intentionally opaque; production currently has no
-//! constructor because the Wine launcher/helper dependency closure is not
-//! qualified. Unit tests create a separate synthetic capability under
-//! `cfg(test)`.
+//! Qualification consumes an exact disposable capability. Production has
+//! its own opaque type and remains blocked. Unit tests can issue the
+//! separate synthetic capability under `cfg(test)`.
 
 #[cfg(test)]
 use crate::SyntheticInitializationApproval;
 use crate::{
-    FilesystemIdentity, PrefixError, PrefixId, PrefixInitializationApproval,
-    PrefixInitializationPhase, PrefixInitializationPlan, PrefixInitializationProcessOutcome,
-    PrefixRecord, PrefixRuntimeAssociation, PrefixStore, current_uid,
+    FilesystemIdentity, InitializationIntentScope, PrefixError, PrefixId,
+    PrefixInitializationApproval, PrefixInitializationPhase, PrefixInitializationPlan,
+    PrefixInitializationProcessOutcome, PrefixRecord, PrefixRuntimeAssociation, PrefixStore,
+    current_uid,
 };
 use endfield_unix_game_launch::linux_executor::{
     BoundExecutable, CancellationToken, DirectoryIdentity, ExecutionAttemptId, ExecutionError,
@@ -55,26 +55,89 @@ pub enum InitializationStep {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InitializationEvidenceSource {
     Wine10StructuralVerifier,
+    AuthenticQualification,
     #[cfg(test)]
     SyntheticNativeFixture,
 }
 
 /// A production execution capability. Its fields and constructors stay
 /// private so callers cannot turn arbitrary paths or a synthetic fixture into
-/// a Managed Wine authorization. The trusted P025/P026/P027 adapter must be
-/// added before production can construct this value.
-pub struct InitializationExecutionAuthorization {
+/// a Managed Wine authorization. Its producer remains blocked pending
+/// authentic qualification and separate production policy.
+pub struct ProductionInitializationAuthorization(
+    ExecutionAuthorization,
+    endfield_unix_storage::AppPaths,
+);
+
+#[cfg(test)]
+struct SyntheticExecutionAuthorization(ExecutionAuthorization);
+
+pub(crate) struct AuthenticQualificationAuthorization(ExecutionAuthorization);
+
+struct ExecutionAuthorization {
     binding: ExecutionBinding,
-    #[cfg(not(test))]
-    paths: endfield_unix_storage::AppPaths,
     executable: BoundExecutable,
     working_directory: TrustedRoot,
     wine_prefix: PathBuf,
     arguments: Vec<OsString>,
     environment: Vec<(OsString, OsString)>,
     evidence_source: InitializationEvidenceSource,
-    #[cfg(test)]
-    source: AuthorizationSource,
+    scope: InitializationIntentScope,
+    qualification: Option<std::sync::Arc<crate::authentic_qualification::ExecutionContext>>,
+}
+
+impl AuthenticQualificationAuthorization {
+    pub(crate) fn bind(
+        context: std::sync::Arc<crate::authentic_qualification::ExecutionContext>,
+        verified: crate::VerifiedManagedWineExecutable,
+    ) -> Result<Self, crate::authentic_qualification::QualificationBlocker> {
+        use crate::authentic_qualification::QualificationBlocker;
+        let endfield_unix_runtime_selection::PinnedRuntimeReference::Managed(runtime) =
+            &context.association.runtime
+        else {
+            return Err(QualificationBlocker::PinMismatch);
+        };
+        let plan = &context.plan;
+        let identity = verified.executable.identity();
+        let working_directory = crate::wine_qualification::trusted_directory(&context.prefix)?;
+        let environment = context.child_environment();
+        if !context.matches_environment(&context.prefix, &environment) {
+            return Err(QualificationBlocker::UnsafeEnvironment);
+        }
+        Ok(Self(ExecutionAuthorization {
+            binding: ExecutionBinding {
+                plan_id: plan.plan_id.clone(),
+                runtime_installation_id: runtime.installation_id.clone(),
+                runtime_generation: runtime.generation,
+                runtime_pin_id: plan.runtime_pin_id.clone(),
+                runtime_pin_revision: plan.runtime_pin_revision,
+                runtime_reference_sha256: plan.runtime_reference_sha256.clone(),
+                runtime_ownership_record_sha256: runtime.ownership_record_sha256.clone(),
+                runtime_artifact_sha256: runtime.artifact_sha256.clone(),
+                runtime_root: verified.executable.root_identity(),
+                executable_identity: ExpectedExecutableIdentity {
+                    device: identity.device,
+                    inode: identity.inode,
+                    size: identity.size,
+                },
+                executable_sha256: verified.sha256().into(),
+                prefix_id: plan.prefix_id.clone(),
+                prefix_registry_revision: plan.registry_revision,
+                prefix_generation: plan.prefix_generation,
+                prefix_identity: plan
+                    .filesystem_identity
+                    .ok_or(QualificationBlocker::PrefixIneligible)?,
+            },
+            executable: verified.executable,
+            working_directory,
+            wine_prefix: context.prefix.clone(),
+            arguments: vec!["wine".into(), "wineboot.exe".into(), "--init".into()],
+            environment,
+            evidence_source: InitializationEvidenceSource::AuthenticQualification,
+            scope: InitializationIntentScope::AuthenticQualification,
+            qualification: Some(context),
+        }))
+    }
 }
 
 struct ExecutionBinding {
@@ -93,12 +156,6 @@ struct ExecutionBinding {
     prefix_registry_revision: u64,
     prefix_generation: u64,
     prefix_identity: FilesystemIdentity,
-}
-
-#[cfg(test)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AuthorizationSource {
-    SyntheticFixture,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -270,39 +327,77 @@ impl InitializationCoordinator {
         &self,
         plan: &PrefixInitializationPlan,
         approval: &PrefixInitializationApproval,
-        authorization: InitializationExecutionAuthorization,
+        authorization: ProductionInitializationAuthorization,
         recovery_state: impl FnMut() -> Option<bool>,
         validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String> + Send + 'static,
         cancellation: &CancellationToken,
     ) -> Result<InitializationStart, InitializationCoordinatorError> {
-        #[cfg(not(test))]
-        let validate_runtime = {
-            let paths = authorization.paths.clone();
-            let pin_id = authorization.binding.runtime_pin_id.clone();
-            let revision = authorization.binding.runtime_pin_revision;
-            let mut caller_validation = validate_runtime;
-            move |association: &PrefixRuntimeAssociation| {
-                caller_validation(association)?;
-                let report = crate::wine_qualification::qualify_managed_wine(
-                    &paths,
-                    &pin_id,
-                    revision,
-                    &association.runtime,
-                );
-                if report.production_initialization
-                    != crate::wine_qualification::QualificationState::Verified
-                {
-                    return Err("runtime initialization qualification blocked".into());
-                }
-                Ok(())
+        let (authorization, paths) = (authorization.0, authorization.1);
+        if authorization.scope != InitializationIntentScope::Production {
+            return Err(InitializationCoordinatorError::AuthorizationMismatch);
+        }
+        let pin_id = plan.runtime_pin_id.clone();
+        let revision = plan.runtime_pin_revision;
+        let expected = authorization.binding.executable_identity;
+        let digest = authorization.binding.executable_sha256.clone();
+        let root = authorization.binding.runtime_root;
+        let mut caller_validation = validate_runtime;
+        let validate_runtime = move |association: &PrefixRuntimeAssociation| {
+            caller_validation(association)?;
+            let verified = crate::verify_managed_wine_executable(
+                &paths,
+                &pin_id,
+                revision,
+                &association.runtime,
+                expected,
+            )
+            .map_err(str::to_owned)?;
+            let report = crate::wine_qualification::qualify_managed_wine(
+                &paths,
+                &pin_id,
+                revision,
+                &association.runtime,
+            );
+            if report.production_initialization
+                != crate::wine_qualification::QualificationState::Verified
+                || verified.sha256() != digest
+                || verified.executable.root_identity() != root
+            {
+                return Err("runtime initialization qualification blocked".into());
             }
+            Ok(())
         };
         self.start_with_adapter(
             plan,
             approval.plan_id(),
-            false,
             authorization,
             InitializationStartHooks::new(recovery_state, validate_runtime, cancellation),
+            &DescriptorBoundExecutor,
+        )
+    }
+
+    pub(crate) fn start_authentic(
+        &self,
+        plan: &PrefixInitializationPlan,
+        authorization: AuthenticQualificationAuthorization,
+        cancellation: &CancellationToken,
+    ) -> Result<InitializationStart, InitializationCoordinatorError> {
+        let authorization = authorization.0;
+        let context = authorization
+            .qualification
+            .as_ref()
+            .expect("authentic capability")
+            .clone();
+        let recovery = context.clone();
+        self.start_with_adapter(
+            plan,
+            &plan.plan_id,
+            authorization,
+            InitializationStartHooks::new(
+                move || recovery.recovery_pending(),
+                move |association| context.revalidate(association).map_err(|e| e.to_string()),
+                cancellation,
+            ),
             &DescriptorBoundExecutor,
         )
     }
@@ -312,7 +407,7 @@ impl InitializationCoordinator {
         &self,
         plan: &PrefixInitializationPlan,
         approval: &SyntheticInitializationApproval,
-        authorization: InitializationExecutionAuthorization,
+        authorization: SyntheticExecutionAuthorization,
         recovery_state: impl FnMut() -> Option<bool>,
         validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String> + Send + 'static,
         cancellation: &CancellationToken,
@@ -320,8 +415,7 @@ impl InitializationCoordinator {
         self.start_with_adapter(
             plan,
             &approval.plan_id,
-            true,
-            authorization,
+            authorization.0,
             InitializationStartHooks::new(recovery_state, validate_runtime, cancellation),
             &DescriptorBoundExecutor,
         )
@@ -332,29 +426,21 @@ impl InitializationCoordinator {
         &self,
         plan: &PrefixInitializationPlan,
         approval: &SyntheticInitializationApproval,
-        authorization: InitializationExecutionAuthorization,
+        authorization: SyntheticExecutionAuthorization,
         hooks: InitializationStartHooks<'_, RecoveryState>,
         executor: &impl InitializationProcessExecutor,
     ) -> Result<InitializationStart, InitializationCoordinatorError>
     where
         RecoveryState: FnMut() -> Option<bool>,
     {
-        self.start_with_adapter(
-            plan,
-            &approval.plan_id,
-            true,
-            authorization,
-            hooks,
-            executor,
-        )
+        self.start_with_adapter(plan, &approval.plan_id, authorization.0, hooks, executor)
     }
 
     fn start_with_adapter<RecoveryState>(
         &self,
         plan: &PrefixInitializationPlan,
         approval_plan_id: &str,
-        allow_synthetic_test: bool,
-        authorization: InitializationExecutionAuthorization,
+        authorization: ExecutionAuthorization,
         hooks: InitializationStartHooks<'_, RecoveryState>,
         executor: &impl InitializationProcessExecutor,
     ) -> Result<InitializationStart, InitializationCoordinatorError>
@@ -366,23 +452,17 @@ impl InitializationCoordinator {
             mut validate_runtime,
             cancellation,
         } = hooks;
-        validate_execution_authorization(
-            plan,
-            approval_plan_id,
-            &authorization,
-            &self.store,
-            allow_synthetic_test,
-        )?;
+        validate_execution_authorization(plan, approval_plan_id, &authorization, &self.store)?;
         if cancellation.is_cancelled() {
             return Err(InitializationCoordinatorError::CancelledBeforeIntent);
         }
 
         let initial_recovery_state = recovery_state();
-        let (_intent, starting_revision) = if allow_synthetic_test {
+        let (_intent, starting_revision) = match authorization.scope {
             #[cfg(test)]
-            {
+            InitializationIntentScope::Synthetic => {
                 let approval = SyntheticInitializationApproval {
-                    plan_id: approval_plan_id.to_owned(),
+                    plan_id: approval_plan_id.into(),
                 };
                 self.store.begin_synthetic_initialization_intent(
                     plan,
@@ -391,18 +471,13 @@ impl InitializationCoordinator {
                     &mut validate_runtime,
                 )?
             }
-            #[cfg(not(test))]
-            unreachable!("synthetic authorization is test-only")
-        } else {
-            let approval = PrefixInitializationApproval {
-                plan_id: approval_plan_id.to_owned(),
-            };
-            self.store.begin_initialization_intent(
+            scope => self.store.begin_initialization_intent_inner(
                 plan,
-                &approval,
+                approval_plan_id,
+                scope,
                 initial_recovery_state,
                 &mut validate_runtime,
-            )?
+            )?,
         };
         let id = PrefixId::new(plan.prefix_id.clone())?;
         let mut steps = vec![InitializationStep::RequestValidated];
@@ -420,7 +495,6 @@ impl InitializationCoordinator {
             approval_plan_id,
             &authorization,
             &self.store,
-            allow_synthetic_test,
         )
         .is_err()
         {
@@ -501,6 +575,9 @@ impl InitializationCoordinator {
             child: Some(child),
             validate_runtime,
             evidence_source: authorization.evidence_source,
+            qualification: authorization.qualification,
+            captured: None,
+            helper_quiescent: false,
             steps,
         };
 
@@ -534,6 +611,9 @@ pub struct InitializationAttempt {
     validate_runtime: RuntimeValidationCallback,
     evidence_source: InitializationEvidenceSource,
     steps: Vec<InitializationStep>,
+    qualification: Option<std::sync::Arc<crate::authentic_qualification::ExecutionContext>>,
+    captured: Option<ObservedProcessResult>,
+    helper_quiescent: bool,
 }
 
 impl std::fmt::Debug for InitializationAttempt {
@@ -574,6 +654,10 @@ impl InitializationAttempt {
         &self.steps
     }
 
+    pub(crate) fn qualification_observations(&self) -> (Option<&ObservedProcessResult>, bool) {
+        (self.captured.as_ref(), self.helper_quiescent)
+    }
+
     /// Observe the owned direct child for at most `timeout`. A timeout leaves
     /// the owner active. When Starting is still durable because the original
     /// Running publication failed, the coordinator retries Running before it
@@ -612,12 +696,26 @@ impl InitializationAttempt {
                 registry_revision: self.revision,
             });
         };
+        // The child is known exited. Give bounded capture time to drain before
+        // recording logs, even when a helper keeps an inherited pipe open.
+        let result = if self.qualification.is_some() {
+            self.child
+                .as_mut()
+                .ok_or(InitializationAttemptError::Observation)?
+                .wait()
+                .map_err(|_| InitializationAttemptError::Observation)?
+        } else {
+            result
+        };
         self.steps.push(InitializationStep::ProcessObserved {
             exit_code: result.status.code(),
         });
         self.child.take();
 
         let outcome = process_outcome(&result);
+        if self.qualification.is_some() {
+            self.captured = Some(result);
+        }
         let revision = self
             .store
             .record_initialization_process_outcome(&self.id, &self.plan_id, self.revision, outcome)
@@ -659,6 +757,28 @@ impl InitializationAttempt {
 
         match outcome {
             PrefixInitializationProcessOutcome::ExitedZero => {
+                if let Some(context) = &self.qualification {
+                    self.helper_quiescent = context.wait_for_quiescence(&self.store);
+                    let error = if !self.helper_quiescent {
+                        Some(PrefixError::QuiescenceUnverified)
+                    } else if !context.verify_install_marker() {
+                        Some(PrefixError::WineInfUpdateUnverified)
+                    } else {
+                        None
+                    };
+                    if let Some(error) = error {
+                        self.steps
+                            .push(InitializationStep::CompletionVerificationPending {
+                                registry_revision: revision,
+                            });
+                        return Ok(InitializationObservation::VerificationPending {
+                            attempt_id,
+                            registry_revision: revision,
+                            error,
+                            evidence_source: self.evidence_source,
+                        });
+                    }
+                }
                 match self.store.complete_verified_wine10_initialization(
                     &self.id,
                     &self.plan_id,
@@ -753,7 +873,7 @@ impl InitializationAttempt {
 trait InitializationProcessExecutor {
     fn spawn(
         &self,
-        authorization: &InitializationExecutionAuthorization,
+        authorization: &ExecutionAuthorization,
         cancellation: &CancellationToken,
     ) -> Result<OwnedChild, ExecutionError>;
 }
@@ -763,7 +883,7 @@ struct DescriptorBoundExecutor;
 impl InitializationProcessExecutor for DescriptorBoundExecutor {
     fn spawn(
         &self,
-        authorization: &InitializationExecutionAuthorization,
+        authorization: &ExecutionAuthorization,
         cancellation: &CancellationToken,
     ) -> Result<OwnedChild, ExecutionError> {
         authorization.executable.spawn_cancellable(
@@ -778,24 +898,15 @@ impl InitializationProcessExecutor for DescriptorBoundExecutor {
 fn validate_execution_authorization(
     plan: &PrefixInitializationPlan,
     approval_plan_id: &str,
-    authorization: &InitializationExecutionAuthorization,
+    authorization: &ExecutionAuthorization,
     store: &PrefixStore,
-    allow_synthetic_test: bool,
 ) -> Result<(), InitializationCoordinatorError> {
     plan.validate_integrity()
         .map_err(|_| InitializationCoordinatorError::StaleApproval)?;
     if approval_plan_id != plan.plan_id {
         return Err(InitializationCoordinatorError::StaleApproval);
     }
-    #[cfg(not(test))]
-    if authorization.binding.plan_id != plan.plan_id || allow_synthetic_test {
-        return Err(InitializationCoordinatorError::AuthorizationMismatch);
-    }
-    #[cfg(test)]
-    if authorization.binding.plan_id != plan.plan_id
-        || authorization.source != AuthorizationSource::SyntheticFixture
-        || !allow_synthetic_test
-    {
+    if authorization.binding.plan_id != plan.plan_id {
         return Err(InitializationCoordinatorError::AuthorizationMismatch);
     }
     let prefix_id = PrefixId::new(plan.prefix_id.clone())
@@ -822,39 +933,19 @@ fn validate_execution_authorization(
                     == authorization.binding.runtime_ownership_record_sha256
                 && runtime.artifact_sha256 == authorization.binding.runtime_artifact_sha256
     );
-    #[cfg(not(test))]
-    {
-        let verified = crate::verify_managed_wine_executable(
-            &authorization.paths,
-            &plan.runtime_pin_id,
-            plan.runtime_pin_revision,
-            runtime_reference,
-            authorization.binding.executable_identity,
-        )
-        .map_err(|_| InitializationCoordinatorError::AuthorizationMismatch)?;
-        let qualification = crate::wine_qualification::qualify_managed_wine(
-            &authorization.paths,
-            &plan.runtime_pin_id,
-            plan.runtime_pin_revision,
-            runtime_reference,
-        );
-        if qualification.production_initialization
-            != crate::wine_qualification::QualificationState::Verified
-        {
-            return Err(InitializationCoordinatorError::AuthorizationMismatch);
-        }
-        if verified.sha256() != authorization.binding.executable_sha256
-            || verified.executable.root_identity() != authorization.binding.runtime_root
-        {
-            return Err(InitializationCoordinatorError::AuthorizationMismatch);
-        }
-    }
     let executable_identity = authorization.executable.identity();
     let root_identity = authorization.executable.root_identity();
     let expected = authorization.binding.executable_identity;
-    let has_exact_environment = authorization.environment.len() == 1
-        && authorization.environment[0].0 == OsStr::new("WINEPREFIX")
-        && authorization.environment[0].1 == expected_prefix_path.as_os_str();
+    let has_exact_environment = match &authorization.qualification {
+        Some(context) => {
+            context.matches_environment(&expected_prefix_path, &authorization.environment)
+        }
+        None => {
+            authorization.environment.len() == 1
+                && authorization.environment[0].0 == OsStr::new("WINEPREFIX")
+                && authorization.environment[0].1 == expected_prefix_path.as_os_str()
+        }
+    };
     if authorization.binding.runtime_installation_id.is_empty()
         || authorization.binding.runtime_generation == 0
         || authorization.binding.runtime_pin_id != plan.runtime_pin_id
@@ -1039,7 +1130,7 @@ mod tests {
             }
         }
 
-        fn authorization(&self, mode: &str) -> InitializationExecutionAuthorization {
+        fn authorization(&self, mode: &str) -> SyntheticExecutionAuthorization {
             let uid = current_uid();
             let runtime_metadata = fs::metadata(&self.child_root).unwrap();
             let runtime_root = TrustedRoot::open(
@@ -1080,7 +1171,7 @@ mod tests {
             )
             .unwrap();
             let plan_identity = executable.identity();
-            InitializationExecutionAuthorization {
+            SyntheticExecutionAuthorization(ExecutionAuthorization {
                 binding: ExecutionBinding {
                     plan_id: self.plan.plan_id.clone(),
                     runtime_installation_id: "wine-synthetic-fixture".into(),
@@ -1108,8 +1199,9 @@ mod tests {
                 arguments: vec!["synthetic-wineboot".into(), mode.into()],
                 environment: vec![("WINEPREFIX".into(), prefix_path.into_os_string())],
                 evidence_source: InitializationEvidenceSource::SyntheticNativeFixture,
-                source: AuthorizationSource::SyntheticFixture,
-            }
+                scope: InitializationIntentScope::Synthetic,
+                qualification: None,
+            })
         }
     }
 
@@ -1118,7 +1210,7 @@ mod tests {
     impl InitializationProcessExecutor for FailingExecutor {
         fn spawn(
             &self,
-            _authorization: &InitializationExecutionAuthorization,
+            _authorization: &ExecutionAuthorization,
             _cancellation: &CancellationToken,
         ) -> Result<OwnedChild, ExecutionError> {
             Err(ExecutionError::Spawn(std::io::Error::other(
@@ -1134,7 +1226,7 @@ mod tests {
     impl InitializationProcessExecutor for DelayedReturnExecutor {
         fn spawn(
             &self,
-            authorization: &InitializationExecutionAuthorization,
+            authorization: &ExecutionAuthorization,
             cancellation: &CancellationToken,
         ) -> Result<OwnedChild, ExecutionError> {
             let child = DescriptorBoundExecutor.spawn(authorization, cancellation)?;
@@ -1156,7 +1248,7 @@ mod tests {
     impl InitializationProcessExecutor for RevisionBumpingExecutor {
         fn spawn(
             &self,
-            authorization: &InitializationExecutionAuthorization,
+            authorization: &ExecutionAuthorization,
             cancellation: &CancellationToken,
         ) -> Result<OwnedChild, ExecutionError> {
             let child = DescriptorBoundExecutor.spawn(authorization, cancellation)?;
@@ -1371,7 +1463,7 @@ mod tests {
         impl InitializationProcessExecutor for LostCapture {
             fn spawn(
                 &self,
-                authorization: &InitializationExecutionAuthorization,
+                authorization: &ExecutionAuthorization,
                 cancellation: &CancellationToken,
             ) -> Result<OwnedChild, ExecutionError> {
                 // Model the executor's post-spawn capture setup failure: it
@@ -1566,7 +1658,7 @@ mod tests {
         let fixture = Fixture::new("coordinator-invalid-binding");
         let coordinator = InitializationCoordinator::new(fixture.store.clone());
         let mut authorization = fixture.authorization("complete");
-        authorization.binding.runtime_pin_revision += 1;
+        authorization.0.binding.runtime_pin_revision += 1;
         assert!(matches!(
             coordinator.start_synthetic(
                 &fixture.plan,
@@ -2017,7 +2109,7 @@ mod tests {
         prefix_path: &std::path::Path,
         prefix_id: &PrefixId,
         mode: &str,
-    ) -> InitializationExecutionAuthorization {
+    ) -> SyntheticExecutionAuthorization {
         let uid = current_uid();
         let runtime_metadata = fs::metadata(runtime_root_path).unwrap();
         let runtime_root = TrustedRoot::open(
@@ -2058,7 +2150,7 @@ mod tests {
         )
         .unwrap();
         let executable_identity = executable.identity();
-        InitializationExecutionAuthorization {
+        SyntheticExecutionAuthorization(ExecutionAuthorization {
             binding: ExecutionBinding {
                 plan_id: plan.plan_id.clone(),
                 runtime_installation_id: "wine-synthetic-fixture".into(),
@@ -2086,7 +2178,8 @@ mod tests {
             arguments: vec!["synthetic-wineboot".into(), mode.into()],
             environment: vec![("WINEPREFIX".into(), prefix_path.as_os_str().to_owned())],
             evidence_source: InitializationEvidenceSource::SyntheticNativeFixture,
-            source: AuthorizationSource::SyntheticFixture,
-        }
+            scope: InitializationIntentScope::Synthetic,
+            qualification: None,
+        })
     }
 }

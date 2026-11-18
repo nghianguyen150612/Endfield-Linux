@@ -636,6 +636,16 @@ impl LaunchPlan {
         }
         Ok(())
     }
+    /// Production launch has no qualified execution backend. A planning
+    /// approval remains separate from any future production capability.
+    pub fn authorize_production(
+        &self,
+        approval: &LaunchApproval,
+    ) -> Result<ProductionGameLaunchAuthorization, LaunchError> {
+        self.validate_execution_approval(approval)?;
+        Err(LaunchError::ExecutionUnsupported)
+    }
+
     /// Plan serialization exposes only the installation-relative executable path.
     pub fn redacted_json(&self) -> Result<String, LaunchError> {
         self.validate_integrity()?;
@@ -677,6 +687,10 @@ impl LaunchApproval {
         Ok(())
     }
 }
+
+/// An uninhabited capability until a production game-launch adapter is qualified.
+#[derive(Debug)]
+pub enum ProductionGameLaunchAuthorization {}
 
 /// Injection point for platform process adapters. Implementations must call
 /// LaunchPlan::validate_execution_approval and revalidate identities before spawn.

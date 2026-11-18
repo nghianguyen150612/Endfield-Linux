@@ -210,6 +210,6 @@ schema v1. Listing provenance never authenticates installed game files or proves
 Linux compatibility. See [official sources](docs/OFFICIAL-GAME-SOURCES.md) and
 [qualification](docs/manifests/PROMPT032_MANIFEST.md).
 
-P034 now shares independent managed Wine provenance validation between preview and the durable initializer coordinator, and bounds output-capture worker cleanup. Execution remains synthetic-test-only pending authentic Wine loader/helper and initialization qualification. See [GAME-LAUNCH.md](docs/GAME-LAUNCH.md).
+P034 now shares independent managed Wine provenance validation between preview and the durable initializer coordinator, and bounds output-capture worker cleanup. Default execution tests use native fixtures. The opt-in disposable harness requires an authenticated profile and exact approval. See [GAME-LAUNCH.md](docs/GAME-LAUNCH.md).
 
-P034 provides `endfield-unix diagnose wine-runtime --profile desktop --json` and a GTK background qualification inspection action. These are read-only. Authentic Wine qualification is NOT_RUN; production initialization and game launch remain unsupported. See [Wine qualification](docs/WINE-QUALIFICATION.md) for dependency trust, helper inventory and the opt-in test procedure.
+P034 provides read-only `endfield-unix diagnose wine-runtime --profile desktop --json` and GTK background inspection. The ignored two-stage harness can qualify a matching authenticated Wine 10.0 artifact on a supported host after exact approval. Authentic Wine remains NOT_RUN. Production initialization and game launch remain blocked. [Wine qualification](docs/WINE-QUALIFICATION.md)

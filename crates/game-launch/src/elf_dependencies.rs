@@ -6,6 +6,8 @@ pub const MAX_ELF_BYTES: usize = 64 * 1024 * 1024;
 const MAX_HEADERS: usize = 256;
 const MAX_DYNAMIC: usize = 4096;
 const MAX_NEEDED: usize = 128;
+const MAX_VERSIONS: u64 = 2048;
+const MAX_VERSION_TEXT: usize = 48 * 1024;
 const MAX_STRING: usize = 4096;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -18,6 +20,12 @@ pub enum ElfError {
     UnsupportedResolution,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct VersionRequirement {
+    pub library: String,
+    pub versions: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ElfDependencies {
     pub class: u8,
     pub machine: u16,
@@ -26,6 +34,8 @@ pub struct ElfDependencies {
     pub needed: Vec<String>,
     pub rpath: Option<String>,
     pub runpath: Option<String>,
+    pub version_requirements: Vec<VersionRequirement>,
+    pub version_definitions: Vec<String>,
     pub dynamic_loading_not_established: bool,
 }
 
@@ -138,6 +148,8 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
         needed: Vec::new(),
         rpath: None,
         runpath: None,
+        version_requirements: Vec::new(),
+        version_definitions: Vec::new(),
         dynamic_loading_not_established: true,
     };
     let Some((offset, size, address)) = dynamic else {
@@ -165,6 +177,7 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
     let mut strtab = None;
     let mut strsize = None;
     let mut terminated = false;
+    let mut versions = [None; 4];
     for index in 0..size / 16 {
         let tag = number(bytes, offset + index * 16, 8)?;
         let value = number(bytes, offset + index * 16 + 8, 8)?;
@@ -180,6 +193,12 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
             }
             10 => {
                 if strsize.replace(value).is_some() {
+                    return Err(ElfError::Invalid);
+                }
+            }
+            0x6ffffffc..=0x6fffffff => {
+                let slot = &mut versions[(tag - 0x6ffffffc) as usize];
+                if slot.replace(value).is_some() {
                     return Err(ElfError::Invalid);
                 }
             }
@@ -200,7 +219,7 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
     if !terminated {
         return Err(ElfError::Invalid);
     }
-    if imports.is_empty() {
+    if imports.is_empty() && versions.iter().all(Option::is_none) {
         return Ok(result);
     }
     let address = strtab.ok_or(ElfError::Invalid)?;
@@ -208,24 +227,8 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
     if size > MAX_ELF_BYTES as u64 {
         return Err(ElfError::Limit);
     }
-    let mappings: Vec<_> = loads
-        .iter()
-        .filter(|(start, len, _)| {
-            address >= *start
-                && address
-                    .checked_add(size)
-                    .is_some_and(|end| end <= start + len)
-        })
-        .collect();
-    if mappings.len() != 1 {
-        return Err(ElfError::Invalid);
-    }
-    let (start, _, offset) = *mappings[0];
-    let table = slice(
-        bytes,
-        offset.checked_add(address - start).ok_or(ElfError::Limit)?,
-        size,
-    )?;
+    let mapped = |address, size| mapped_bytes(bytes, &loads, address, size);
+    let table = mapped(address, size)?;
     for (tag, index) in imports {
         let value = string(table, index)?;
         match tag {
@@ -248,7 +251,90 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
             _ => unreachable!(),
         }
     }
+    let mut version_text_budget = MAX_VERSION_TEXT;
+    for (definition, pair) in versions.chunks_exact(2).enumerate() {
+        let (mut cursor, count) = match pair {
+            [None, None] => continue,
+            [Some(address), Some(count)] if (1..=MAX_VERSIONS).contains(count) => {
+                (*address, *count)
+            }
+            _ => return Err(ElfError::Invalid),
+        };
+        let mut remaining = MAX_VERSIONS;
+        for index in 0..count {
+            let is_definition = definition == 0;
+            let header = mapped(cursor, if is_definition { 20 } else { 16 })?;
+            if number(header, 0, 2)? != 1 {
+                return Err(ElfError::Invalid);
+            }
+            let aux_count = number(header, if is_definition { 6 } else { 2 }, 2)?;
+            let aux_offset = number(header, if is_definition { 12 } else { 8 }, 4)?;
+            let next = number(header, if is_definition { 16 } else { 12 }, 4)?;
+            if aux_count == 0 || aux_count > remaining || aux_offset < header.len() as u64 {
+                return Err(ElfError::Invalid);
+            }
+            remaining -= aux_count;
+            let mut aux = cursor.checked_add(aux_offset).ok_or(ElfError::Limit)?;
+            let mut names = Vec::new();
+            for n in 0..aux_count {
+                let data = mapped(aux, if is_definition { 8 } else { 16 })?;
+                let name = string(table, number(data, if is_definition { 0 } else { 8 }, 4)?)?;
+                version_text_budget = version_text_budget
+                    .checked_sub(name.len())
+                    .ok_or(ElfError::Limit)?;
+                names.push(name);
+                let displacement = number(data, if is_definition { 4 } else { 12 }, 4)?;
+                aux = next_version(aux, displacement, data.len() as u64, n + 1 == aux_count)?;
+            }
+            if is_definition {
+                // Subsequent auxiliary names are dependencies of this definition.
+                result.version_definitions.push(names.remove(0));
+            } else {
+                let library = string(table, number(header, 4, 4)?)?;
+                version_text_budget = version_text_budget
+                    .checked_sub(library.len())
+                    .ok_or(ElfError::Limit)?;
+                if !result.needed.contains(&library) {
+                    return Err(ElfError::Invalid);
+                }
+                result.version_requirements.push(VersionRequirement {
+                    library,
+                    versions: names,
+                });
+            }
+            cursor = next_version(cursor, next, header.len() as u64, index + 1 == count)?;
+        }
+    }
     Ok(result)
+}
+
+fn mapped_bytes<'a>(
+    bytes: &'a [u8],
+    loads: &[(u64, u64, u64)],
+    address: u64,
+    size: u64,
+) -> Result<&'a [u8], ElfError> {
+    let end = address.checked_add(size).ok_or(ElfError::Limit)?;
+    let mut matches = loads
+        .iter()
+        .filter(|(start, len, _)| address >= *start && end <= start + len);
+    let (start, _, offset) = *matches.next().ok_or(ElfError::Invalid)?;
+    if matches.next().is_some() {
+        return Err(ElfError::Invalid);
+    }
+    slice(
+        bytes,
+        offset.checked_add(address - start).ok_or(ElfError::Limit)?,
+        size,
+    )
+}
+
+fn next_version(cursor: u64, displacement: u64, minimum: u64, last: bool) -> Result<u64, ElfError> {
+    match (last, displacement) {
+        (true, 0) => Ok(cursor),
+        (false, value) if value >= minimum => cursor.checked_add(value).ok_or(ElfError::Limit),
+        _ => Err(ElfError::Invalid),
+    }
 }
 
 /// Only exact $ORIGIN/${ORIGIN} plus normal relative components is modelled.

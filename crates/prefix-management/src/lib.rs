@@ -20,18 +20,22 @@ use std::{
 };
 use thiserror::Error;
 
+pub mod authentic_qualification;
 mod initialization_coordinator;
 #[cfg(target_os = "linux")]
 mod managed_wine;
+mod wine_artifact_profile;
+mod wine_host_abi;
 pub mod wine_qualification;
 #[cfg(target_os = "linux")]
 pub use managed_wine::{VerifiedManagedWineExecutable, verify_managed_wine_executable};
 mod linux_fs;
+pub use initialization_coordinator::ProductionInitializationAuthorization as InitializationExecutionAuthorization;
 pub use initialization_coordinator::{
     InitializationAttempt, InitializationAttemptError, InitializationAttemptPhase,
     InitializationCoordinator, InitializationCoordinatorError, InitializationEvidenceSource,
-    InitializationExecutionAuthorization, InitializationObservation, InitializationStart,
-    InitializationStep, PreSpawnBlocker,
+    InitializationObservation, InitializationStart, InitializationStep, PreSpawnBlocker,
+    ProductionInitializationAuthorization,
 };
 pub use linux_fs::LinuxPrefixFilesystem;
 pub use linux_fs::backup;
@@ -76,6 +80,10 @@ pub enum PrefixError {
     UsageUnknown,
     #[error("prefix initialization is unsupported by the validated runtime adapters")]
     InitializationUnsupported,
+    #[error("Wine helper quiescence could not be verified")]
+    QuiescenceUnverified,
+    #[error("Wine INF update timestamp is missing or does not match the approved resource")]
+    WineInfUpdateUnverified,
     #[error("prefix initialization approval does not match the exact plan")]
     ApprovalMismatch,
     #[error("prefix initialization intent is stale or does not match the approved plan")]
@@ -759,6 +767,21 @@ impl PrefixInitializationPlan {
         Ok(())
     }
 
+    pub(crate) fn otherwise_ready_for_scoped_initialization(&self) -> bool {
+        self.approval_required
+            && !self.execution_supported
+            && self.state == PrefixInitializationPlanState::Unsupported
+            && self.blockers.len() == 2
+            && self
+                .blockers
+                .contains(&PrefixInitializationBlocker::ExecutableIdentityNotBound)
+            && self
+                .blockers
+                .contains(&PrefixInitializationBlocker::InitializerChildOwnershipUnavailable)
+            && self.strategy == PrefixInitializationStrategy::WineBootInitialize
+            && self.adapter_id == "managed_wine"
+    }
+
     /// Verify a caller's confirmation against the exact plan. Current runtime
     /// contracts remain unsupported, so the production plan builder never
     /// issues an approval today.
@@ -892,6 +915,14 @@ pub trait PrefixFilesystem: Send + Sync {
     ) -> Result<Wine10PrefixCompletionEvidence, PrefixError> {
         Err(PrefixError::InitializationUnsupported)
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InitializationIntentScope {
+    Production,
+    AuthenticQualification,
+    #[cfg(test)]
+    Synthetic,
 }
 
 struct InitializationTransition {
@@ -1546,7 +1577,7 @@ impl PrefixStore {
         self.begin_initialization_intent_inner(
             plan,
             approval.plan_id(),
-            false,
+            InitializationIntentScope::Production,
             recovery_state,
             validate_runtime,
         )
@@ -1635,17 +1666,17 @@ impl PrefixStore {
         self.begin_initialization_intent_inner(
             plan,
             &approval.plan_id,
-            true,
+            InitializationIntentScope::Synthetic,
             recovery_state,
             validate_runtime,
         )
     }
 
-    fn begin_initialization_intent_inner(
+    pub(crate) fn begin_initialization_intent_inner(
         &self,
         plan: &PrefixInitializationPlan,
         approval_plan_id: &str,
-        allow_synthetic_test: bool,
+        scope: InitializationIntentScope,
         recovery_state: Option<bool>,
         mut validate_runtime: impl FnMut(&PrefixRuntimeAssociation) -> Result<(), String>,
     ) -> Result<(PrefixInitializationIntent, u64), PrefixError> {
@@ -1656,17 +1687,11 @@ impl PrefixStore {
         let production_ready = plan.execution_supported
             && plan.state == PrefixInitializationPlanState::Ready
             && plan.blockers.is_empty();
-        let synthetic_test_ready = allow_synthetic_test
-            && !plan.execution_supported
-            && plan.state == PrefixInitializationPlanState::Unsupported
-            && plan.blockers.len() == 2
-            && plan
-                .blockers
-                .contains(&PrefixInitializationBlocker::ExecutableIdentityNotBound)
-            && plan
-                .blockers
-                .contains(&PrefixInitializationBlocker::InitializerChildOwnershipUnavailable);
-        if (!production_ready && !synthetic_test_ready)
+        let ready = match scope {
+            InitializationIntentScope::Production => production_ready,
+            _ => plan.otherwise_ready_for_scoped_initialization(),
+        };
+        if !ready
             || plan.strategy != PrefixInitializationStrategy::WineBootInitialize
             || plan.adapter_id != "managed_wine"
         {

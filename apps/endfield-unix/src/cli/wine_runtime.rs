@@ -1,7 +1,8 @@
 //! Read-only Wine qualification; never creates storage or starts a runtime.
 use super::compatibility::CompatibilityError;
-use endfield_unix_prefix_management::wine_qualification::{
-    WineRuntimeQualification, qualify_managed_wine,
+use endfield_unix_prefix_management::{
+    authentic_qualification::{QualificationRequest, RecordedQualificationStatus},
+    wine_qualification::{QualificationState, WineRuntimeQualification, qualify_managed_wine},
 };
 use endfield_unix_runtime_selection as pins;
 
@@ -33,16 +34,35 @@ pub(crate) fn collect(
             "managed_wine_not_selected",
         ));
     };
-    Ok(qualify_managed_wine(
-        &paths,
-        &id,
-        selection.registry_revision,
-        &runtime,
-    ))
+    let mut report = qualify_managed_wine(&paths, &id, selection.registry_revision, &runtime);
+    if let (Some(root), Some(digest)) = (
+        std::env::var_os("ENDFIELD_AUTHENTIC_WINE_TEST_ROOT"),
+        report.artifact_sha256.clone(),
+    ) {
+        let recorded = QualificationRequest {
+            source_paths: paths,
+            pin_id: id,
+            pin_revision: selection.registry_revision,
+            artifact_sha256: digest,
+            test_root: root.into(),
+        }
+        .recorded_status();
+        report.recorded_qualification = Some(recorded);
+        if recorded != RecordedQualificationStatus::NoAttempt {
+            report.authentic_qualification = QualificationState::Unknown;
+            report
+                .blockers
+                .retain(|b| b != "authentic_qualification_not_run");
+            report
+                .blockers
+                .push("recorded_qualification_requires_review".into());
+        }
+    }
+    Ok(report)
 }
 pub(crate) fn summary(report: &WineRuntimeQualification) -> String {
     format!(
-        "Managed Wine: {}. Pin {} revision {}. P025 {:?}; P026 {:?}. Dependency observations: {}. Helper inventory {:?}; invocation {:?}; descendant completion {:?}; authentic qualification {:?}. Initialization {:?}; approval required: {}. Blockers: {}. Game launch remains unsupported.",
+        "Managed Wine: {}. Pin {} revision {}. P025 {:?}; P026 {:?}. Dependency observations: {}. Artifact profile {:?}; profile blocker {:?}; host ABI {:?}; isolated readiness {:?}; recorded outcome {:?}. Helper inventory {:?}; invocation {:?}; descendant completion {:?}; authentic qualification {:?}. Initialization {:?}; approval required: {}. Blockers: {}. Game launch remains unsupported.",
         report
             .runtime_installation_id
             .as_deref()
@@ -52,6 +72,11 @@ pub(crate) fn summary(report: &WineRuntimeQualification) -> String {
         report.ownership,
         report.integrity,
         report.dependencies.len(),
+        report.artifact_profile_id,
+        report.artifact_profile_blocker,
+        report.host_abi.state,
+        report.isolated_qualification_readiness,
+        report.recorded_qualification,
         report.helper_inventory,
         report.invocation_contract,
         report.descendant_completion,

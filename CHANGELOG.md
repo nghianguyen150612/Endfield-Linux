@@ -67,3 +67,5 @@ Adds a portable typed assessment core and headless `diagnose compatibility` comm
 P034 continuation: move P025/P026/P027 descriptor validation into the prefix library and recheck it in the production coordinator; join capture workers despite inherited descendant pipes; classify post-spawn capture setup failure as recovery-required interruption. Add adversarial tests. Production Wine/game execution remains disabled.
 
 P034: add bounded ELF64 dependency parsing, explicit managed/system trust observations, helper integrity candidate inspection, versioned Wine qualification diagnostics and schema, CLI/GTK inspection, production qualification rechecks in the existing coordinator, and an ignored explicitly gated authentic harness. Authentic Wine NOT_RUN; no production initialization or game-launch apply enabled.
+
+P034 adds authenticated artifact role-map binding, static GNU symbol-version checks, a headless disposable XDG environment, and a separate two-stage qualification capability. Native fixtures exercise the existing P028 coordinator, durable approval consumption and bounded helper-quiescence assessment. Authentic Wine remains NOT_RUN.

@@ -136,4 +136,4 @@ P027's managed and external runtime pinning, typed P021 evidence evaluation, and
 
 P034 continuation: shared production provenance revalidation and bounded capture cleanup are implemented. Authentic Wine closure/initialization qualification and production authorization remain blockers. P034 is partial; P035 has not started.
 
-P034 qualification infrastructure now includes ELF dependencies, explicit managed/system trust, source-defined Wine roles, read-only CLI/GTK reporting and an ignored opt-in harness. Production package layout, host ABI, helper quiescence, isolated execution environment and authentic build qualification remain unverified. Production initialization/game launch remain unsupported. P034 is partial; P035 is not started.
+P034 adds authenticated Wine artifact profiles, a bounded host ABI and helper assessment, and a two-stage disposable execution harness. Authentic Wine remains NOT_RUN pending a matching verified archive, host and exact approval. Production initialization and game launch remain blocked. P034 is partial and P035 has not started.

@@ -1,75 +1,78 @@
 # Managed Wine qualification (P034)
 
-## Current eligibility
+Authentic Wine execution is **NOT_RUN**. No independently authenticated Wine 10.0 package with a matching qualification profile was available for this continuation. The disposable harness can reach the descriptor-bound executor when its gates pass. Production prefix initialization and game launch have separate eligibility and approval requirements and remain blocked.
 
-Production initialization and game launch remain unsupported. Authentic Wine qualification is **NOT_RUN**. No Wine or Endfield process was executed for this iteration. No production artifact compatibility profile is shipped. The new report and harness make prerequisite evidence explicit; they do not establish authentic Wine success.
+`endfield-unix diagnose wine-runtime --profile desktop --json` inspects the selected P027 pin, P025 ownership, P026 bytes, artifact profile, host ABI and qualification blockers. It creates no XDG storage and starts no subprocess. Set `ENDFIELD_AUTHENTIC_WINE_TEST_ROOT` to consult one preserved, matching test journal. The recorded status reports an absent, inconclusive, stale, unreadable or recorded outcome. A diagnostic record cannot grant an execution capability. GTK performs the same inspection on its existing worker. Its Play action stays disabled. [Diagnostic schema](schema/wine-runtime-qualification-v1.schema.json)
 
-`endfield-unix diagnose wine-runtime --profile desktop --json` selects the existing P027 profile/machine pin without fallback to another installation. It independently revalidates P025 ownership and P026 inventory, opens the exact `bin/wine` descriptor, then inspects dependencies and helper candidates. It creates no XDG storage, downloads nothing, and starts no subprocess. Exit zero means a diagnostic report was emitted; inspect `production_initialization` and `blockers` for eligibility. JSON schema: `docs/schema/wine-runtime-qualification-v1.schema.json`. Private absolute paths and search paths are redacted. GTK's **Inspect Wine qualification** action performs this work off the main thread and reports selected runtime, evidence and blockers. Play remains disabled.
+## Authenticated package contract
 
-## ELF and loader policy
+The supported profile format describes a relocatable, headless upstream Wine 10.0 Linux x86-64 WoW64 build without a native preloader. The build uses `bin`, a configured relative library directory, and `share` under one configured prefix. The profile declares the exact source tag and commit, loader configuration, minimum host libraries and required initialization roles. A publisher or independently authenticated artifact source must supply the reviewed build and inventory. Repository test fixtures use synthetic payloads and keys.
 
-The memory-safe parser supports ELF64, little-endian, x86-64, ET_EXEC/ET_DYN. Other classes/architectures are unsupported. It bounds individual files to 64 MiB, program headers to 256, dynamic entries to 4096, imports to 128 and each dynamic string to 4096 bytes. The graph bounds distinct objects to 128, pending/output edges and total bytes to 256 MiB. Malformed headers, offsets, string tables, unterminated dynamic tables, audit/filter/auxiliary loading and NODEFLIB resolution patterns block inspection. No `ldd` or inspected program is executed.
+P024 manifest schema 2 adds `wine_qualification_profile_sha256` to an artifact entry. The digest covers the exact detached profile JSON bytes. The P025 record and exact P027 pin already bind the authenticated manifest digest. Supply the original manifest and profile as `manifest.json` and `profile.json` in `$XDG_DATA_HOME/endfield-unix/wine-qualification/<installation-id>/`. Keep those sidecars outside the installed payload. The installer still requires a genuine P025-managed Wine tarball with its required `version` file. The regular CLI's user-pinned trust tier does not meet this qualification's independently authenticated publisher requirement.
 
-The inspector reads PT_INTERP, DT_NEEDED, DT_RPATH and DT_RUNPATH. Only `$ORIGIN`/`${ORIGIN}` followed by normal contained components is modelled. Empty/current-directory components, traversal, absolute overrides, `$LIB`, `$PLATFORM`, slash-bearing imports and other tokens are unsupported. Managed symlinks and subordinate mounts are refused. The executor clears the environment and rejects PATH, LD_*, GLIBC_TUNABLES, GCONV_PATH, LOCPATH and unsupported WINE*/PROTON overrides; no ambient loader variable is inherited.
+The profile uses these version 1 fields.
 
-A graph node is one of `verified_managed`, `trusted_system`, `missing`, `untrusted`, `unverifiable`, `dynamic_not_established`, or `unsupported`:
+| Field | Value or contract |
+| --- | --- |
+| `schema_version` | `1` |
+| `build`, `source_ref` | `wine-10.0` |
+| `source_commit` | `b073859675060c9211fcbccfd90e4e87520dc2c2` |
+| `architecture` | `x86_64` |
+| `build_configuration` | `linux-x86_64-wow64-no-preloader-headless` |
+| `invocation` | `wineboot.exe --init` |
+| `configure_prefix`, `libdir` | Exact compiled common absolute prefix and relative library directory |
+| `interpreter` | `/lib64/ld-linux-x86-64.so.2` or `/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2` |
+| `host_libraries` | Extra required host SONAMEs involved in dynamic initialization |
+| `inventory_sha256` | P026 inventory digest over the normalized P025-installed archive contents |
+| `components` | Exact objects with `role`, `path`, `kind`, and `usage`. Kinds are `native_executable`, `unix_module`, `windows_module`, and `resource`. Usage is `initialization`, `host_dependent`, `optional`, or `gameplay`. |
 
-- Managed bytes must match a regular non-setid P026 baseline entry through no-follow descriptor-relative reads, with ownership/mode/mount checks and bounded stable reads. This is installed-artifact integrity evidence, not new publisher authentication.
-- System candidates use an explicit distribution trust assumption: canonical files under `/usr/lib` or `/usr/lib64`, root-owned and not group/world writable, with those checks on every canonical ancestor. Canonical system symlink aliases are allowed only inside that domain. Every component of the actual symlink resolution chain is checked with a 40-link bound; a user-writable alias to an otherwise trusted system loader is rejected. Their hashes record observations; they are not publisher attestations. Root/kernel/mount administration is trusted.
-- Default candidates are observed only in `/usr/lib/x86_64-linux-gnu`, `/usr/lib64` and `/usr/lib`. Loader cache, glibc-hwcaps, inherited RPATH and combinations of RPATH/RUNPATH are not simulated. The report always records this limitation. A found candidate is not a claim that the real loader must choose it.
-- Static DT_NEEDED inspection never proves `dlopen`, NSS, graphics driver, Wine module or helper closure. This uncertainty always remains explicit and blocks production policy.
+The core role paths are `launcher=bin/wine`, `wineserver=bin/wineserver`, `ntdll_unix=<libdir>/wine/x86_64-unix/ntdll.so`, and `wine_inf=share/wine/wine.inf`. The `ntdll`, `wineboot`, `kernel32`, `kernelbase`, `services`, `rundll32`, `setupapi`, `advapi32`, `shell32`, `ws2_32`, and `newdev` roles map to their matching DLL or EXE under `<libdir>/wine/x86_64-windows/`. The `wow64_rundll32` and `wow64_setupapi` roles map to the corresponding files under `<libdir>/wine/i386-windows/`. All are required. The signed profile must enumerate any additional exact initialization modules and helpers dictated by the build, including required PE imports, delay imports, and runtime loads. Optional and gameplay roles contribute only to the signed package inventory. Native host-dependent roles are included in the ABI check.
 
-These checks do not protect against a fully adversarial process with the same UID. Hashing mutable files does not establish immutability across subsequent opens. A trusted descriptor protects the top-level ELF identity, not all future pathname-based loads. Filesystem and process observations are bounded evidence under the stated host assumptions, not absolute Linux userspace integrity.
+Duplicate roles or paths, unsupported layouts, symlinks in component paths, malformed paths, stale generations and changed P026 inventory are refused. The complete inventory digest binds all package entries, including additional payload files. Required role bytes are opened via the no-follow trusted root and must match that inventory. The qualification plan then binds the endpoint-specific installation ID, generation, P026 baseline identity, and P027 revision. A schema 1 manifest or candidate basename inventory supplies no authenticated role evidence.
 
-## Wine 10.0 source contract and artifact gap
+Wine 10.0 uses `/proc/self/exe` to discover the launcher directory and dynamically loads `ntdll.so` using its configured BINDIR/LIBDIR relationship. The native loader tries the installed sibling wineserver first and has a compiled-in fallback. Qualification checks that the fallback is absent on the host and supplies no PATH or Wine loader overrides. `wineboot.exe --init` starts services and can exit zero even when `update_wineprefix` fails to find `wine.inf`. The source review defines the accepted contract and does not verify any installed bytes. [Launcher](https://github.com/wine-mirror/wine/blob/wine-10.0/loader/main.c) · [NTDLL loader](https://github.com/wine-mirror/wine/blob/wine-10.0/dlls/ntdll/unix/loader.c) · [Wineboot](https://github.com/wine-mirror/wine/blob/wine-10.0/programs/wineboot/wineboot.c)
 
-Reviewed source is the Wine upstream mirror's exact `wine-10.0` tag, over the connected GitHub source interface. Source review is not authentication or qualification of a locally installed build:
+## Host ABI and loader assumptions
 
-- [loader/main.c](https://github.com/wine-mirror/wine/blob/wine-10.0/loader/main.c), blob `ecb51efa136256b5d8a41aeda6f0a884104b118b`: Linux loader discovers `/proc/self/exe`, computes a configured BINDIR/LIBDIR relationship and dynamically loads `wine/x86_64-unix/ntdll.so`. Build-tree and WINEDLLPATH alternatives exist. This directly demonstrates why bin/wine DT_NEEDED is not the Wine closure. Descriptor execution/path discovery still needs authentic qualification.
-- [loader/Makefile.in](https://github.com/wine-mirror/wine/blob/wine-10.0/loader/Makefile.in), blob `191ab81e1d234c22a78772330e975a02a03f2195`: loader/preloader selection and compiled installation directories depend on the build configuration.
-- [wineboot Makefile](https://github.com/wine-mirror/wine/blob/wine-10.0/programs/wineboot/Makefile.in), blob `0983420a91f0992a36fbde74e1a0f4fae41d93e3`: module is `wineboot.exe`; imports and delay-imports include kernelbase, advapi32, ws2_32, shell32, setupapi and newdev.
-- [wineboot.c](https://github.com/wine-mirror/wine/blob/wine-10.0/programs/wineboot/wineboot.c), blob `1b04fd3b202ee3b2fd0cd62b5b5bf1a2dc06ddec`: `wineboot.exe --init` starts services and calls update_wineprefix. That helper can return after failing to locate wine.inf while main ultimately returns zero. Other initialization work includes registry creation, run keys, rundll32 installations and user profile updates.
-- [wineserver manual](https://github.com/wine-mirror/wine/blob/wine-10.0/server/wineserver.man.in), blob `5b9bf97e0f4d54218f21f08a6c8bd8af157f832e`: `--wait` waits for server termination; persistence can keep it alive after clients. WINEPREFIX device/inode participates in server socket selection. `--kill` is not used by this implementation.
+The bounded inspector reads ELF64 little-endian program headers, PT_INTERP, DT_NEEDED, search paths, and GNU version requirements and definitions. For native qualification, each required version name, including GLIBC_* names, must occur in the observed provider's definition table. Native launchers and wineserver require the exact glibc interpreter. The ABI gate distinguishes supported under documented assumptions, missing dependency, incompatible ABI, unsupported loader configuration, and unverifiable. It never runs `ldd` or executes an inspected file.
 
-The source-defined candidate invocation is the exact managed native launcher with native arguments `wineboot.exe`, `--init`, controlled WINEPREFIX and the exact managed prefix as cwd. This is source semantics, **not a verified installed-artifact invocation contract**. No flags are invented or external wineboot substituted.
+Qualification refuses RPATH/RUNPATH, unsafe interpreter candidates, loader audit/filter configurations, global preloads and ambiguous default library candidates. It resolves dependencies from root-owned, non-writable symlink chains in `/usr/lib/x86_64-linux-gnu`, `/usr/lib64`, and `/usr/lib`. Observed system bytes, the loader cache, kernel release and boot identity enter the host fingerprint. The read-only diagnostic's legacy dependency graph can also describe contained managed `$ORIGIN` paths. That broader graph does not authorize an execution.
 
-P024 manifest schema 1 authenticates artifact ID, filename, size and digest, but has no role-to-path map, Wine configure settings, module/helper closure, host ABI constraints or quiescence contract. Its repository fixture is synthetic Proton metadata. P025/P026 bind installation and inventory; they do not fill these missing package semantics. The diagnostic checks candidate inventory bytes for wineserver, wineboot.exe, ntdll.so/ntdll.dll, kernel32/kernelbase, services.exe, rundll32.exe and wine.inf. Missing/ambiguous/replaced candidates are explicit. Matching basename plus matching inventory bytes never qualifies a role or package layout. No different system Wine is adopted.
+A passing host assessment assumes distribution-controlled loader cache and hwcaps entries are trusted and compatible with the inspected providers. It does not model cache choice, alternate hwcaps paths, individual relocations, NSS, all `dlopen` calls, or distribution package changes during execution. The signed layout and minimum initialization closure are inputs to the authentic observation. Trust extends to root/kernel/mount administration and excludes an adversary already holding the same UID.
 
-A future production profile must bind an independently verified exact artifact/layout, configured loader paths, internal module/helper roles, host ABI and an observation mechanism for outstanding initialization activity. No generic Wine 10.x or distribution layout is accepted today.
+## Private headless environment
 
-## Authorization and durable completion
+Supply an absolute, new disposable root under an existing UID-owned, mode-0700 parent. The harness creates separate mode-0700 `home`, `config`, `cache`, `data`, `runtime`, `tmp`, `records`, `evidence`, and `logs` directories. Its P028 registry and single managed prefix live below the test data directory. It reads the original runtime, pins, and applicable recovery metadata from the source AppPaths during both stages. It never copies or mutates the real pin or prefix registry.
 
-`authorize_production_initialization` accepts a real P028 plan, opaque approval, store and application paths, re-inspects current evidence, and returns `InitializationUnsupported` while policy is blocked. Reports cannot be deserialized into capabilities; production authorization fields remain private and there is no unsafe public constructor. Structural preparation, dependency observations, synthetic execution, authentic qualification and user-approved production initialization remain separate evidence levels.
+The descriptor-bound child receives only HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_DATA_HOME, XDG_RUNTIME_DIR, TMPDIR, WINEPREFIX, a fixed USER and LC_ALL. It receives no inherited display, authentication, session bus, Wine override or dynamic loader variables. The private runtime directory follows the XDG ownership and mode contract but supplies no session bus or compositor. Builds requiring desktop/session services fail the headless qualification contract. There is no fallback to the real session runtime directory.
 
-The existing coordinator is reused. Production checks run before intent, after Starting, and through the runtime validator immediately before spawn and before verified completion. Synthetic tests use their existing test-only capability. Production never accepts synthetic success. The coordinator's durable revision checks, immediate-exit ordering, direct-child ownership and recovery-required paths are unchanged.
+This environment controls paths passed to the child. It does not impose a filesystem, process, or network sandbox. Wine 10.0 Linux uses `/tmp/.wine-UID/server-DEVICE-INODE` regardless of TMPDIR or XDG_RUNTIME_DIR. Qualification checks the existing base ownership and permissions and requires the exact server path to be unused. The evidence records bounded entries within the disposable tree and whether that exact server directory appeared. The test preserves the test root, server artifacts, and partial prefix on failure. Use a non-root disposable account or machine when the surrounding filesystem and network must also be isolated. [Wine server directory and lock source](https://github.com/wine-mirror/wine/blob/wine-10.0/server/request.c)
 
-Observed exit zero and stable prefix registry/layout are separate facts. Background services or other Wine clients may remain after the direct child exits. No implemented policy establishes quiescence, and `wineserver --wait` is not automatically invoked merely because it is documented: its executable, prefix association, bounded wait and lifecycle effects need qualification. No helper PID/name is signaled. Partial prefix data is never silently deleted or retried; uncertain P028/P029 states remain blocked. Initialized-prefix restore is not newly enabled.
+## Two-stage harness
 
-## Explicit opt-in harness
+Set the source installation's XDG environment and these selectors in both stages.
 
-The integration test `crates/prefix-management/tests/authentic_wine.rs` is ignored by default. Default unit tests and hosted CI do not run authentic Wine. It requires all of:
-
-```
-ENDFIELD_AUTHENTIC_WINE_OPT_IN=I_ACCEPT_DISPOSABLE_WINE_EXECUTION
+```text
 ENDFIELD_AUTHENTIC_WINE_PIN=<exact-existing-managed-pin>
-ENDFIELD_AUTHENTIC_WINE_REVISION=<exact-registry-revision>
-ENDFIELD_AUTHENTIC_WINE_ARTIFACT_SHA256=<exact-artifact-digest>
-ENDFIELD_AUTHENTIC_WINE_TEST_ROOT=<new-absolute-directory-under-a-private-parent>
+ENDFIELD_AUTHENTIC_WINE_REVISION=<exact-P027-registry-revision>
+ENDFIELD_AUTHENTIC_WINE_ARTIFACT_SHA256=<artifact-digest>
+ENDFIELD_AUTHENTIC_WINE_TEST_ROOT=<new-absolute-directory-under-private-parent>
 ```
 
-With the source installation's explicit XDG environment, invoke:
+Run preparation first.
 
-```
-cargo +1.85.0 test --locked -p endfield-unix-prefix-management \
+```bash
+ENDFIELD_AUTHENTIC_WINE_STAGE=prepare \
+  cargo +1.85.0 test --locked -p endfield-unix-prefix-management \
   --test authentic_wine authentic_wine_initialization_opt_in -- --ignored --exact --nocapture
 ```
 
-**Current expected result is NOT_RUN at policy preflight.** The harness writes scoped evidence into the new private root and returns before creating a prefix or spawning Wine. Opt-in does not bypass any blocker. Do not read an ignored-test or preflight test PASS as authentic qualification.
+Preparation exits without spawning. It records preflight evidence in `evidence/preflight.json` and, when eligible, writes the exact plan in `records/plan.json`. Review the runtime digest, host fingerprint, prefix identity, environment, invocation, effects and plan ID. With separate approval of that exact attempt, run the same test with `ENDFIELD_AUTHENTIC_WINE_STAGE=execute`, `ENDFIELD_AUTHENTIC_WINE_OPT_IN=I_ACCEPT_DISPOSABLE_WINE_EXECUTION` and `ENDFIELD_AUTHENTIC_WINE_PLAN_APPROVAL=<reviewed-plan-id>`. Preparation refuses existing roots. Execution uses the original prepared root, recomputes the plan and refuses any change. This test is ignored by default and regular CI never enables it.
 
-The wired later stages create a separate managed test prefix and XDG tree, persist a plan for review, require `ENDFIELD_AUTHENTIC_WINE_PLAN_APPROVAL` containing that exact reviewed plan ID, obtain production authorization, use the existing coordinator, bound direct-child observation to 60 seconds, verify completion and persist scoped results. Resuming review requires `ENDFIELD_AUTHENTIC_WINE_RESUME=I_REVIEWED_THE_PRESERVED_TEST_DATA`, the same pin/digest/revision, an existing Created prefix with no intent, and no prior execution. There is no crash retry. Isolated XDG propagation and helper quiescence still need a supported production profile before those execution stages can become reachable.
+Execution consumes the approval with an exclusive, fsynced `records/attempt.json` before the existing P028 coordinator publishes Starting and spawns the verified descriptor. Running is published before exit observation. Observing zero exit moves the prefix to VerificationPending. Qualification checks the exact wineserver lock twice, requires its socket absent and an idle visible prefix, and then checks that Wine wrote a fresh `.update-timestamp` matching the verified `wine.inf` modification time. The stable P028 prefix structural verifier runs after those checks. The lock query is read-only. The harness invokes neither `wineserver --wait` nor `--kill`. Unknown or still-active helpers yield `QUIESCENCE_UNVERIFIED`, even with an otherwise plausible prefix. The check covers the source-defined server lock and visible same-UID processes carrying the exact WINEPREFIX. It cannot prove all descendant or external activity has stopped.
 
-Evidence records exact runtime/artifact/pin, host assumptions, invocation, lifecycle, process result, verifier result, timestamp, scope and limitations. Every test artifact and prefix is preserved. Inspect before manual cleanup. No user's gameplay prefix is used, no external prefix is adopted, and the Endfield game is never run. A container alone is not treated as complete isolation.
+The harness bounds direct observation to 60 seconds and quiescence observation to 10 seconds. Its cancellation addresses only the directly owned initializer. Bounded logs and `evidence/result.json` record the observed status, exact plan, attempt, prefix verifier output, quiescence and side effects. An attempt marker with no valid final result is inconclusive even if the earlier preflight document says NOT_RUN. There is no automatic rerun, deletion, helper signaling or promotion after crash, timeout or failed publication. A successful disposable outcome is specific to the artifact, installation, pin, host and plan. Diagnostic labels cannot grant production authorization.
 
 ## Validation scope
 
-Native ELF parsing, synthetic graph resolution, helper integrity rejection and existing synthetic coordinator tests establish only their respective code contracts. Authentic build qualification remains NOT_RUN. Exact final-head hosted qualification is recorded in Draft PR #7 and the completion report; historical checkpoint success does not qualify new code. P034 remains partial and P035 has not started.
+Native fixtures exercise signed profile binding, host ABI inspection, exact approval, coordinator execution, verified and inconclusive completion, side effects and replay refusal. The authentic harness stays out of default tests. The matching independently authenticated binary package, explicit approval, authentic initialization and helper completion, production authorization and game integration remain outstanding. P034 remains partial and P035 has not started. [Draft PR #7](https://github.com/nghianguyen150612/Endfield-Linux/pull/7)

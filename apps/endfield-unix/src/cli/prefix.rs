@@ -953,6 +953,8 @@ fn prefix_error_category(error: &prefixes::PrefixError) -> &'static str {
         prefixes::PrefixError::ActiveUse => "prefix_in_use",
         prefixes::PrefixError::UsageUnknown => "prefix_use_unknown",
         prefixes::PrefixError::InitializationUnsupported => "initialization_unsupported",
+        prefixes::PrefixError::QuiescenceUnverified => "quiescence_unverified",
+        prefixes::PrefixError::WineInfUpdateUnverified => "wine_inf_update_unverified",
         prefixes::PrefixError::InitializationIntentMismatch => "initialization_intent_mismatch",
         prefixes::PrefixError::ApprovalMismatch => "initialization_approval_mismatch",
         prefixes::PrefixError::PlanIntegrityMismatch => "initialization_plan_integrity_mismatch",
