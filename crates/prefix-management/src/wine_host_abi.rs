@@ -305,9 +305,30 @@ fn parse(bytes: &[u8], object: &str) -> HostResult<elf::ElfDependencies> {
 mod tests {
     use super::*;
 
+    fn native_fixture() -> Vec<u8> {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("abi.c");
+        let executable = directory.path().join("abi");
+        fs::write(
+            &source,
+            b"#include <stdio.h>\nint main(void) { return puts(\"fixture\") < 0; }\n",
+        )
+        .unwrap();
+        assert!(
+            std::process::Command::new("cc")
+                .arg(&source)
+                .arg("-o")
+                .arg(&executable)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::read(executable).unwrap()
+    }
+
     #[test]
     fn observed_import_versions_must_exist_in_the_selected_provider() {
-        let current = fs::read("/proc/self/exe").unwrap();
+        let current = native_fixture();
         let consumer = parse(&current, "fixture").unwrap();
         assert_eq!((consumer.class, consumer.machine), (64, 62));
         let (library, version) = consumer
@@ -347,7 +368,7 @@ mod tests {
 
     #[test]
     fn native_machine_and_exact_interpreter_are_required() {
-        let mut bytes = fs::read("/proc/self/exe").unwrap();
+        let mut bytes = native_fixture();
         let interpreter = parse(&bytes, "fixture").unwrap().interpreter.unwrap();
         assert!(
             inspect_managed(

@@ -1619,6 +1619,15 @@ mod tests {
     fn cancellation_after_spawn_records_interrupted_without_retry() {
         let fixture = Fixture::new("coordinator-cancel-running");
         let mut attempt = running(start(&fixture, "partial-sleep"));
+        let partial = fixture.store.target_path(&fixture.id).join("dosdevices/c:");
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while partial.symlink_metadata().is_err() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "fixture did not publish partial data"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
         assert!(matches!(
             attempt.cancel().unwrap(),
             InitializationObservation::Interrupted { .. }

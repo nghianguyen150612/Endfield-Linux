@@ -96,6 +96,7 @@ struct Fixture {
 impl Fixture {
     fn new(mode: u32) -> Self {
         let temp = tempfile::tempdir().unwrap();
+        fs::set_permissions(temp.path(), fs::Permissions::from_mode(0o700)).unwrap();
         let workspace = temp.path();
         let source_paths = AppPaths::from_base_dirs(
             workspace.join("source-config"),
