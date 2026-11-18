@@ -22,6 +22,8 @@ pub struct LinuxPrefixFilesystem {
     data_dir: PathBuf,
     root: PathBuf,
     external_roots: Vec<PathBuf>,
+    #[cfg(test)]
+    process_table: PathBuf,
 }
 
 impl LinuxPrefixFilesystem {
@@ -32,7 +34,15 @@ impl LinuxPrefixFilesystem {
             data_dir,
             root,
             external_roots: known_external_roots(),
+            #[cfg(test)]
+            process_table: PathBuf::from("/proc"),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_process_table_for_test(mut self, process_table: PathBuf) -> Self {
+        self.process_table = process_table;
+        self
     }
 
     fn reject_external_alias(&self) -> Result<(), PrefixError> {
@@ -371,7 +381,11 @@ impl PrefixFilesystem for LinuxPrefixFilesystem {
     fn prefix_in_use(&self, id: &PrefixId) -> Result<Option<bool>, PrefixError> {
         let target = self.target_path(id);
         let target_bytes = target.as_os_str().as_bytes();
-        let processes = match fs::read_dir("/proc") {
+        #[cfg(not(test))]
+        let process_table = Path::new("/proc");
+        #[cfg(test)]
+        let process_table = &self.process_table;
+        let processes = match fs::read_dir(process_table) {
             Ok(processes) => processes,
             Err(_) => return Ok(None),
         };

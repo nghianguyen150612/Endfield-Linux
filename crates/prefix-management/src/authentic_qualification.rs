@@ -2,8 +2,8 @@
 //! and pin resolution always use the original, read-only application paths.
 use crate::{
     FilesystemIdentity, InitializationCoordinator, InitializationObservation, InitializationStart,
-    PrefixError, PrefixId, PrefixInitializationPlan, PrefixRuntimeAssociation, PrefixScope,
-    PrefixStore, RuntimeSelectionSource, backup,
+    PrefixError, PrefixId, PrefixInitializationBlocker, PrefixInitializationPlan,
+    PrefixRuntimeAssociation, PrefixScope, PrefixStore, RuntimeSelectionSource, backup,
     initialization_coordinator::AuthenticQualificationAuthorization,
     wine_artifact_profile::{ArtifactProfileBlocker, VerifiedProfile},
     wine_host_abi::{self, HostAbiEvidence, HostAbiState},
@@ -68,6 +68,8 @@ pub enum QualificationBlocker {
     RecoveryRequired,
     #[error("P028 prefix plan is blocked")]
     PrefixIneligible,
+    #[error("P028 prefix plan is blocked: {0:?}")]
+    PrefixPlanBlocked(Vec<PrefixInitializationBlocker>),
     #[error("separate opt-in and exact reviewed qualification plan ID are required")]
     ApprovalRequired,
     #[error("the approved plan or its evidence has changed")]
@@ -536,7 +538,7 @@ impl QualificationRequest {
             return Err(QualificationBlocker::RecoveryRequired);
         }
         if !plan.otherwise_ready_for_scoped_initialization() {
-            return Err(QualificationBlocker::PrefixIneligible);
+            return Err(QualificationBlocker::PrefixPlanBlocked(plan.blockers));
         }
         let prefix = store.target_path(&id);
         let identity = plan
@@ -804,6 +806,8 @@ impl IsolatedEnvironment {
         for name in DIRECTORIES {
             private_create(&request.test_root.join(name))?;
         }
+        #[cfg(test)]
+        private_create(&request.test_root.join("records/process-table-fixture"))?;
         File::open(&request.test_root)?.sync_all()?;
         File::open(request.test_root.parent().expect("checked parent"))?.sync_all()?;
         Self::open(request)
@@ -880,6 +884,15 @@ impl IsolatedEnvironment {
     }
 
     fn store(&self) -> PrefixStore {
+        #[cfg(test)]
+        {
+            // Keep P028's real filesystem and registry checks while isolating
+            // native fixture tests from unrelated same-UID processes.
+            let filesystem = crate::linux_fs::LinuxPrefixFilesystem::new(self.app_paths.data_dir())
+                .with_process_table_for_test(self.root.join("records/process-table-fixture"));
+            PrefixStore::with_filesystem(Arc::new(filesystem))
+        }
+        #[cfg(not(test))]
         PrefixStore::for_app(&self.app_paths)
     }
 

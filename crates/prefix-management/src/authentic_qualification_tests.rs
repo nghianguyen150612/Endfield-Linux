@@ -611,3 +611,35 @@ fn host_policy_reports_missing_declared_library_and_interpreter() {
     assert_eq!(evidence.state, HostAbiState::MissingRequiredDependency);
     assert_eq!(evidence.object.as_deref(), Some("interpreter"));
 }
+
+#[test]
+fn visible_prefix_use_blocks_approved_attempt_before_consumption() {
+    let fixture = Fixture::new(0);
+    let plan = fixture.request.prepare().unwrap();
+    let environment = IsolatedEnvironment::open(&fixture.request).unwrap();
+    let prefix = environment
+        .store()
+        .target_path(&PrefixId::new(PREFIX).unwrap());
+    let process = fixture
+        .request
+        .test_root
+        .join("records/process-table-fixture/1729");
+    private_create(&process).unwrap();
+    fs::write(
+        process.join("environ"),
+        format!("WINEPREFIX={}\0", prefix.display()),
+    )
+    .unwrap();
+    assert!(matches!(
+        fixture.request.execute(ACCEPT, &plan),
+        Err(QualificationBlocker::PrefixPlanBlocked(blockers))
+            if blockers.contains(&crate::PrefixInitializationBlocker::PrefixActive)
+    ));
+    assert!(
+        !fixture
+            .request
+            .test_root
+            .join("records/attempt.json")
+            .exists()
+    );
+}
