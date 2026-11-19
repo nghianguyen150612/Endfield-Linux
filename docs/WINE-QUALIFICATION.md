@@ -86,3 +86,20 @@ The Wine 10.0 source archive and detached signature were obtained from the WineH
 Wine 10.0's actual `configure.ac` enables a native preloader on Linux for known host architectures. No supported disable-preloader configure option was identified. This conflicts with the current no-preloader qualification profile, and a compatible build must be independently demonstrated before the profile can describe an authentic upstream build. The archive and signature do not authenticate locally built binaries. No source build, reproducibility comparison, managed installation, role profile, or authentic qualification plan has been produced from this source. [Wine 10.0 configure source](https://github.com/wine-mirror/wine/blob/wine-10.0/configure.ac) · [Loader build rules](https://github.com/wine-mirror/wine/blob/wine-10.0/loader/Makefile.in)
 
 WineHQ's Ubuntu Noble package index lists `wine-stable-amd64` version `10.0.0.0~noble-1`. The observed package SHA-256 is `393d545040fe5c029eadeb31fcea52126714473e6c11b3cd851447b2dcbf1f72`, matching the index. The index SHA-256 matches the WineHQ `InRelease` metadata, whose signature verified against WineHQ's published package key `D43F640145369C51D786DDEA76F1A20FF987672F`. The package key's identity has not been independently authenticated in this investigation, so binary publisher authenticity remains **UNVERIFIED**. The package contents include `opt/wine-stable/bin/wine64`, `opt/wine-stable/bin/wine64-preloader`, `opt/wine-stable/lib64/wine/x86_64-unix/ntdll.so`, and `opt/wine-stable/lib64/wine/x86_64-windows/wineboot.exe`. The package therefore does not directly match the current managed `bin/wine`, no-preloader profile. WineHQ's `wine-stable` metapackage also depends on separate AMD64 and i386 packages. No package was installed or executed. [WineHQ repository metadata](https://dl.winehq.org/wine-builds/ubuntu/dists/noble/InRelease) · [Package index](https://dl.winehq.org/wine-builds/ubuntu/dists/noble/main/binary-amd64/Packages.gz) · [AMD64 package](https://dl.winehq.org/wine-builds/ubuntu/pool/main/w/wine/wine-stable-amd64_10.0.0.0~noble-1_amd64.deb)
+
+### Source-build preparation
+
+The source signature and the release tag can be checked against the independently pinned Arch Linux Wine signing-key policy described above. A local build is a separate provenance category and is **not** an independently authenticated WineHQ binary. This host lacks `bison`, `flex`, and a directly available Clang toolchain and has insufficient free space to substantiate two independent Wine builds. No build was attempted. The upstream Linux build enables a native preloader, which the current profile rejects.
+
+The following upstream configuration is a starting point for a controlled investigation after provisioning authenticated compiler and dependency packages. It is untested here and produces a preloader-enabled build that remains blocked by the current P034 profile. Run it as an unprivileged user in an empty private workspace after verifying the source archive and signature. Set `SOURCE` to an inspected, separately extracted source tree and use a fresh `BUILD` and `STAGE` for each run. The installation uses `DESTDIR` and a fixed configured prefix.
+
+```sh
+export SOURCE_DATE_EPOCH=1737477794
+mkdir -m 700 "$BUILD" "$STAGE"
+cd "$BUILD"
+"$SOURCE/configure" --enable-archs=i386,x86_64 --prefix=/opt/wine-stable
+make -j2
+make -j2 DESTDIR="$STAGE" install
+```
+
+Record the exact source archive digest and signing-key policy, tag commit, compiler and linker versions, all build tools and package versions, configure arguments, environment, target architecture and output inventory. Repeat in a second clean workspace and compare every normalized payload entry and binary digest. Reproducibility remains **NOT_VERIFIED** until that comparison is performed. A safe artifact packaging procedure, profile mapping and trust classification for the result are still required before P025/P026/P027 qualification.
