@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "wine-10.0",
+  "archive_sha256": "c5e0b3f5f7efafb30e9cd4d9c624b85c583171d33549d933cd3402f341ac3601",
+  "signature_fingerprint": "DA23579A74D4AD9AF9D3F945CEFAC8EAAF17519D",
+  "signature_state": "VALID_FOR_SUPPLIED_KEY",
+  "signer_identity": "NOT_INDEPENDENTLY_AUTHENTICATED",
+  "archive_entries": 11743,
+  "expanded_bytes": 307350494,
+  "binary_provenance": "NOT_AVAILABLE",
+  "authentic_execution": "NOT_RUN",
+  "source_url": "https://dl.winehq.org/wine/source/10.0/wine-10.0.tar.xz",
+  "signature_url": "https://dl.winehq.org/wine/source/10.0/wine-10.0.tar.xz.sign"
+}

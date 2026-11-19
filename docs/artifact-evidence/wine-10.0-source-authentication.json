@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "source_status": "SOURCE_AUTHENTICATED_UNDER_ARCH_PACKAGING_TRUST",
+  "source_sha256": "c5e0b3f5f7efafb30e9cd4d9c624b85c583171d33549d933cd3402f341ac3601",
+  "signing_fingerprint": "DA23579A74D4AD9AF9D3F945CEFAC8EAAF17519D",
+  "independent_key_policy": "https://gitlab.archlinux.org/archlinux/packaging/packages/wine/-/blob/721fbed8cae2dbd8b2a59bca613317b6ace78ce5/PKGBUILD",
+  "wine_tag_commit": "b073859675060c9211fcbccfd90e4e87520dc2c2",
+  "binary_provenance": "NOT_AVAILABLE",
+  "authentic_execution": "NOT_RUN"
+}
