@@ -33,18 +33,26 @@ def digest(path):
 
 def inspect(archive):
     names = set()
+    files = set()
+    parent_directories = set()
     total = 0
     with tarfile.open(archive, mode='r:xz') as source:
         for entry in source:
             entry.name.encode('utf-8', errors='strict')
             parts = PurePosixPath(entry.name).parts
+            name = '/'.join(parts)
+            parents = {'/'.join(parts[:index]) for index in range(1, len(parts))}
             if (not parts or parts[0] != 'wine-10.0' or entry.name.startswith('/')
                     or any(part in ('', '.', '..') for part in entry.name.rstrip('/').split('/'))
                     or '\\' in entry.name or any(ord(char) < 32 or ord(char) == 127 for char in entry.name)
                     or not (entry.isfile() or entry.isdir())
-                    or entry.mode & 0o6000 or entry.name in names):
+                    or entry.mode & 0o6000 or name in names or files.intersection(parents)
+                    or (entry.isfile() and name in parent_directories)):
                 raise ValueError('unsafe or duplicate source archive entry')
-            names.add(entry.name)
+            names.add(name)
+            parent_directories.update(parents)
+            if entry.isfile():
+                files.add(name)
             total += entry.size
             if len(names) > MAX_ENTRIES or total > MAX_EXPANDED:
                 raise ValueError('source archive expansion limit exceeded')

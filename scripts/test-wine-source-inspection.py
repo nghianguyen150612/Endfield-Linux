@@ -46,6 +46,18 @@ class SourceArchiveTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 inspector.inspect(path)
 
+    def test_file_parent_conflicts_in_either_order(self):
+        for names in [('wine-10.0/sub', 'wine-10.0/sub/file'),
+                      ('wine-10.0/sub/file', 'wine-10.0/sub')]:
+            with self.subTest(names=names), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'fixture.tar.xz'
+                with tarfile.open(path, 'w:xz') as archive:
+                    archive.addfile(tarfile.TarInfo('wine-10.0/configure.ac'), io.BytesIO(b''))
+                    for name in names:
+                        archive.addfile(tarfile.TarInfo(name), io.BytesIO(b''))
+                with self.assertRaises(ValueError):
+                    inspector.inspect(path)
+
 
 if __name__ == '__main__':
     unittest.main()
