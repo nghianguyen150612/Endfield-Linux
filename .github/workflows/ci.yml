@@ -129,6 +129,9 @@ jobs:
       - name: Run P024 offline cryptographic CLI smoke
         run: scripts/runtime-integrity-smoke.sh
 
+      - name: Inspect Wine source archive fixtures offline
+        run: PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-wine-source-inspection.py
+
       - name: Run P024 verification contracts
         run: cargo test --locked -p endfield-unix-runtime-verification
 
