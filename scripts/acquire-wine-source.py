@@ -12,6 +12,11 @@ BASE = 'https://dl.winehq.org/wine/source/10.0/'
 FILES = (('wine-10.0.tar.xz', 50_000_000), ('wine-10.0.tar.xz.sign', 65_536))
 
 
+class RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('destination', type=Path, help='new directory under a private parent')
@@ -27,10 +32,16 @@ def main():
     if not root.is_absolute() or root.parent != parent or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
         parser.error('destination parent must be an absolute private user-owned directory without symlink aliases')
     root.mkdir(mode=0o700)
+    parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
+    opener = urllib.request.build_opener(RefuseRedirects())
     try:
         for name, maximum in FILES:
             request = urllib.request.Request(BASE + name, headers={'User-Agent': 'Endfield-Unix-source-inspection/1'})
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with opener.open(request, timeout=60) as response:
                 if response.geturl() != BASE + name:
                     raise ValueError('redirect is not accepted')
                 length = response.headers.get('Content-Length')
