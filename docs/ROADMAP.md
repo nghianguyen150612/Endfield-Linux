@@ -137,3 +137,12 @@ P027's managed and external runtime pinning, typed P021 evidence evaluation, and
 P034 continuation: shared production provenance revalidation and bounded capture cleanup are implemented. Authentic Wine closure/initialization qualification and production authorization remain blockers. P034 is partial; P035 has not started.
 
 P034 adds authenticated Wine artifact profiles, a bounded host ABI and helper assessment, and a two-stage disposable execution harness. Authentic Wine remains NOT_RUN pending a matching verified archive, host and exact approval. Production initialization and game launch remain blocked. P034 is partial and P035 has not started.
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).

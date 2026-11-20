@@ -213,3 +213,12 @@ Linux compatibility. See [official sources](docs/OFFICIAL-GAME-SOURCES.md) and
 P034 now shares independent managed Wine provenance validation between preview and the durable initializer coordinator, and bounds output-capture worker cleanup. Default execution tests use native fixtures. The opt-in disposable harness requires an authenticated profile and exact approval. See [GAME-LAUNCH.md](docs/GAME-LAUNCH.md).
 
 P034 provides read-only `endfield-unix diagnose wine-runtime --profile desktop --json` and GTK background inspection. The ignored two-stage harness can qualify a matching authenticated Wine 10.0 artifact on a supported host after exact approval. Authentic Wine remains NOT_RUN. Production initialization and game launch remain blocked. [Wine qualification](docs/WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](docs/WINE-REAL-LAYOUT-CANDIDATE.md).

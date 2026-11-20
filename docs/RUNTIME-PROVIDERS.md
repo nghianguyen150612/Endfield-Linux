@@ -310,3 +310,12 @@ P034's Managed Wine preflight re-reads the exact P027 pin revision around P025/P
 Managed Wine descriptor evidence now comes from the shared prefix library validator, independently loading P025 ownership, P026 inventory, and the exact P027 pin. Publisher claims in a pin alone cannot produce descriptor evidence. The loader and Wine helper closure remain unqualified; execution remains unsupported.
 
 P024 manifest schema 2 can bind an artifact-specific Wine qualification profile by SHA-256. For an independently authenticated Wine 10.0 archive, this binds loader configuration, role paths, host ABI requirements and the complete P026 payload inventory. Checks also bind the local P025 generation and exact P027 pin. No authenticated Wine package/profile pair is shipped. [Wine qualification](WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).

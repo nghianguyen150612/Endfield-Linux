@@ -397,3 +397,92 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod candidate_observation {
+    use super::*;
+
+    /// Read-only developer observation. Never invokes Wine or creates managed state.
+    #[test]
+    #[ignore = "requires explicitly acquired non-executable candidate bytes"]
+    fn inspect_real_candidate_without_execution() {
+        let root = std::path::PathBuf::from(std::env::var("ENDFIELD_CANDIDATE_STAGING").unwrap());
+        let output =
+            std::path::PathBuf::from(std::env::var("ENDFIELD_CANDIDATE_ABI_REPORT").unwrap());
+        let candidate: crate::wine_candidate::CandidateProfile =
+            serde_json::from_str(include_str!(
+                "../../../docs/artifact-evidence/winehq-noble-10.0-candidate-profile.json"
+            ))
+            .unwrap();
+        for role in &candidate.roles {
+            if matches!(role.kind.as_str(), "native_executable" | "unix_module") {
+                candidate
+                    .validate_native_bytes(
+                        &role.role,
+                        &std::fs::read(root.join(&role.path)).unwrap(),
+                    )
+                    .unwrap();
+            }
+        }
+        let baseline = endfield_unix_runtime_audit::create_baseline(
+            &root,
+            "candidate-observation",
+            1,
+            "wine",
+            "wine-10.0",
+            &"0".repeat(64),
+            &"0".repeat(64),
+            endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust,
+        )
+        .unwrap();
+        let trusted = crate::wine_qualification::trusted_directory(&root).unwrap();
+        let mut observations = Vec::new();
+        let mut components = Vec::new();
+        for entry in &baseline.entries {
+            if !matches!(
+                entry.kind,
+                endfield_unix_runtime_audit::EntryKind::File { .. }
+            ) {
+                continue;
+            }
+            let bytes = std::fs::read(root.join(&entry.path)).unwrap();
+            if !bytes.starts_with(b"\x7fELF") {
+                continue;
+            }
+            let kind = if entry.path.contains("/bin/") {
+                ComponentKind::NativeExecutable
+            } else {
+                ComponentKind::UnixModule
+            };
+            let assessment =
+                inspect_managed(&bytes, &entry.path, kind, "/lib64/ld-linux-x86-64.so.2");
+            observations.push(serde_json::json!({"path":entry.path,
+                "sha256":endfield_unix_runtime_verification::sha256(&bytes),
+                "elf":elf::inspect(&bytes), "policy":assessment}));
+            components.push(
+                serde_json::json!({"role":format!("native{}",components.len()),
+                "path":entry.path, "kind":kind, "usage":"initialization"}),
+            );
+        }
+        let mut profile: Profile = serde_json::from_value(serde_json::json!({
+            "schema_version":1,"build":"wine-10.0","source_ref":"wine-10.0",
+            "source_commit":"b073859675060c9211fcbccfd90e4e87520dc2c2", "architecture":"x86_64",
+            "build_configuration":"observation-only", "invocation":"NOT_RUN",
+            "configure_prefix":"/opt/wine-stable", "libdir":"lib64",
+            "interpreter":"/lib64/ld-linux-x86-64.so.2", "host_libraries":[],
+            "inventory_sha256":baseline.inventory_sha256,"components":components
+        }))
+        .unwrap();
+        let full = inspect(&trusted, &baseline, &profile);
+        profile
+            .components
+            .retain(|c| !c.path.ends_with("-preloader"));
+        let without_preloader = inspect(&trusted, &baseline, &profile);
+        let report = serde_json::json!({"schema_version":1,"host_os":std::fs::read_to_string("/etc/os-release").unwrap(),
+            "staging_inventory_sha256":baseline.inventory_sha256,
+            "note":"Staging modes are non-executable. This is byte inspection, not installed P026 evidence. Excluding preloader is diagnostic only.",
+            "native_objects":observations,"full_policy":full,"diagnostic_without_preloader":without_preloader,
+            "authentic_execution":"NOT_RUN","production_initialization":"BLOCKED"});
+        std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    }
+}

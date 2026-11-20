@@ -132,6 +132,20 @@ jobs:
       - name: Inspect Wine source archive fixtures offline
         run: PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-wine-source-inspection.py
 
+      - name: Inspect Wine DEB and descriptor path fixtures offline
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-wine-deb-inspection.py
+          PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-descriptor-path-contract.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from jsonschema import Draft202012Validator
+          schema = json.loads(Path("docs/schema/wine-candidate-profile-v2.schema.json").read_text())
+          profile = json.loads(Path("docs/artifact-evidence/winehq-noble-10.0-candidate-profile.json").read_text())
+          Draft202012Validator.check_schema(schema)
+          Draft202012Validator(schema).validate(profile)
+          PY
+
       - name: Run P024 verification contracts
         run: cargo test --locked -p endfield-unix-runtime-verification
 

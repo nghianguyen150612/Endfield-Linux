@@ -25,6 +25,7 @@ mod initialization_coordinator;
 #[cfg(target_os = "linux")]
 mod managed_wine;
 mod wine_artifact_profile;
+pub mod wine_candidate;
 mod wine_host_abi;
 pub mod wine_qualification;
 #[cfg(target_os = "linux")]

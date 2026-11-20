@@ -69,3 +69,12 @@ P034 continuation: move P025/P026/P027 descriptor validation into the prefix lib
 P034: add bounded ELF64 dependency parsing, explicit managed/system trust observations, helper integrity candidate inspection, versioned Wine qualification diagnostics and schema, CLI/GTK inspection, production qualification rechecks in the existing coordinator, and an ignored explicitly gated authentic harness. Authentic Wine NOT_RUN; no production initialization or game-launch apply enabled.
 
 P034 adds authenticated artifact role-map binding, static GNU symbol-version checks, a headless disposable XDG environment, and a separate two-stage qualification capability. Native fixtures exercise the existing P028 coordinator, durable approval consumption and bounded helper-quiescence assessment. Authentic Wine remains NOT_RUN.
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](docs/WINE-REAL-LAYOUT-CANDIDATE.md).

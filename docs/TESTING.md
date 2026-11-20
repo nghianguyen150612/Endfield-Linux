@@ -1207,3 +1207,12 @@ Continuation implementation plus documentation at `02fd25e2232aaaeff1241a5adf88d
 Wine ELF parser and graph/helper qualification tests use harmless synthetic fixtures and native ELF inspection. The new CLI/schema gate verifies diagnostics create no XDG state and report blocked/NOT_RUN. The authentic_wine integration test is ignored and requires explicit opt-in plus independent policy eligibility; ordinary CI never runs Wine. The procedure and evidence scope are in [Wine qualification](WINE-QUALIFICATION.md).
 
 The ignored authentic Wine harness has separate prepare and execute stages. Default Rust tests exercise the two stages with a native fixture, a synthetic signing key and a disposable P028 registry. The default run never starts authentic Wine or Endfield. The fixture verifies source-registry preservation and consumed-approval replay refusal. [Wine qualification procedure](WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).

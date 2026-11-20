@@ -407,6 +407,7 @@
             "provenance_mismatch",
             "invalid_schema",
             "unsupported_build",
+            "preloader_handoff_unverified",
             "wrong_architecture",
             "baseline_mismatch",
             "missing_role",

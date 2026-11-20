@@ -64,3 +64,12 @@ Output capture uses nonblocking pipes and 25 ms polling. Dropping the direct-chi
 Production initialization remains blocked by `PrefixInitializationPlan::approve` and the absence of a production `InitializationExecutionAuthorization` constructor. The shared validator verifies the selected ELF, not its PT_INTERP, shared objects, RPATH/RUNPATH, `wineboot.exe`, services, or wineserver closure. No production game-launch apply exists. Wine 10.0 source review confirms `--init` starts services and invokes `update_wineprefix`; missing `wine.inf` can still lead to main returning zero. Structural verification remains necessary but is not authentic Wine qualification.
 
 The disposable Wine qualification path validates a signed role map and host ABI and uses a separate coordinator capability after exact plan approval. It reports initializer exit and helper quiescence separately. Production initialization and game launch remain blocked. Authentic Wine is NOT_RUN. [Wine qualification](WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).

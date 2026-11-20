@@ -359,3 +359,12 @@ P034 provenance checking is now a library boundary used by preview and the produ
 P034 statically parses bounded ELF program/dynamic headers without ldd or execution. Managed dependencies require no-follow P026 byte evidence; system candidates use the explicit root-owned distribution policy. Loader cache, inherited RPATH, dynamic modules and helper lifetime remain blockers. Same-UID adversarial mutation is outside the integrity guarantee; hashes are not immutability or publisher authentication. Reports are not capabilities. See [Wine qualification](WINE-QUALIFICATION.md).
 
 Disposable Wine qualification uses an independently authenticated P024 artifact profile, exact P025/P026/P027 evidence, a private XDG tree and a write-once reviewed attempt. The headless environment omits desktop and loader overrides. It does not enforce a filesystem or network namespace. Linux Wine can write a prefix-specific directory under /tmp. Helper completion uses a read-only lock and process-use observation. Production initialization and game launch remain separately blocked. [Wine qualification](WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).

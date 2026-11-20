@@ -76,3 +76,12 @@ Hosted continuation qualification: commit `02fd25e2232aaaeff1241a5adf88df1e4b6b5
 This continuation recovered clean exact HEAD d7a564e117a90b159818c024348f299a4ea9f797 and verified its hosted run 43352630930 succeeded. Added bounded ELF dependency inspection, explicit trust classifications, helper integrity candidate observations, Wine 10.0 source invocation contract, versioned qualification report/schema, CLI/GTK diagnostics, production policy checks in the existing coordinator, and an ignored opt-in harness. No authentic Wine or game was executed; authentic qualification is NOT_RUN. Production authorization is blocked by exact artifact layout/module/host ABI/quiescence and isolated XDG execution evidence. See [Wine qualification](../WINE-QUALIFICATION.md). Exact new final-head CI is recorded in PR #7 and the completion report; checkpoint PASS is not reused.
 
 This continuation starts at `34e3dc581c115f7d767d6c62031333fdfb65456d`, which passed [run 43834023540](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/43834023540). P024 schema 2 role-map binding, P026 helper integrity, host ABI validation, private XDG, separate qualification authorization and the two-stage P028 execution path are covered by native fixtures. Authentic Wine remains NOT_RUN. Production initialization and game launch are blocked. Final-head hosted validation is tracked in Draft PR #7. [Wine qualification](../WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](../WINE-REAL-LAYOUT-CANDIDATE.md).

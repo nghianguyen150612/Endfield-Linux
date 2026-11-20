@@ -1,0 +1,149 @@
+{
+  "schema_version": 2,
+  "source_version": "10.0",
+  "source_commit": "b073859675060c9211fcbccfd90e4e87520dc2c2",
+  "source_relationship": "upstream_reference_not_binary_attestation",
+  "artifact_build": "winehq-noble-10.0.0.0~noble-1-amd64-and-common",
+  "architecture": "x86_64",
+  "build_configuration": "observed-classic-amd64-plus-i386-package-dependency-configure-arguments-unavailable",
+  "installed_prefix": "/opt/wine-stable",
+  "launcher_role": "launcher",
+  "launcher_path": "opt/wine-stable/bin/wine64",
+  "preloader_policy": "required_pathname_handoff_unverified",
+  "wineserver_path": "opt/wine-stable/bin/wineserver",
+  "unix_module_directories": [
+    "opt/wine-stable/lib64/wine/x86_64-unix"
+  ],
+  "windows_module_directories": [
+    "opt/wine-stable/lib64/wine/x86_64-windows"
+  ],
+  "required_initialization_roles": [
+    "launcher",
+    "ntdll_unix",
+    "ntdll",
+    "wineboot",
+    "kernel32",
+    "kernelbase",
+    "services",
+    "rundll32",
+    "setupapi",
+    "advapi32",
+    "shell32",
+    "ws2_32",
+    "newdev"
+  ],
+  "required_resource_roles": [
+    "wine_inf"
+  ],
+  "native_helper_roles": [
+    "preloader",
+    "wineserver"
+  ],
+  "invocation_semantics": "descriptor_then_upstream_pathname_reexec",
+  "compiler_provenance": "NOT_ESTABLISHED",
+  "required_host_abi": "ELF64-LE-x86_64; package libc6 >= 2.38; static closure separately inspected",
+  "package_sha256": "393d545040fe5c029eadeb31fcea52126714473e6c11b3cd851447b2dcbf1f72",
+  "inventory_sha256": "184405a6b524a3b5ae33d159a8b415d98c7b5548803c7da48531af3a976f5192",
+  "provenance": "repository_integrity_publisher_identity_unverified",
+  "roles": [
+    {
+      "role": "advapi32",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/advapi32.dll",
+      "sha256": "e7fc8631b760a924c8fcd2f3d57345638eeb40f4dcf8f69fb22dcf67573708ec",
+      "kind": "windows_module"
+    },
+    {
+      "role": "kernel32",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/kernel32.dll",
+      "sha256": "55a6eae889875e1c2b6834bd74e8b313d1f3ac1db395f583a3854bd14f9e66e2",
+      "kind": "windows_module"
+    },
+    {
+      "role": "kernelbase",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/kernelbase.dll",
+      "sha256": "82827830c619c6a04d4d485a1cb35d8f695311f17436b2fd71021828882cdce3",
+      "kind": "windows_module"
+    },
+    {
+      "role": "launcher",
+      "path": "opt/wine-stable/bin/wine64",
+      "sha256": "98e90bbed9f60a37c8be715418485063b6b9238e9eee3b43818ecb397de27f42",
+      "kind": "native_executable"
+    },
+    {
+      "role": "newdev",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/newdev.dll",
+      "sha256": "607319967d474d48c7e6122352f3e8e7eed6c40b600add886ad1f01394ded667",
+      "kind": "windows_module"
+    },
+    {
+      "role": "ntdll",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/ntdll.dll",
+      "sha256": "6f6e3bd72647e6540c3b1547a78536a026b2d75922471d212ed20289098ee46b",
+      "kind": "windows_module"
+    },
+    {
+      "role": "ntdll_unix",
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/ntdll.so",
+      "sha256": "866d65aa6a94c14d03023202b88a8ea4dc9f8c215a80b34e0d002b06f5612b8a",
+      "kind": "unix_module"
+    },
+    {
+      "role": "preloader",
+      "path": "opt/wine-stable/bin/wine64-preloader",
+      "sha256": "f2b0ed773b58a14f3a2356354b259eff31df43be8f38e39ead119446467c166a",
+      "kind": "native_executable"
+    },
+    {
+      "role": "rundll32",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/rundll32.exe",
+      "sha256": "61877e57c8b51aa7bfc3ee6f699c39f9a736eadc4a1c592dbd5bc919473695dc",
+      "kind": "windows_module"
+    },
+    {
+      "role": "services",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/services.exe",
+      "sha256": "59586bea34808d6e77dd72dd74a3f3de51b7fec7c1151e1670d4d61f8db7f66c",
+      "kind": "windows_module"
+    },
+    {
+      "role": "setupapi",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/setupapi.dll",
+      "sha256": "74a56394bcc06f8539bfaf606c099c3ffc384d2bac7fd21217db376241a7795b",
+      "kind": "windows_module"
+    },
+    {
+      "role": "shell32",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/shell32.dll",
+      "sha256": "6fb1eda9a1edced1b01cf19fe56b1a227cc1339e07403dd189bb66a1ee26ff59",
+      "kind": "windows_module"
+    },
+    {
+      "role": "wine_inf",
+      "path": "opt/wine-stable/share/wine/wine.inf",
+      "sha256": "8d7db4129d52e45b01cae2a016fea60dd61965a24594b7281d1b7981618b5243",
+      "kind": "resource"
+    },
+    {
+      "role": "wineboot",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/wineboot.exe",
+      "sha256": "fbf332b6744f3e217dbefd09d3bd55d39bf223298d8346eab7cf9e1e10b03cf1",
+      "kind": "windows_module"
+    },
+    {
+      "role": "wineserver",
+      "path": "opt/wine-stable/bin/wineserver",
+      "sha256": "5f9a799bedb1811b9023d63077c8318f8bfe8bd58cf7f91360a67ccea354cea0",
+      "kind": "native_executable"
+    },
+    {
+      "role": "ws2_32",
+      "path": "opt/wine-stable/lib64/wine/x86_64-windows/ws2_32.dll",
+      "sha256": "df8f3e1f940d6841732581c1b6e2fbd87550828575662a0a598719c318907df2",
+      "kind": "windows_module"
+    }
+  ],
+  "missing_companion_packages": [
+    "wine-stable-i386 (= 10.0.0.0~noble-1)"
+  ]
+}

@@ -1,10 +1,10 @@
 # Managed Wine qualification (P034)
 
-Authentic Wine execution is **NOT_RUN**. No independently authenticated Wine 10.0 package with a matching qualification profile was available for this continuation. The disposable harness can reach the descriptor-bound executor when its gates pass. Production prefix initialization and game launch have separate eligibility and approval requirements and remain blocked.
+Authentic Wine execution is **NOT_RUN**. An actual WineHQ Noble 10.0 AMD64/common candidate has now been extracted and inventoried, but publisher identity, complete packaging and safe preloader handoff remain blocked. See [real-layout candidate evidence](WINE-REAL-LAYOUT-CANDIDATE.md). The disposable harness can reach the descriptor-bound executor when its gates pass. Production prefix initialization and game launch have separate eligibility and approval requirements and remain blocked.
 
 `endfield-unix diagnose wine-runtime --profile desktop --json` inspects the selected P027 pin, P025 ownership, P026 bytes, artifact profile, host ABI and qualification blockers. It creates no XDG storage and starts no subprocess. Set `ENDFIELD_AUTHENTIC_WINE_TEST_ROOT` to consult one preserved, matching test journal. The recorded status reports an absent, inconclusive, stale, unreadable or recorded outcome. A diagnostic record cannot grant an execution capability. GTK performs the same inspection on its existing worker. Its Play action stays disabled. [Diagnostic schema](schema/wine-runtime-qualification-v1.schema.json)
 
-## Authenticated package contract
+## Legacy schema-1 authenticated package contract
 
 The supported profile format describes a relocatable, headless upstream Wine 10.0 Linux x86-64 WoW64 build without a native preloader. The build uses `bin`, a configured relative library directory, and `share` under one configured prefix. The profile declares the exact source tag and commit, loader configuration, minimum host libraries and required initialization roles. A publisher or independently authenticated artifact source must supply the reviewed build and inventory. Repository test fixtures use synthetic payloads and keys.
 

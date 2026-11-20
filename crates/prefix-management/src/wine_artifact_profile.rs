@@ -139,6 +139,8 @@ pub(crate) struct Profile {
 pub enum ArtifactProfileBlocker {
     #[error("authenticated artifact profile or manifest is missing")]
     Missing,
+    #[error("native preloader pathname handoff does not preserve verified executable identity")]
+    PreloaderHandoffUnverified,
     #[error("artifact profile or manifest could not be read safely")]
     Unreadable,
     #[error("profile is not authenticated by the installed P024 manifest")]
@@ -261,6 +263,20 @@ impl VerifiedProfile {
             || artifact.wine_qualification_profile_sha256.as_deref() != Some(&id)
         {
             return Err(Error::ProvenanceMismatch);
+        }
+        let schema: serde_json::Value =
+            serde_json::from_slice(raw_profile).map_err(|_| Error::InvalidSchema)?;
+        if schema
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            == Some(2)
+        {
+            let candidate: crate::wine_candidate::CandidateProfile =
+                serde_json::from_slice(raw_profile).map_err(|_| Error::InvalidSchema)?;
+            candidate.validate(&baseline.entries)?;
+            // Recognition is not promotion: this invocation still lacks a bound
+            // preloader/launcher/helper handoff and cannot mint authorization.
+            return Err(candidate.execution_blocker());
         }
         let profile: Profile =
             serde_json::from_slice(raw_profile).map_err(|_| Error::InvalidSchema)?;
