@@ -6,6 +6,8 @@ Output must be a new directory beneath a private, user-owned parent.
 """
 import argparse
 import hashlib
+import gzip
+import lzma
 import io
 import json
 import os
@@ -63,6 +65,8 @@ def ar_members(data):
 
 
 def inventory(data, destination=None):
+    if len(data) > MAX_PACKAGE:
+        raise ValueError('compressed stream limit')
     if data.startswith(b'\x28\xb5\x2f\xfd'):
         with tempfile.TemporaryFile() as compressed, tempfile.TemporaryFile() as expanded:
             compressed.write(data)
@@ -80,7 +84,14 @@ def inventory(data, destination=None):
                     raise ValueError('invalid zstd stream')
             expanded.seek(0)
             return inventory_tar(expanded, destination)
-    return inventory_tar(io.BytesIO(data), destination)
+    stream = io.BytesIO(data)
+    if data.startswith(b'\x1f\x8b'):
+        with gzip.GzipFile(fileobj=stream) as decoded:
+            return inventory_tar(decoded, destination)
+    if data.startswith(b'\xfd7zXZ\x00'):
+        with lzma.LZMAFile(stream) as decoded:
+            return inventory_tar(decoded, destination)
+    return inventory_tar(stream, destination)
 
 
 class BoundedReader:
@@ -100,7 +111,7 @@ def inventory_tar(stream, destination=None):
     entries, seen, files, parents = [], set(), set(), set()
     total = 0
     # Streaming avoids unbounded metadata accumulation. Reject extension records.
-    with tarfile.open(fileobj=BoundedReader(stream), mode='r|*') as archive:
+    with tarfile.open(fileobj=BoundedReader(stream), mode='r|') as archive:
         for item in archive:
             if item.name in ('.', './') and item.isdir():
                 continue

@@ -50,6 +50,13 @@ class DebTests(unittest.TestCase):
             with self.subTest(data=data), self.assertRaises(ValueError):
                 deb.ar_members(data)
 
+    def test_decoded_header_padding_is_bounded(self):
+        from unittest.mock import patch
+        # The limit applies after decompression, including archive padding.
+        data = archive([('a',tarfile.REGTYPE,'')])
+        with patch.object(deb, 'MAX_EXPANDED', 512), self.assertRaises(ValueError):
+            deb.inventory(data)
+
     def test_inventory_is_sorted_and_deterministic(self):
         data = archive([('b',tarfile.REGTYPE,''),('a',tarfile.REGTYPE,'')])
         self.assertEqual([e['path'] for e in deb.inventory(data)], ['a','b'])
