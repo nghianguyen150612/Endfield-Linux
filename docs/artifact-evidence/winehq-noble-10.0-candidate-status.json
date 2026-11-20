@@ -72,5 +72,15 @@
   "game_launch": "NOT_RUN",
   "source_build": "NOT_ATTEMPTED: bison, flex and Clang unavailable; GTK development files also absent; no system packages installed",
   "staging": "/workspace/wine-candidate/combined/staging",
-  "staging_modes": "0600 files; 0700 directories; symlinks not materialized"
+  "staging_modes": "0600 files; 0700 directories; symlinks not materialized",
+  "repository_key_identity_corroboration": {
+    "state": "VALID_CERTIFICATION_FROM_INDEPENDENTLY_CORROBORATED_SOURCE_SIGNER",
+    "certifier": "DA23579A74D4AD9AF9D3F945CEFAC8EAAF17519D",
+    "certified_key": "D43F640145369C51D786DDEA76F1A20FF987672F",
+    "certification_class": "0x10 generic UID certification",
+    "certification_timestamp": 1544461168,
+    "verification": "gpg --with-colons --check-sigs: sig:! for full certifier fingerprint",
+    "independent_basis": "wine-10.0-source-authentication.json; Arch policy authenticates source signer",
+    "policy_limit": "Source-key acceptance does not automatically authorize a binary publisher or satisfy P024 Ed25519 manifest policy; no trust tier promoted"
+  }
 }

@@ -103,3 +103,9 @@ make -j2 DESTDIR="$STAGE" install
 ```
 
 Record the exact source archive digest and signing-key policy, tag commit, compiler and linker versions, all build tools and package versions, configure arguments, environment, target architecture and output inventory. Repeat in a second clean workspace and compare every normalized payload entry and binary digest. Reproducibility remains **NOT_VERIFIED** until that comparison is performed. A safe artifact packaging procedure, profile mapping and trust classification for the result are still required before P025/P026/P027 qualification.
+
+The real-layout continuation additionally verifies a generic certification of the
+repository key by the independently corroborated Wine source signer. This is
+independent key-identity corroboration, not an automatic extension of source-key
+policy to a P024 binary publisher. See the candidate report and preserved GPG
+certification evidence; production trust remains unpromoted.

@@ -88,10 +88,19 @@ before exec is insufficient. This iteration enables no alternate strategy.
 The newly retrieved Noble InRelease (dated 2026-11-14) has a valid OpenPGP
 signature for `D43F640145369C51D786DDEA76F1A20FF987672F`. Its SHA256 section
 matches the newly downloaded AMD64 Packages index; exact package records match
-the downloaded DEB bytes. The key came from WineHQ itself. No independent signer
-identity basis was established in this iteration. Therefore repository integrity
-is verified **for the supplied key**, while publisher identity remains unverified.
-The source release key is different and grants no binary publisher trust.
+the downloaded DEB bytes. The key came from WineHQ itself. A valid generic UID certification on that repository key was additionally
+verified from source signer `DA23579A74D4AD9AF9D3F945CEFAC8EAAF17519D`, independently
+corroborated by the existing Arch source-key policy. This is independent
+cryptographic corroboration of repository-key identity; see the [GPG certification
+result](artifact-evidence/winehq-key-certification.txt) and preserved [source
+public key](artifact-evidence/wine-source-signer-key.asc). The certification is
+from 2018 and supplies no reproducible-build or package-content attestation.
+
+The existing policy accepts the certifier for source releases, not as an automatic
+authority to enroll a production binary publisher. Repository integrity is
+verified and key identity is corroborated, while the candidate's production
+publisher tier remains unverified/unpromoted under that policy. Neither this
+certification nor OpenPGP metadata satisfies P024's Ed25519 manifest contract.
 
 The [status and dependency records](artifact-evidence/winehq-noble-10.0-candidate-status.json),
 [InRelease](artifact-evidence/winehq-noble-InRelease.asc),
@@ -176,7 +185,7 @@ test; it cannot invoke the authentic execution harness. Existing P019/P021–P03
 regressions, C17 ABI 0x00010000, and exactly two application binaries remain required.
 
 This continuation delivers real binary evidence but **does not complete P034
-acceptance**. Remaining work includes independent repository signer identity,
+acceptance**. Remaining work includes accepting an explicit binary publisher identity policy,
 complete package closure, a qualified managed packaging contract and signature,
 preloader-aware ABI resolution, immutable helper handoff/process ownership,
 P025/P026/P027 integration, and separately approved authentic qualification.
