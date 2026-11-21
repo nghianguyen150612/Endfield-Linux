@@ -16,6 +16,11 @@ const MAX_HUMAN_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq, Subcommand)]
 pub enum Operation {
+    /// Build a read-only, explicitly selected launch plan.
+    Launch {
+        #[command(subcommand)]
+        command: super::game_launch::Operation,
+    },
     /// List reviewed official distribution sources, without network access.
     Sources {
         #[arg(long)]
@@ -105,6 +110,7 @@ pub enum ImportOperation {
 impl Operation {
     fn json(&self) -> bool {
         match self {
+            Self::Launch { command } => command.json(),
             Self::Source { .. } => false,
             Self::Import { command } => match command {
                 ImportOperation::Plan { json, .. } | ImportOperation::Apply { json, .. } => *json,
@@ -169,6 +175,10 @@ struct ErrorDetail<'a> {
 
 pub fn run(operation: Operation, output: &mut impl Write) -> io::Result<u8> {
     let operation = match operation {
+        Operation::Launch { command } => return super::game_launch::run(command, output),
+        operation => operation,
+    };
+    let operation = match operation {
         Operation::Sources { json } => return super::game_sources::list(json, output),
         Operation::Source { command } => return super::game_sources::run(command, output),
         operation => operation,
@@ -221,6 +231,9 @@ fn run_inner(
         .map_err(|_| GameImportError::StorageUnavailable)?;
     let registry = GameInstallationRegistry::for_app(&paths);
     match operation {
+        Operation::Launch { command } => {
+            return super::game_launch::run(command, output).map_err(GameImportError::Io);
+        }
         Operation::Sources { .. } | Operation::Source { .. } => {
             unreachable!("source commands dispatch before storage discovery")
         }

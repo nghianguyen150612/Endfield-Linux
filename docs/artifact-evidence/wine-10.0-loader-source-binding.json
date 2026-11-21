@@ -1,0 +1,27 @@
+{
+  "source_archive_sha256": "c5e0b3f5f7efafb30e9cd4d9c624b85c583171d33549d933cd3402f341ac3601",
+  "files": [
+    {
+      "path": "loader/main.c",
+      "sha256": "c78fb70d855cc69c8d05db54d0a4f9b067eaad1f019a09de1bdd96d4d6499141"
+    },
+    {
+      "path": "dlls/ntdll/unix/loader.c",
+      "sha256": "ba0d52bef0a6b91a250f69f67156bec3ce08b1a0b70f24be7114ec863927f53b"
+    },
+    {
+      "path": "loader/preloader.c",
+      "sha256": "2dc42ed969e44686abf8d5d837db5467024d044ebb97196b3a31fa53930b27be"
+    },
+    {
+      "path": "configure.ac",
+      "sha256": "33c27ba2387c3d36344fec3d0e5fb22a9815af862ce718b913ff563678086674"
+    },
+    {
+      "path": "loader/Makefile.in",
+      "sha256": "986593eb436299c0d860fe8f826e4f24ae2a2a11a3afa254ff670a1aa90f5b96"
+    }
+  ],
+  "source_authentication": "wine-10.0-source-authentication.json",
+  "binary_source_relationship": "NOT_ATTESTED"
+}

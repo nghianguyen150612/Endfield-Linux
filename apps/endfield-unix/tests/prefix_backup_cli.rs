@@ -216,9 +216,32 @@ fn actual_backup_restore_recovery_and_pin_cas_or_documented_use_refusal() {
         ],
         0,
     );
-    let prefix = root.join("data/endfield-unix/prefixes/data/game");
-    fs::write(prefix.join("snapshot.bin"), b"\0\xffroundtrip").unwrap();
+    let registry_path = root.join("data/endfield-unix/prefixes/registry.json");
+    let registry_before_init_plan = fs::read(&registry_path).unwrap();
     let pin_path = root.join("config/endfield-unix/runtime-pins.json");
+    let pin_before_init_plan = fs::read(&pin_path).unwrap();
+    let init_plan = run(root, &["prefix", "init-plan", "--id", "game", "--json"]);
+    assert_eq!(init_plan.status.code(), Some(78));
+    assert_eq!(
+        String::from_utf8_lossy(&init_plan.stderr),
+        "endfield-unix: runtime verification completed; see report.\n"
+    );
+    let init_plan: Value = serde_json::from_slice(&init_plan.stdout).unwrap();
+    assert_eq!(init_plan["schema_version"], 2);
+    assert_eq!(init_plan["execution_supported"], false);
+    assert!(matches!(
+        init_plan["state"].as_str(),
+        Some("unsupported" | "blocked")
+    ));
+    assert!(init_plan["blockers"]
+        .as_array()
+        .is_some_and(|blockers| blockers.contains(&serde_json::json!("initializer_unverified"))));
+    assert_eq!(fs::read(&registry_path).unwrap(), registry_before_init_plan);
+    assert_eq!(fs::read(&pin_path).unwrap(), pin_before_init_plan);
+    assert!(!runtime.join("proton.executed").exists());
+    let prefix = root.join("data/endfield-unix/prefixes/data/game");
+    assert!(fs::read_dir(&prefix).unwrap().next().is_none());
+    fs::write(prefix.join("snapshot.bin"), b"\0\xffroundtrip").unwrap();
     let pin_bytes = fs::read(&pin_path).unwrap();
     expect(
         root,

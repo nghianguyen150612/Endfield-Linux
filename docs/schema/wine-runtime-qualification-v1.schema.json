@@ -1,0 +1,530 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://endfield-unix.invalid/schema/wine-runtime-qualification-v1",
+  "title": "P034 read-only Wine runtime qualification v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "policy_id": {
+      "const": "wine10-linux-x86_64-conservative-v1"
+    },
+    "runtime_installation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "pin_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "pin_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifact_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "ownership": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "missing",
+        "unsupported",
+        "not_run",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "integrity": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "missing",
+        "unsupported",
+        "not_run",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "executable_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "executable_identity": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "object": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "state": {
+            "enum": [
+              "verified_managed",
+              "trusted_system",
+              "missing",
+              "untrusted",
+              "unverifiable",
+              "dynamic_not_established",
+              "unsupported"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "elf": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "class": {
+                "const": 64
+              },
+              "machine": {
+                "const": 62
+              },
+              "executable_type": {
+                "enum": [
+                  2,
+                  3
+                ]
+              },
+              "interpreter": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 256
+              },
+              "needed": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "type": "string",
+                  "maxLength": 4096
+                }
+              },
+              "rpath": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 256
+              },
+              "runpath": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 256
+              },
+              "dynamic_loading_not_established": {
+                "const": true
+              },
+              "version_requirements": {
+                "type": "array",
+                "maxItems": 2048,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "library",
+                    "versions"
+                  ],
+                  "properties": {
+                    "library": {
+                      "type": "string",
+                      "maxLength": 4096
+                    },
+                    "versions": {
+                      "type": "array",
+                      "maxItems": 2048,
+                      "items": {
+                        "type": "string",
+                        "maxLength": 4096
+                      }
+                    }
+                  }
+                }
+              },
+              "version_definitions": {
+                "type": "array",
+                "maxItems": 2048,
+                "items": {
+                  "type": "string",
+                  "maxLength": 4096
+                }
+              }
+            },
+            "required": [
+              "class",
+              "machine",
+              "executable_type",
+              "interpreter",
+              "needed",
+              "rpath",
+              "runpath",
+              "dynamic_loading_not_established",
+              "version_requirements",
+              "version_definitions"
+            ]
+          }
+        },
+        "required": [
+          "object",
+          "state",
+          "sha256",
+          "elf"
+        ]
+      }
+    },
+    "helper_inventory": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "missing",
+        "unsupported",
+        "not_run",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "helpers": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "candidate_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200000
+          },
+          "integrity": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "missing",
+              "unsupported",
+              "not_run",
+              "unknown",
+              "blocked"
+            ]
+          },
+          "usage": {
+            "enum": [
+              null,
+              "initialization",
+              "optional",
+              "host_dependent",
+              "gameplay"
+            ]
+          }
+        },
+        "required": [
+          "role",
+          "candidate_count",
+          "integrity",
+          "usage"
+        ]
+      }
+    },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_ref": {
+          "const": "wine-mirror/wine:wine-10.0"
+        },
+        "source_semantics": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "missing",
+            "unsupported",
+            "not_run",
+            "unknown",
+            "blocked"
+          ]
+        },
+        "artifact_mapping": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "missing",
+            "unsupported",
+            "not_run",
+            "unknown",
+            "blocked"
+          ]
+        },
+        "arguments": {
+          "const": [
+            "wineboot.exe",
+            "--init"
+          ]
+        },
+        "environment": {
+          "const": [
+            "WINEPREFIX"
+          ]
+        },
+        "working_directory": {
+          "const": "exact-selected-managed-prefix"
+        },
+        "direct_exit_is_completion": {
+          "const": false
+        }
+      },
+      "required": [
+        "source_ref",
+        "source_semantics",
+        "artifact_mapping",
+        "arguments",
+        "environment",
+        "working_directory",
+        "direct_exit_is_completion"
+      ]
+    },
+    "invocation_contract": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "missing",
+        "unsupported",
+        "not_run",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "completion_verifier": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "missing",
+        "unsupported",
+        "not_run",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "descendant_completion": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "missing",
+        "unsupported",
+        "not_run",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "authentic_qualification": {
+      "enum": [
+        "not_run",
+        "unknown"
+      ]
+    },
+    "host_compatible": {
+      "type": "boolean"
+    },
+    "production_initialization": {
+      "const": "blocked"
+    },
+    "approval_required": {
+      "const": true
+    },
+    "blockers": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "host_architecture": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "host_os": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "artifact_profile_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "artifact_profile_blocker": {
+      "oneOf": [
+        {
+          "enum": [
+            null,
+            "missing",
+            "unreadable",
+            "provenance_mismatch",
+            "invalid_schema",
+            "unsupported_build",
+            "preloader_handoff_unverified",
+            "wrong_architecture",
+            "baseline_mismatch",
+            "missing_role",
+            "ambiguous_role",
+            "unsafe_path"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "component_integrity"
+          ],
+          "properties": {
+            "component_integrity": {
+              "type": "string",
+              "maxLength": 96
+            }
+          }
+        }
+      ]
+    },
+    "host_abi": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "supported_under_host_assumptions",
+            "missing_required_dependency",
+            "abi_incompatible",
+            "unsupported_loader_configuration",
+            "unverifiable"
+          ]
+        },
+        "object": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "required_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "authentic_loading_observation_required": {
+          "const": true
+        }
+      },
+      "required": [
+        "state",
+        "object",
+        "required_version",
+        "observed_fingerprint",
+        "authentic_loading_observation_required"
+      ]
+    },
+    "isolated_qualification_readiness": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "missing",
+        "unsupported",
+        "not_run",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "recorded_qualification": {
+      "enum": [
+        null,
+        "no_attempt",
+        "inconclusive",
+        "outcome_recorded",
+        "stale",
+        "unreadable"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "policy_id",
+    "runtime_installation_id",
+    "pin_id",
+    "pin_revision",
+    "artifact_sha256",
+    "ownership",
+    "integrity",
+    "executable_sha256",
+    "executable_identity",
+    "dependencies",
+    "helper_inventory",
+    "helpers",
+    "invocation",
+    "invocation_contract",
+    "completion_verifier",
+    "descendant_completion",
+    "authentic_qualification",
+    "host_compatible",
+    "production_initialization",
+    "approval_required",
+    "blockers",
+    "host_architecture",
+    "host_os",
+    "artifact_profile_id",
+    "artifact_profile_blocker",
+    "host_abi",
+    "isolated_qualification_readiness",
+    "recorded_qualification"
+  ]
+}

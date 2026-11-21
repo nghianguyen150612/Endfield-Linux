@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Non-authorizing Wine layout observation v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_version",
+    "source_commit",
+    "source_relationship",
+    "artifact_build",
+    "architecture",
+    "build_configuration",
+    "installed_prefix",
+    "launcher_role",
+    "launcher_path",
+    "preloader_policy",
+    "wineserver_path",
+    "unix_module_directories",
+    "windows_module_directories",
+    "required_initialization_roles",
+    "required_resource_roles",
+    "native_helper_roles",
+    "invocation_semantics",
+    "compiler_provenance",
+    "required_host_abi",
+    "package_sha256",
+    "inventory_sha256",
+    "provenance",
+    "roles",
+    "missing_companion_packages"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "source_version": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "source_commit": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "source_relationship": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "artifact_build": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "architecture": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "build_configuration": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "installed_prefix": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "launcher_role": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "launcher_path": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "preloader_policy": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "wineserver_path": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "unix_module_directories": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "windows_module_directories": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "required_initialization_roles": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "required_resource_roles": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "native_helper_roles": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "invocation_semantics": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "compiler_provenance": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "required_host_abi": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "package_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "inventory_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "enum": [
+        "repository_integrity_publisher_identity_unverified",
+        "source_authenticated_local_build",
+        "upstream_packages_locally_transformed"
+      ]
+    },
+    "roles": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "path",
+          "sha256",
+          "kind"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "kind": {
+            "enum": [
+              "native_executable",
+              "unix_module",
+              "windows_module",
+              "resource"
+            ]
+          },
+          "architecture": {
+            "enum": [
+              "x86_64",
+              "i386"
+            ]
+          }
+        }
+      }
+    },
+    "missing_companion_packages": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "source_inventory_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "transformation_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "derived_artifact_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

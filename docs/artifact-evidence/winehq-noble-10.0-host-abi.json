@@ -1,0 +1,2701 @@
+{
+  "authentic_execution": "NOT_RUN",
+  "diagnostic_without_preloader": {
+    "authentic_loading_observation_required": true,
+    "object": "ntdll.so",
+    "observed_fingerprint": null,
+    "required_version": null,
+    "state": "missing_required_dependency"
+  },
+  "full_policy": {
+    "authentic_loading_observation_required": true,
+    "object": "native2",
+    "observed_fingerprint": null,
+    "required_version": null,
+    "state": "abi_incompatible"
+  },
+  "host_os": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.6\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+  "native_objects": [
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/widl",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "cd9b3f1b0ac8df60265838ae5d6387a1856415619a6341602a1fd8a357d96310"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/wine64",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "98e90bbed9f60a37c8be715418485063b6b9238e9eee3b43818ecb397de27f42"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": []
+        }
+      },
+      "path": "opt/wine-stable/bin/wine64-preloader",
+      "policy": {
+        "Err": {
+          "authentic_loading_observation_required": true,
+          "object": "opt/wine-stable/bin/wine64-preloader",
+          "observed_fingerprint": null,
+          "required_version": null,
+          "state": "abi_incompatible"
+        }
+      },
+      "sha256": "f2b0ed773b58a14f3a2356354b259eff31df43be8f38e39ead119446467c166a"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.15",
+                "GLIBC_2.14",
+                "GLIBC_2.33",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/winebuild",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.15",
+                "GLIBC_2.14",
+                "GLIBC_2.33",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "7890148eef7c2a5f622f5dd245a22343d0d3a2cb82148f47dab9bf3702df44cc"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/winedump",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "767c5cd8c47e5844b2512a78c447f11b77622ef6ead521b3a573f3a67037f622"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.15",
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.33",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/winegcc",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.15",
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.33",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "b28df3ed10b5e9dbeef4f3512bde701812ed52c6c0a54240040c0265340b4541"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.4",
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.33",
+                "GLIBC_2.3.2",
+                "GLIBC_2.3.4",
+                "GLIBC_2.17",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/wineserver",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.4",
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.33",
+                "GLIBC_2.3.2",
+                "GLIBC_2.3.4",
+                "GLIBC_2.17",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "5f9a799bedb1811b9023d63077c8318f8bfe8bd58cf7f91360a67ccea354cea0"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/wmc",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "fbb22ad51125c82e918f3d83714673c68dd5d8cf4a07e0db70fce0f2ee6d9549"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/bin/wrc",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "627857f74b1e97113f2e47ba1a6e7c360916b9aeef8085680e67c806a73003b0"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/avicap32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "6d171b3deddff503b3743c9a799d545a28b7ac3f51cdc08dbee313066b33913a"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/bcrypt.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "2015f2e0a7911cd4e66e707575590a7a5b81b4b97e3b589ad04e1e3ed1c42b4d"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/crypt32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.33",
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "d2937af75f03570414c8e8110ff53650f3483b93cfc7515fd25d0c0abc623fbe"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/ctapi32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "09cd5a6f16326d685965038562160903c7b087ad26d520e1a903add42beb89aa"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/dnsapi.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "0ce25fd376855e165ec9bc828afb9d61b0d8dc676ed344bc0fcb1410824b29b7"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/dwrite.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "127b56d2a251b4486b7018e3885fed67ae5713c181e6d57f672a47d7bc090364"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libgphoto2.so.6",
+            "libgphoto2_port.so.12",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libgphoto2_port.so.12",
+              "versions": [
+                "LIBGPHOTO2_5_0"
+              ]
+            },
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/gphoto2.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libgphoto2.so.6",
+            "libgphoto2_port.so.12",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libgphoto2_port.so.12",
+              "versions": [
+                "LIBGPHOTO2_5_0"
+              ]
+            },
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "7718de893b3052e0eab1f147bb5c0f0572de06381243236f5070e927ec503c00"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/kerberos.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "fe9f81405a739437e50ad5bd0b46144e6465783306eaa44dfc7f2a7bbb9ede3f"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/localspl.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "4ffb309a228174beb71a10aa737fd7af9685b5fa9f25208c5df1e1ab389ea67a"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.33",
+                "GLIBC_2.38",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/mountmgr.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.33",
+                "GLIBC_2.38",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "894549823457aac3fbb39c6b21a389c0434ffcd27bffb2c1eb6e949c9b3a95af"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.15",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/msv1_0.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.15",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "d217fef2c21d9c943c83046e083500900190eec5c22e58ae76f479516ff9b583"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/netapi32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "53b1d115f4b423772a9bbc002cf025b9dcf69354168588526ba377adbd7655fe"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.3",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/nsiproxy.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.3",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "767cf4d94f1b9291135ff20581647b233d0782cbc58d1429be14a314049bd1eb"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "libunwind.so.8",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.25",
+                "GLIBC_2.9",
+                "GLIBC_2.6",
+                "GLIBC_2.15",
+                "GLIBC_2.16",
+                "GLIBC_2.32",
+                "GLIBC_2.35",
+                "GLIBC_2.14",
+                "GLIBC_2.33",
+                "GLIBC_2.17",
+                "GLIBC_2.3",
+                "GLIBC_2.3.2",
+                "GLIBC_2.38",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/ntdll.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "libunwind.so.8",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.25",
+                "GLIBC_2.9",
+                "GLIBC_2.6",
+                "GLIBC_2.15",
+                "GLIBC_2.16",
+                "GLIBC_2.32",
+                "GLIBC_2.35",
+                "GLIBC_2.14",
+                "GLIBC_2.33",
+                "GLIBC_2.17",
+                "GLIBC_2.3",
+                "GLIBC_2.3.2",
+                "GLIBC_2.38",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "866d65aa6a94c14d03023202b88a8ea4dc9f8c215a80b34e0d002b06f5612b8a"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/odbc32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "b26ea3516b24310c551c5f8676020d90072345ade0ce2e7e344fccf517162abe"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libOpenCL.so.1",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.2.5"
+              ]
+            },
+            {
+              "library": "libOpenCL.so.1",
+              "versions": [
+                "OPENCL_1.1",
+                "OPENCL_1.2",
+                "OPENCL_1.0"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/opencl.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libOpenCL.so.1",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.2.5"
+              ]
+            },
+            {
+              "library": "libOpenCL.so.1",
+              "versions": [
+                "OPENCL_1.1",
+                "OPENCL_1.2",
+                "OPENCL_1.0"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "f519de5feefb8bf000128be9abd4dad2052f41903c166cf83d1d9809d7b8fbd5"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.3",
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/opengl32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.3",
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "43b2ffeadd77491f87170e29309615e094007222da53a25daec2c6ea54351c8c"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/qcap.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "deffb835c9561bbc28a2de44613a7398469a1bbb77de0879befc9a22cb232a16"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libsane.so.1",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/sane.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libsane.so.1",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "341a79a5624ee7a6f0be602cb83a338638845c1d100061e30f3a1c20b2843562"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/secur32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.38",
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "329365a1d47a6bf4ec52d477dd45cca363a5603185edc5fb37dd57a9df4f2e8f"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libm.so.6",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.33",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libm.so.6",
+              "versions": [
+                "GLIBC_2.29",
+                "GLIBC_2.35",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/win32u.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libm.so.6",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.33",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libm.so.6",
+              "versions": [
+                "GLIBC_2.29",
+                "GLIBC_2.35",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "a1a3d5dbcec525b1b1971f803c0f622316457d8f4acd92224587bc083438a68d"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libasound.so.2",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.38",
+                "GLIBC_2.3.2",
+                "GLIBC_2.17",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libasound.so.2",
+              "versions": [
+                "ALSA_0.9.0rc4",
+                "ALSA_0.9"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winealsa.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libasound.so.2",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.38",
+                "GLIBC_2.3.2",
+                "GLIBC_2.17",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libasound.so.2",
+              "versions": [
+                "ALSA_0.9.0rc4",
+                "ALSA_0.9"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "813b652315e2f32d4edf66ecd01596d503fa29e453127481f40426b04c809ace"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winebth.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.38",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "a19c61944853bf979025a69d3b8d7e74edb5a7e699c553c737aee67349311e44"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libudev.so.1",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libudev.so.1",
+              "versions": [
+                "LIBUDEV_183"
+              ]
+            },
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.9",
+                "GLIBC_2.4",
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winebus.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libudev.so.1",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libudev.so.1",
+              "versions": [
+                "LIBUDEV_183"
+              ]
+            },
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.9",
+                "GLIBC_2.4",
+                "GLIBC_2.14",
+                "GLIBC_2.3",
+                "GLIBC_2.34",
+                "GLIBC_2.38",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "13a19a65905c1b738d1965fccc52fd9526aad618bdd8fd4b2f1c7aa46cc6a69f"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": []
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winedmo.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": []
+        }
+      },
+      "sha256": "af01564211b61fa9567cd1494d08def81627cffdf80598cb0c6fdf46b3d6e246"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libgstvideo-1.0.so.0",
+            "libgstaudio-1.0.so.0",
+            "libgsttag-1.0.so.0",
+            "libgstreamer-1.0.so.0",
+            "libgobject-2.0.so.0",
+            "libglib-2.0.so.0",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3.2",
+                "GLIBC_2.34"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winegstreamer.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libgstvideo-1.0.so.0",
+            "libgstaudio-1.0.so.0",
+            "libgsttag-1.0.so.0",
+            "libgstreamer-1.0.so.0",
+            "libgobject-2.0.so.0",
+            "libglib-2.0.so.0",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5",
+                "GLIBC_2.3.2",
+                "GLIBC_2.34"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "7b236b48b510d84926806537bfc1e63932154c2eb017bb57b34cbef210f1e865"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/wineps.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "1f69ef33d54f43382b50e8a14b20093e840be42e28c50e6d196f229ad83c011a"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libpulse.so.0",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.14",
+                "GLIBC_2.3.2",
+                "GLIBC_2.2.5"
+              ]
+            },
+            {
+              "library": "libpulse.so.0",
+              "versions": [
+                "PULSE_0"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winepulse.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libpulse.so.0",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.14",
+                "GLIBC_2.3.2",
+                "GLIBC_2.2.5"
+              ]
+            },
+            {
+              "library": "libpulse.so.0",
+              "versions": [
+                "PULSE_0"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "656edc06358f7707c2163910b7087a283fab483114a3d6646bb3359b8cd81925"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libusb-1.0.so.0",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/wineusb.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libusb-1.0.so.0",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "475ad3dd76ab28af50607ddff03383b774284e6b848414187942049fd156ed43"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winevulkan.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "174e7fcce24dc140ec25eff85d3cffa6afd680f780a384764dda4400919d5309"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libwayland-client.so.0",
+            "libwayland-egl.so.1",
+            "libxkbcommon.so.0",
+            "libxkbregistry.so.0",
+            "libm.so.6",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libm.so.6",
+              "versions": [
+                "GLIBC_2.2.5"
+              ]
+            },
+            {
+              "library": "libxkbcommon.so.0",
+              "versions": [
+                "V_0.5.0"
+              ]
+            },
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libxkbregistry.so.0",
+              "versions": [
+                "V_1.0.0"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winewayland.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libwayland-client.so.0",
+            "libwayland-egl.so.1",
+            "libxkbcommon.so.0",
+            "libxkbregistry.so.0",
+            "libm.so.6",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libm.so.6",
+              "versions": [
+                "GLIBC_2.2.5"
+              ]
+            },
+            {
+              "library": "libxkbcommon.so.0",
+              "versions": [
+                "V_0.5.0"
+              ]
+            },
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libxkbregistry.so.0",
+              "versions": [
+                "V_1.0.0"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "8069f04ff17271bf71b16ad9e9443a3b07fb4a9a2df0098b8519953f30e327a7"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libXext.so.6",
+            "libX11.so.6",
+            "libm.so.6",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.38",
+                "GLIBC_2.3",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libm.so.6",
+              "versions": [
+                "GLIBC_2.29",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winex11.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "win32u.so",
+            "libXext.so.6",
+            "libX11.so.6",
+            "libm.so.6",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.38",
+                "GLIBC_2.3",
+                "GLIBC_2.2.5",
+                "GLIBC_2.34"
+              ]
+            },
+            {
+              "library": "libm.so.6",
+              "versions": [
+                "GLIBC_2.29",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "c4ddda015d0e16f125ca6abe82d3296e3895608771f700db36d57aa66e3e1150"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/winspool.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.34",
+                "GLIBC_2.2.5",
+                "GLIBC_2.38"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "a1e897a96e549a381867b98bfda315c8b206e1334b5c80dc0907243ec8bde1a7"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libpcap.so.0.8",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/wpcap.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libpcap.so.0.8",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "17b57c97a7aa85393cdc86eec9116a2aab002c631a447e638cf22b4a26659f6c"
+    },
+    {
+      "elf": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "path": "opt/wine-stable/lib64/wine/x86_64-unix/ws2_32.so",
+      "policy": {
+        "Ok": {
+          "class": 64,
+          "dynamic_loading_not_established": true,
+          "executable_type": 3,
+          "interpreter": null,
+          "machine": 62,
+          "needed": [
+            "ntdll.so",
+            "libc.so.6"
+          ],
+          "rpath": null,
+          "runpath": null,
+          "version_definitions": [],
+          "version_requirements": [
+            {
+              "library": "libc.so.6",
+              "versions": [
+                "GLIBC_2.34",
+                "GLIBC_2.14",
+                "GLIBC_2.2.5"
+              ]
+            }
+          ]
+        }
+      },
+      "sha256": "d4c2dbc7e4874f5128ee9632580bd40fb173cac15b45b8787bc7ac86d7a6fd6c"
+    }
+  ],
+  "note": "Staging modes are non-executable. This is byte inspection, not installed P026 evidence. Excluding preloader is diagnostic only.",
+  "production_initialization": "BLOCKED",
+  "schema_version": 1,
+  "staging_inventory_sha256": "156ce224f565555633d805c1220bf2de5551ac7cffd42338af05aabc99ae708c"
+}

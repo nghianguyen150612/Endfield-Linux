@@ -33,6 +33,7 @@ pub struct Artifact {
     pub size_bytes: u64,
     #[serde(default)]
     pub sha256: String,
+    pub wine_qualification_profile_sha256: Option<String>,
 }
 pub fn identifier(s: &str) -> bool {
     !s.is_empty()
@@ -58,7 +59,7 @@ impl Manifest {
         // Serde's typed structs reject duplicate fields at both levels; unknown fields
         // are rejected as well. Default recursion limit stays enabled.
         let m: Self = serde_json::from_slice(bytes).map_err(|_| Error::Schema)?;
-        if m.schema_version != 1
+        if !matches!(m.schema_version, 1 | 2)
             || m.manifest_version == 0
             || m.manifest_version > MAX_MANIFEST_VERSION
             || ![
@@ -90,6 +91,16 @@ impl Manifest {
         if m.signature_algorithm != "ed25519" {
             return Err(Error::UnsupportedAlgorithm);
         }
+        let has_wine_profile = m
+            .artifacts
+            .iter()
+            .any(|a| a.wine_qualification_profile_sha256.is_some());
+        if (m.schema_version == 2) != has_wine_profile
+            || (has_wine_profile
+                && (m.runtime_family != "wine" || m.runtime_lineage != "upstream-wine"))
+        {
+            return Err(Error::Schema);
+        }
         let mut ids = BTreeSet::new();
         let mut names = BTreeSet::new();
         for a in &m.artifacts {
@@ -119,6 +130,17 @@ impl Manifest {
                 || (stem.len() == 4
                     && (stem.starts_with("COM") || stem.starts_with("LPT"))
                     && stem.as_bytes()[3].is_ascii_digit())
+            {
+                return Err(Error::Schema);
+            }
+            if a.wine_qualification_profile_sha256
+                .as_ref()
+                .is_some_and(|digest| {
+                    digest.len() != 64
+                        || !digest
+                            .bytes()
+                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                })
             {
                 return Err(Error::Schema);
             }

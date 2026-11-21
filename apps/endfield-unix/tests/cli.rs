@@ -36,7 +36,7 @@ fn compiled_executable_help_succeeds_without_initializing_the_display() {
             "service systemd <install|uninstall|enable|disable|start|stop|restart|status>"
         )
     );
-    assert!(stdout.contains("game <import|list|show|validate|remove-plan|remove>"));
+    assert!(stdout.contains("game <import|list|show|validate|remove-plan|remove|launch>"));
     assert!(output.stderr.is_empty());
 }
 
@@ -614,4 +614,102 @@ fn gpu_telemetry_is_headless_on_demand_and_does_not_create_configuration() {
     assert_eq!(fs::read_dir(root.path()).unwrap().count(), 0);
     let invalid = invoke(&["diagnose", "telemetry", "gpu", "--interval-ms", "99"]);
     assert_eq!(invalid.status.code(), Some(2));
+}
+
+#[test]
+fn game_launch_preflight_is_deterministic_blocked_and_does_not_write_xdg_state() {
+    let root = tempdir().expect("temporary XDG root");
+    let invoke_plan = |json| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_endfield-unix"));
+        command
+            .env_clear()
+            .env("HOME", root.path())
+            .env("XDG_CONFIG_HOME", root.path().join("config"))
+            .env("XDG_DATA_HOME", root.path().join("data"))
+            .env("XDG_CACHE_HOME", root.path().join("cache"))
+            .args([
+                "game",
+                "launch",
+                "plan",
+                "--id",
+                "endfield-main",
+                "--profile",
+                "desktop",
+                "--prefix-id",
+                "prefix-main",
+                "--adapter",
+                "managed-wine",
+                "--executable-relative",
+                "Game.exe",
+            ]);
+        if json {
+            command.arg("--json");
+        }
+        command.output().expect("run read-only launch preflight")
+    };
+
+    let first = invoke_plan(true);
+    let second = invoke_plan(true);
+    let human = invoke_plan(false);
+    assert_eq!(first.status.code(), Some(78));
+    assert_eq!(second.status.code(), Some(78));
+    assert_eq!(human.status.code(), Some(78));
+    assert_eq!(
+        first.stderr,
+        b"endfield-unix: game launch preflight is blocked; see the reported plan.\n"
+    );
+    assert_eq!(first.stdout, second.stdout);
+    let human = String::from_utf8_lossy(&human.stdout);
+    assert!(human.contains("Installation root identity matches: false"));
+    assert!(human.contains("Executable observation: exists=false"));
+    assert!(human.contains("Runtime pin: unavailable (Missing"));
+    assert!(human.contains("Approval required: true"));
+    assert!(human.contains("process creation allowed: false"));
+    assert!(human.contains("Side effect: No writes are performed while planning."));
+    let environment_override = Command::new(env!("CARGO_BIN_EXE_endfield-unix"))
+        .env_clear()
+        .env("HOME", root.path())
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .env("XDG_DATA_HOME", root.path().join("data"))
+        .env("XDG_CACHE_HOME", root.path().join("cache"))
+        .args([
+            "game",
+            "launch",
+            "plan",
+            "--id",
+            "endfield-main",
+            "--prefix-id",
+            "prefix-main",
+            "--adapter",
+            "managed-wine",
+            "--executable-relative",
+            "Game.exe",
+            "--env",
+            "BAD-NAME=value",
+        ])
+        .output()
+        .expect("reject user-controlled launch environment");
+    assert_eq!(environment_override.status.code(), Some(2));
+    assert!(environment_override.stdout.is_empty());
+    let plan: serde_json::Value = serde_json::from_slice(&first.stdout).expect("plan JSON");
+    assert_eq!(plan["state"], "blocked");
+    assert_eq!(plan["process_execution_supported"], false);
+    assert_eq!(plan["expected_process_behavior"], "no_process_created");
+    assert_eq!(plan["process_ownership"], "none");
+    assert_eq!(plan["runtime"]["state"], "missing");
+    assert_eq!(plan["runtime"]["selection_source"], "none");
+    let blockers = plan["blockers"]
+        .as_array()
+        .expect("blocker array")
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect::<Vec<_>>();
+    assert!(blockers.contains(&"game_not_registered"));
+    assert!(blockers.contains(&"executable_missing"));
+    assert!(blockers.contains(&"runtime_pin_missing"));
+    assert!(blockers.contains(&"prefix_missing"));
+    assert!(blockers.contains(&"critical_dependency_readiness_unknown"));
+    assert!(blockers.contains(&"execution_policy_unknown"));
+    assert_eq!(fs::read_dir(root.path()).unwrap().count(), 0);
+    assert!(!String::from_utf8_lossy(&first.stdout).contains(root.path().to_str().unwrap()));
 }

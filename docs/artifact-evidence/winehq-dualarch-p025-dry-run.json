@@ -1,0 +1,11 @@
+{
+  "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+  "authentic_execution": "NOT_RUN",
+  "candidate_generation": 1,
+  "entries": 2849,
+  "installation_created": false,
+  "p026_inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+  "pin_created": false,
+  "provenance": "user_pinned_limited_trust_observation_only",
+  "structural_layout": "PASS"
+}

@@ -13,6 +13,10 @@ name = "endfield_unix_prefix_management"
 path = "src/lib.rs"
 
 [dependencies]
+endfield-unix-runtime-install = { path = "../runtime-install" }
+endfield-unix-runtime-audit = { path = "../runtime-audit" }
+endfield-unix-game-launch = { path = "../game-launch" }
+endfield-unix-runtime-verification = { path = "../runtime-verification" }
 endfield-unix-runtime-selection = { path = "../runtime-selection" }
 endfield-unix-storage = { path = "../storage" }
 fs2 = "=0.4.3"
@@ -23,4 +27,7 @@ sha2 = "=0.10.9"
 thiserror = "=2.0.11"
 
 [dev-dependencies]
+ed25519-dalek = "=2.2.0"
+flate2 = "=1.1.5"
+tar = { version = "=0.4.46", default-features = false }
 tempfile = "=3.15.0"

@@ -11,6 +11,7 @@ pub mod umu;
 pub mod umu_discovery;
 pub mod umu_environment;
 pub mod umu_plan;
+pub mod wine_plan;
 
 pub use umu::{UmuProvider, UmuReport};
 pub use umu_discovery::{

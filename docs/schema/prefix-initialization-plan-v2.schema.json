@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://endfield-unix.invalid/schema/prefix-initialization-plan-v2.schema.json",
+  "title": "Endfield-Unix P028/P034 prefix initialization plan v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_id", "prefix_id", "scope", "registry_revision", "prefix_generation", "filesystem_identity", "runtime_pin_id", "runtime_pin_revision", "runtime_reference_sha256", "adapter_id", "strategy", "state", "blockers", "approval_required", "execution_supported", "expected_effects"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "plan_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "prefix_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,96}$" },
+    "scope": { "$ref": "#/$defs/scope" },
+    "registry_revision": { "type": "integer", "minimum": 0 },
+    "prefix_generation": { "type": "integer", "minimum": 1 },
+    "filesystem_identity": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "object", "additionalProperties": false, "required": ["device", "inode"], "properties": { "device": { "type": "integer", "minimum": 0 }, "inode": { "type": "integer", "minimum": 0 } } }
+      ]
+    },
+    "runtime_pin_id": { "type": "string", "maxLength": 96 },
+    "runtime_pin_revision": { "type": "integer", "minimum": 1 },
+    "runtime_reference_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "adapter_id": { "type": "string", "maxLength": 96 },
+    "strategy": { "enum": ["wine_boot_initialize", "umu_managed_prefix_setup", "unsupported"] },
+    "state": { "enum": ["blocked", "unsupported", "ready"] },
+    "blockers": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+    "approval_required": { "type": "boolean" },
+    "execution_supported": { "type": "boolean" },
+    "expected_effects": { "type": "array", "items": { "type": "string", "maxLength": 256 } }
+  },
+  "$defs": {
+    "scope": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "machine"],
+          "properties": { "kind": { "const": "machine" }, "machine": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" } }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "machine", "profile"],
+          "properties": { "kind": { "const": "profile" }, "machine": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }, "profile": { "type": "string", "maxLength": 96 } }
+        }
+      ]
+    }
+  }
+}

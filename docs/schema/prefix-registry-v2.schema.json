@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://endfield-unix.invalid/schema/prefix-registry-v2.schema.json",
+  "title": "Endfield-Unix P028 prefix registry v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "revision", "records", "checksum_sha256"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "records": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": { "$ref": "#/$defs/record" }
+    },
+    "checksum_sha256": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "filesystem_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device", "inode"],
+      "properties": {
+        "device": { "type": "integer", "minimum": 0 },
+        "inode": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "scope": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "machine"],
+          "properties": { "kind": { "const": "machine" }, "machine": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" } }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "machine", "profile"],
+          "properties": { "kind": { "const": "profile" }, "machine": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }, "profile": { "type": "string", "maxLength": 96 } }
+        }
+      ]
+    },
+    "runtime_reference": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "identity"],
+          "properties": {
+            "kind": { "const": "managed" },
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["installation_id", "family", "lineage", "provider", "project", "build", "artifact_sha256", "manifest_sha256", "generation", "ownership_record_sha256", "trust"],
+              "properties": {
+                "installation_id": { "type": "string", "maxLength": 256 },
+                "family": { "enum": ["wine", "proton"] },
+                "lineage": { "type": "string", "maxLength": 96 },
+                "provider": { "type": "string", "maxLength": 128 },
+                "project": { "type": "string", "maxLength": 128 },
+                "build": { "type": "string", "maxLength": 160 },
+                "artifact_sha256": { "$ref": "#/$defs/digest" },
+                "manifest_sha256": { "$ref": "#/$defs/digest" },
+                "generation": { "type": "integer", "minimum": 1 },
+                "ownership_record_sha256": { "$ref": "#/$defs/digest" },
+                "trust": { "enum": ["independently_authenticated_publisher", "user_pinned_limited_trust", "unknown_external_source"] }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "identity"],
+          "properties": {
+            "kind": { "const": "external" },
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["location", "family", "lineage", "lineage_basis", "provider", "sources", "build", "architectures", "structure", "ownership", "identity_sha256", "trust"],
+              "properties": {
+                "location": { "type": "string", "maxLength": 4096 },
+                "family": { "enum": ["wine", "proton"] },
+                "lineage": { "type": "string" },
+                "lineage_basis": { "type": "string" },
+                "provider": { "type": "string" },
+                "sources": { "type": "array", "items": { "type": "string" } },
+                "build": { "type": ["string", "null"] },
+                "architectures": { "type": "array", "items": { "type": "string" } },
+                "structure": { "type": "string" },
+                "ownership": { "type": "string" },
+                "identity_sha256": { "$ref": "#/$defs/digest" },
+                "trust": { "const": "unknown_external_source" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scope", "path_identity", "ownership", "owner_uid", "runtime", "lifecycle", "filesystem_identity", "creation_time_unix_seconds", "update_time_unix_seconds", "generation", "initialization_evidence"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,96}$" },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["kind", "machine"],
+              "properties": { "kind": { "const": "machine" }, "machine": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" } }
+            },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["kind", "machine", "profile"],
+              "properties": { "kind": { "const": "profile" }, "machine": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }, "profile": { "type": "string", "maxLength": 96 } }
+            }
+          ]
+        },
+        "path_identity": { "type": "string", "pattern": "^data/[A-Za-z0-9_-]{1,96}$" },
+        "ownership": { "const": "endfield_unix_managed" },
+        "owner_uid": { "type": "integer", "minimum": 0 },
+        "runtime": {
+          "type": "object", "additionalProperties": false,
+          "required": ["runtime", "selection_source", "pin_id", "pin_revision", "adapter_preference"],
+          "properties": {
+            "runtime": { "$ref": "#/$defs/runtime_reference" },
+            "selection_source": { "enum": ["profile_pin", "machine_pin"] },
+            "pin_id": { "type": "string", "maxLength": 96 },
+            "pin_revision": { "type": "integer", "minimum": 1 },
+            "adapter_preference": { "enum": ["umu_proton", "managed_wine", "external_wine", null] }
+          }
+        },
+        "lifecycle": {
+          "type": "object", "additionalProperties": false,
+          "required": ["state"],
+          "properties": { "state": { "enum": ["planned", "created", "initialized", "incomplete", "recovery_required", "missing", "blocked"] } }
+        },
+        "filesystem_identity": { "oneOf": [{ "$ref": "#/$defs/filesystem_identity" }, { "type": "null" }] },
+        "creation_time_unix_seconds": { "type": "integer", "minimum": 0 },
+        "update_time_unix_seconds": { "type": "integer", "minimum": 0 },
+        "generation": { "type": "integer", "minimum": 1 },
+        "initialization_evidence": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["adapter_id", "runtime_reference_sha256", "verification_evidence_sha256", "outcome", "observed_at_unix_seconds"],
+              "properties": {
+                "adapter_id": { "type": "string", "maxLength": 96 },
+                "runtime_reference_sha256": { "$ref": "#/$defs/digest" },
+                "verification_evidence_sha256": { "$ref": "#/$defs/digest" },
+                "outcome": { "enum": ["completed_and_verified", "partial", "failed"] },
+                "observed_at_unix_seconds": { "type": "integer", "minimum": 0 }
+              }
+            }
+          ]
+        },
+        "initialization_intent": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["plan_id", "scope", "adapter_id", "runtime_pin_id", "runtime_pin_revision", "runtime_reference_sha256", "prefix_generation", "filesystem_identity", "phase", "process_exit_code", "started_at_unix_seconds", "updated_at_unix_seconds"],
+              "properties": {
+                "plan_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+                "scope": { "$ref": "#/$defs/scope" },
+                "adapter_id": { "const": "managed_wine" },
+                "runtime_pin_id": { "type": "string", "maxLength": 96 },
+                "runtime_pin_revision": { "type": "integer", "minimum": 1 },
+                "runtime_reference_sha256": { "$ref": "#/$defs/digest" },
+                "prefix_generation": { "type": "integer", "minimum": 1 },
+                "filesystem_identity": { "$ref": "#/$defs/filesystem_identity" },
+                "phase": { "enum": ["starting", "running", "verification_pending", "failed", "interrupted"] },
+                "process_exit_code": { "type": ["integer", "null"] },
+                "started_at_unix_seconds": { "type": "integer", "minimum": 0 },
+                "updated_at_unix_seconds": { "type": "integer", "minimum": 0 }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
