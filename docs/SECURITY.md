@@ -368,3 +368,16 @@ descriptor path fixtures. Publisher identity, i386 package closure, P025 packagi
 preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
+
+## P034 complete package candidate and runtime-view boundary
+
+The exact WineHQ Noble i386 companion is acquired. The three-package source
+inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
+and passes a disposable P025 layout/extraction and P026 audit. ELF32 candidate
+inspection and role-bound preloader structural checks preserve executor
+architecture restrictions. Real memfd seals protect candidate backing bytes;
+the private mount probe is unavailable here, so no mounted execution view or
+execution authorization is issued. P024 manifest authority, complete host ABI,
+installation/pinning and authentic qualification remain blocked. Wine and
+Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
+unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).

@@ -1,6 +1,13 @@
 # Wine 10.0 real binary candidate (P034 continuation)
 
-Status: **inspectable, limited-trust candidate; execution blocked**. This is the
+Current continuation: the i386 package is now acquired, all three Wine packages
+have a 2,847-entry source inventory, and a deterministic 2,849-entry managed-package
+candidate passes disposable P025/P026 checks. See [complete package closure and
+runtime-view evidence](WINE-PACKAGE-CLOSURE.md). Execution remains blocked.
+
+The following sections preserve the earlier two-package checkpoint.
+
+Checkpoint status: **inspectable, limited-trust candidate; execution blocked**. This is the
 first extracted binary candidate, not a trusted managed runtime. P034 is active;
 P035 has not begun. Wine and Endfield were not executed. No package was installed.
 PR #7 remains Draft and unmerged.

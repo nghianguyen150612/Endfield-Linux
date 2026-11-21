@@ -109,3 +109,16 @@ repository key by the independently corroborated Wine source signer. This is
 independent key-identity corroboration, not an automatic extension of source-key
 policy to a P024 binary publisher. See the candidate report and preserved GPG
 certification evidence; production trust remains unpromoted.
+
+## P034 complete package candidate and runtime-view boundary
+
+The exact WineHQ Noble i386 companion is acquired. The three-package source
+inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
+and passes a disposable P025 layout/extraction and P026 audit. ELF32 candidate
+inspection and role-bound preloader structural checks preserve executor
+architecture restrictions. Real memfd seals protect candidate backing bytes;
+the private mount probe is unavailable here, so no mounted execution view or
+execution authorization is issued. P024 manifest authority, complete host ABI,
+installation/pinning and authentic qualification remain blocked. Wine and
+Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
+unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
