@@ -24,9 +24,11 @@ pub mod authentic_qualification;
 mod initialization_coordinator;
 #[cfg(target_os = "linux")]
 mod managed_wine;
+pub mod runtime_view;
 mod wine_artifact_profile;
 pub mod wine_candidate;
 mod wine_host_abi;
+pub mod wine_native_abi;
 pub mod wine_qualification;
 #[cfg(target_os = "linux")]
 pub use managed_wine::{VerifiedManagedWineExecutable, verify_managed_wine_executable};

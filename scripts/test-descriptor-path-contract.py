@@ -72,5 +72,75 @@ class DescriptorContract(unittest.TestCase):
                 os.close(fd)
 
 
+CHAIN_SOURCE = r'''
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#ifndef ROLE
+#define ROLE 1
+#endif
+int main(int argc, char **argv) {
+    (void)argc; (void)argv;
+    char self[4096]; ssize_t n=readlink("/proc/self/exe",self,sizeof(self)-1);
+    if(n<0)return 2;
+    self[n]=0;
+#if ROLE == 2
+    if(argc!=2)return 3;
+    int fd=open(argv[1],O_RDONLY|O_NOFOLLOW);char magic[4];
+    if(fd<0||read(fd,magic,4)!=4||memcmp(magic,"\177ELF",4))return 4;
+    close(fd);puts("preloader-opened-launcher");fflush(stdout);
+    execl(argv[1],argv[1],"continued",(char*)NULL);return 5;
+#elif ROLE == 3
+    puts("trusted-helper");return 0;
+#elif ROLE == 4
+    puts("substituted-helper");return 0;
+#else
+    char next[4096];strcpy(next,self);char *end=strrchr(next,'/');
+    if(!end)return 6;
+    if(argc==2&&!strcmp(argv[1],"continued")) {
+        puts("launcher-continued");fflush(stdout);strcpy(end+1,"helper");
+        execl(next,next,(char*)NULL);return 7;
+    }
+    puts("launcher-initial");fflush(stdout);strcpy(end+1,"preloader");
+    execl(next,next,self,(char*)NULL);return 8;
+#endif
+}
+'''
+
+
+class NativeChainTests(DescriptorContract):
+    def test_preloader_open_chain_and_same_uid_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);source=root/'chain.c';source.write_text(CHAIN_SOURCE)
+            for role,name in [(1,'launcher'),(2,'preloader'),(3,'helper'),(4,'substitute')]:
+                subprocess.run(['gcc','-std=c17','-Wall','-Wextra','-Werror','-DROLE='+str(role),str(source),'-o',str(root/name)],check=True)
+            fd=os.open(root/'launcher',os.O_RDONLY|os.O_CLOEXEC)
+            try:
+                status,text=self.run_descriptor(fd)
+                self.assertEqual(status,0)
+                self.assertEqual(text.splitlines(),['launcher-initial','preloader-opened-launcher','launcher-continued','trusted-helper'])
+                (root/'helper').unlink();(root/'helper').symlink_to('substitute')
+                self.assertIn('substituted-helper',self.run_descriptor(fd)[1])
+                # An open descriptor and owner-controlled read-only mode do not freeze bytes.
+                image=(root/'launcher').read_bytes();marker=b'launcher-initial'
+                (root/'launcher').chmod(0o555);(root/'launcher').chmod(0o755)
+                (root/'launcher').write_bytes(image.replace(marker,b'X'*len(marker)))
+                self.assertIn('X'*len(marker),self.run_descriptor(fd)[1])
+            finally:os.close(fd)
+
+    def test_interrupted_native_fixture_is_reaped(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);source=root/'pause.c'
+            source.write_text('#include <unistd.h>\nint main(void){write(1,"ready\\n",6);pause();return 0;}\n')
+            executable=root/'pause'
+            subprocess.run(['gcc','-std=c17','-Wall','-Wextra','-Werror',str(source),'-o',str(executable)],check=True)
+            with subprocess.Popen([str(executable)],stdout=subprocess.PIPE) as child:
+                self.assertEqual(child.stdout.readline(),b'ready\n')
+                child.kill();child.wait(timeout=3)
+                self.assertLess(child.returncode,0)
+
+
 if __name__ == '__main__':
     unittest.main()

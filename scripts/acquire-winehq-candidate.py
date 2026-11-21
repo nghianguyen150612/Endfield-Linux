@@ -36,6 +36,23 @@ def download(url, path, maximum):
             output.write(chunk)
 
 
+def verify_signed_index(release, data, architecture):
+    from wine_package_set import control
+    metadata = control(release)
+    if metadata.get('Suite') != 'noble' or metadata.get('Codename') != 'noble' or architecture not in metadata.get('Architectures','').split():
+        raise ValueError('wrong repository distribution or architecture')
+    target = 'main/binary-'+architecture+'/Packages'
+    expected = [line.split() for line in metadata['SHA256'].splitlines() if line.endswith(' '+target)]
+    if len(expected) != 1 or len(expected[0]) != 3 or len(data) != int(expected[0][1]) or hashlib.sha256(data).hexdigest() != expected[0][0]:
+        raise ValueError('index integrity mismatch')
+
+
+def verify_signer_status(status):
+    signatures = [line.split()[2] for line in status.splitlines() if line.startswith('[GNUPG:] VALIDSIG ')]
+    if signatures != [FINGERPRINT]:
+        raise ValueError('unknown repository signing key')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('destination', type=Path)
@@ -55,26 +72,27 @@ def main():
                               capture_output=True, check=True)
     gpg('--import', str(root/'winehq.key'))
     result = gpg('--status-fd=1','--output',str(root/'Release'),'--decrypt',str(root/'InRelease'))
-    signatures = [line.split()[2] for line in result.stdout.decode().splitlines()
-                  if line.startswith('[GNUPG:] VALIDSIG ')]
-    if signatures != [FINGERPRINT]:
-        raise ValueError('unknown repository signing key')
-    download(BASE+'dists/noble/main/binary-amd64/Packages', root/'Packages', 10_000_000)
-    lines = (root/'Release').read_text().split('SHA256:\n',1)[1].splitlines()
-    expected = [line.split() for line in lines if line.endswith(' main/binary-amd64/Packages')]
-    data = (root/'Packages').read_bytes()
-    if len(expected) != 1 or len(data) != int(expected[0][1]) or hashlib.sha256(data).hexdigest() != expected[0][0]:
-        raise ValueError('index integrity mismatch')
+    verify_signer_status(result.stdout.decode())
+    indices = {}
+    for architecture in ('amd64', 'i386'):
+        target = 'main/binary-'+architecture+'/Packages'
+        path = root/('Packages-'+architecture)
+        download(BASE+'dists/noble/'+target, path, 10_000_000)
+        data = path.read_bytes()
+        verify_signed_index((root/'Release').read_text(),data,architecture)
+        indices[architecture] = data
     records = []
-    for name, output in [('wine-stable-amd64','amd64'), ('wine-stable','common')]:
+    for name, output, architecture in [('wine-stable-amd64','amd64','amd64'), ('wine-stable-i386','i386-evidence','i386'), ('wine-stable','common','amd64')]:
         matches = []
-        for paragraph in data.decode().split('\n\n'):
+        for paragraph in indices[architecture].decode().split('\n\n'):
             if paragraph.startswith('Package: '+name+'\n') and '\nVersion: '+VERSION+'\n' in paragraph:
                 matches.append(dict(line.split(': ',1) for line in paragraph.splitlines()
                                     if ': ' in line and not line.startswith(' ')))
         if len(matches) != 1:
             raise ValueError('exact package record unavailable or ambiguous')
         record = matches[0]
+        if record['Architecture'] != architecture or record.get('Source') != 'wine':
+            raise ValueError('unexpected package architecture or source')
         filename = record['Filename']
         if not re.fullmatch(r'pool/main/w/wine/[a-z0-9_.~+-]+\.deb',filename):
             raise ValueError('unexpected package path')
@@ -85,9 +103,13 @@ def main():
         subprocess.run([sys.executable,str(Path(__file__).with_name('inspect-wine-deb.py')),
                         str(package),str(root/output),'--expected-sha256',record['SHA256']],check=True)
         records.append(record)
-    (root/'package-records.json').write_text(json.dumps(records,indent=2)+'\n')
+    (root/'records.json').write_text(json.dumps(records,indent=2)+'\n')
     subprocess.run([sys.executable,str(Path(__file__).with_name('prepare-wine-candidate.py')),
-                    str(root/'amd64/inventory.json'),str(root/'common/inventory.json'),str(root/'combined')],check=True)
+                    str(root/'amd64/inventory.json'),str(root/'common/inventory.json'),str(root/'combined'),
+                    '--i386',str(root/'i386-evidence/inventory.json')],check=True)
+    subprocess.run([sys.executable,str(Path(__file__).with_name('package-wine-candidate.py')),
+                    str(root),str(root/'managed'),'--amd64-root',str(root/'amd64/staging'),
+                    '--i386-root',str(root/'i386-evidence/staging'),'--common-root',str(root/'common/staging')],check=True)
 
 
 if __name__ == '__main__':

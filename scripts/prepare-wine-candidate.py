@@ -18,8 +18,11 @@ def main():
     parser.add_argument('amd64', type=Path)
     parser.add_argument('common', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--i386', type=Path)
     args = parser.parse_args()
     packages = [json.loads(p.read_text()) for p in (args.amd64, args.common)]
+    if args.i386:
+        packages.append(json.loads(args.i386.read_text()))
     merged = {}
     for package in packages:
         for entry in package['entries']:
@@ -43,6 +46,15 @@ def main():
     for name in names:
         role(name, 'lib64/wine/x86_64-windows/'+name+('.exe' if name in ('wineboot','services','rundll32') else '.dll'), 'windows_module')
     role('wine_inf', 'share/wine/wine.inf', 'resource')
+    if args.i386:
+        role('launcher_i386','bin/wine','native_executable')
+        role('preloader_i386','bin/wine-preloader','native_executable')
+        role('ntdll_unix_i386','lib/wine/i386-unix/ntdll.so','unix_module')
+        for name in names:
+            role(name+'_i386','lib/wine/i386-windows/'+name+('.exe' if name in ('wineboot','services','rundll32') else '.dll'),'windows_module')
+        for mapped in roles:
+            if mapped['role'].endswith('_i386'):
+                mapped['architecture'] = 'i386'
     roles.sort(key=lambda r: r['role'])
     profile = dict(schema_version=2, source_version='10.0',
         source_commit='b073859675060c9211fcbccfd90e4e87520dc2c2',
@@ -60,6 +72,14 @@ def main():
         package_sha256=packages[0]['package_sha256'], inventory_sha256=hashlib.sha256(encoded(entries)).hexdigest(),
         provenance='repository_integrity_publisher_identity_unverified', roles=roles,
         missing_companion_packages=['wine-stable-i386 (= 10.0.0.0~noble-1)'])
+    if args.i386:
+        profile['artifact_build'] = 'winehq-noble-10.0.0.0~noble-1-dualarch'
+        profile['build_configuration'] = 'observed-classic-dualarch-configure-arguments-unavailable'
+        profile['missing_companion_packages'] = []
+        profile['unix_module_directories'].append(prefix+'lib/wine/i386-unix')
+        profile['windows_module_directories'].append(prefix+'lib/wine/i386-windows')
+        profile['required_initialization_roles'].extend(['launcher_i386','ntdll_unix_i386']+[n+'_i386' for n in names])
+        profile['native_helper_roles'].append('preloader_i386')
     args.output.mkdir(mode=0o700)
     (args.output/'profile.json').write_text(json.dumps(profile,indent=2)+'\n')
     (args.output/'inventory.json').write_text(json.dumps(entries,indent=2)+'\n')

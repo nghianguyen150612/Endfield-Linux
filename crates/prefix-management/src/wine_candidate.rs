@@ -10,6 +10,7 @@ use std::collections::BTreeSet;
 pub enum CandidateProvenance {
     RepositoryIntegrityPublisherIdentityUnverified,
     SourceAuthenticatedLocalBuild,
+    UpstreamPackagesLocallyTransformed,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -19,11 +20,19 @@ pub struct CandidateRole {
     pub path: String,
     pub sha256: String,
     pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub architecture: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CandidateProfile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_inventory_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transformation_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derived_artifact_sha256: Option<String>,
     pub schema_version: u32,
     pub source_version: String,
     pub source_commit: String,
@@ -206,10 +215,67 @@ impl CandidateProfile {
         {
             return Err(Error::ComponentIntegrity(role.into()));
         }
-        let elf = endfield_unix_game_launch::elf_dependencies::inspect(bytes)
+        let elf = endfield_unix_game_launch::elf_dependencies::inspect_candidate(bytes)
             .map_err(|_| Error::WrongArchitecture)?;
-        if elf.machine != 62 || elf.class != 64 || !matches!(elf.executable_type, 2 | 3) {
+        let expected = match mapped.architecture.as_deref().unwrap_or("x86_64") {
+            "x86_64" => (64, 62),
+            "i386" => (32, 3),
+            _ => return Err(Error::WrongArchitecture),
+        };
+        if (elf.class, elf.machine) != expected || !matches!(elf.executable_type, 2 | 3) {
             return Err(Error::WrongArchitecture);
+        }
+        Ok(())
+    }
+
+    /// Exact local transformation binding; never replaces P024 authentication.
+    pub fn validate_derived_evidence(
+        &self,
+        entries: &[Entry],
+        transformation: &[u8],
+        artifact_sha256: &str,
+        generation: u64,
+    ) -> Result<(), Error> {
+        self.validate(entries)?;
+        if !matches!(
+            self.provenance,
+            CandidateProvenance::UpstreamPackagesLocallyTransformed
+        ) || self.transformation_sha256.as_deref()
+            != Some(endfield_unix_runtime_verification::sha256(transformation).as_str())
+            || self.derived_artifact_sha256.as_deref() != Some(artifact_sha256)
+            || generation == 0
+        {
+            return Err(Error::ProvenanceMismatch);
+        }
+        let report: serde_json::Value =
+            serde_json::from_slice(transformation).map_err(|_| Error::InvalidSchema)?;
+        if report["artifact_sha256"].as_str() != Some(artifact_sha256)
+            || report["source_inventory_sha256"].as_str() != self.source_inventory_sha256.as_deref()
+            || report["transformed_inventory_sha256"].as_str() != Some(&self.inventory_sha256)
+            || report["generation"].as_u64() != Some(generation)
+            || report["manifest_signer"] != "NONE"
+        {
+            return Err(Error::BaselineMismatch);
+        }
+        Ok(())
+    }
+
+    pub fn validate_source_evidence(
+        &self,
+        source: &[u8],
+        transformation: &[u8],
+    ) -> Result<(), Error> {
+        if self.transformation_sha256.as_deref()
+            != Some(endfield_unix_runtime_verification::sha256(transformation).as_str())
+        {
+            return Err(Error::ProvenanceMismatch);
+        }
+        let report: serde_json::Value =
+            serde_json::from_slice(transformation).map_err(|_| Error::InvalidSchema)?;
+        if report["source_evidence_sha256"].as_str()
+            != Some(endfield_unix_runtime_verification::sha256(source).as_str())
+        {
+            return Err(Error::BaselineMismatch);
         }
         Ok(())
     }

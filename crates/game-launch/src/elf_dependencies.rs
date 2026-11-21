@@ -77,45 +77,61 @@ fn string(bytes: &[u8], offset: u64) -> Result<String, ElfError> {
 /// Supports the explicit initial platform policy: ELF64 LE x86-64 ET_EXEC/ET_DYN.
 /// Other classes/architectures are reported unsupported, never guessed.
 pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
+    if number(bytes, 4, 1)? != 2 || number(bytes, 18, 2)? != 62 {
+        return Err(ElfError::UnsupportedArchitecture);
+    }
+    inspect_candidate(bytes)
+}
+
+/// Read-only multiarch candidate inspection. Does not extend executor policy.
+pub fn inspect_candidate(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
     if bytes.len() > MAX_ELF_BYTES {
         return Err(ElfError::Limit);
     }
     if slice(bytes, 0, 4)? != b"\x7fELF" {
         return Err(ElfError::Invalid);
     }
-    if number(bytes, 4, 1)? != 2 || number(bytes, 5, 1)? != 1 {
+    let class = number(bytes, 4, 1)?;
+    let wide = class == 2;
+    if !matches!(class, 1 | 2) || number(bytes, 5, 1)? != 1 {
         return Err(ElfError::UnsupportedArchitecture);
     }
-    if number(bytes, 6, 1)? != 1 || number(bytes, 20, 4)? != 1 || number(bytes, 52, 2)? != 64 {
+    let word = if wide { 8 } else { 4 };
+    if number(bytes, 6, 1)? != 1
+        || number(bytes, 20, 4)? != 1
+        || number(bytes, if wide { 52 } else { 40 }, 2)? != if wide { 64 } else { 52 }
+    {
         return Err(ElfError::Invalid);
     }
     let machine = number(bytes, 18, 2)? as u16;
-    if machine != 62 {
+    if machine != if wide { 62 } else { 3 } {
         return Err(ElfError::UnsupportedArchitecture);
     }
     let kind = number(bytes, 16, 2)? as u16;
     if !matches!(kind, 2 | 3) {
         return Err(ElfError::Invalid);
     }
-    let phoff = number(bytes, 32, 8)?;
-    let count = number(bytes, 56, 2)? as usize;
-    if count == 0 || count > MAX_HEADERS || number(bytes, 54, 2)? != 56 {
+    let phoff = number(bytes, if wide { 32 } else { 28 }, word)?;
+    let count = number(bytes, if wide { 56 } else { 44 }, 2)? as usize;
+    let phsize = if wide { 56 } else { 32 };
+    if count == 0 || count > MAX_HEADERS || number(bytes, if wide { 54 } else { 42 }, 2)? != phsize
+    {
         return Err(ElfError::Limit);
     }
-    slice(bytes, phoff, count as u64 * 56)?;
+    slice(bytes, phoff, count as u64 * phsize)?;
     let mut loads = Vec::new();
     let mut dynamic = None;
     let mut interpreter = None;
     for index in 0..count {
-        let base = phoff + index as u64 * 56;
+        let base = phoff + index as u64 * phsize;
         let tag = number(bytes, base, 4)?;
-        let offset = number(bytes, base + 8, 8)?;
-        let address = number(bytes, base + 16, 8)?;
-        let size = number(bytes, base + 32, 8)?;
+        let offset = number(bytes, base + if wide { 8 } else { 4 }, word)?;
+        let address = number(bytes, base + if wide { 16 } else { 8 }, word)?;
+        let size = number(bytes, base + if wide { 32 } else { 16 }, word)?;
         slice(bytes, offset, size)?;
         match tag {
             1 => {
-                if size > number(bytes, base + 40, 8)? {
+                if size > number(bytes, base + if wide { 40 } else { 20 }, word)? {
                     return Err(ElfError::Invalid);
                 }
                 address.checked_add(size).ok_or(ElfError::Limit)?;
@@ -141,7 +157,7 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
         }
     }
     let mut result = ElfDependencies {
-        class: 64,
+        class: if wide { 64 } else { 32 },
         machine,
         executable_type: kind,
         interpreter,
@@ -170,7 +186,8 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
     if dynamic_mappings != 1 {
         return Err(ElfError::Invalid);
     }
-    if size % 16 != 0 || size / 16 > MAX_DYNAMIC as u64 {
+    let dynamic_size = 2 * word;
+    if size % dynamic_size != 0 || size / dynamic_size > MAX_DYNAMIC as u64 {
         return Err(ElfError::Limit);
     }
     let mut imports = Vec::new();
@@ -178,9 +195,9 @@ pub fn inspect(bytes: &[u8]) -> Result<ElfDependencies, ElfError> {
     let mut strsize = None;
     let mut terminated = false;
     let mut versions = [None; 4];
-    for index in 0..size / 16 {
-        let tag = number(bytes, offset + index * 16, 8)?;
-        let value = number(bytes, offset + index * 16 + 8, 8)?;
+    for index in 0..size / dynamic_size {
+        let tag = number(bytes, offset + index * dynamic_size, word)?;
+        let value = number(bytes, offset + index * dynamic_size + word, word)?;
         match tag {
             0 => {
                 terminated = true;

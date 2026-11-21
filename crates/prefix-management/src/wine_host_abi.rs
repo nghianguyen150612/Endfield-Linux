@@ -486,3 +486,130 @@ mod candidate_observation {
         std::fs::write(output, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
     }
 }
+
+#[cfg(test)]
+mod dualarch_observation {
+    use super::*;
+    #[test]
+    #[ignore = "read-only acquired dualarch bytes; never runs Wine"]
+    fn inspect_actual_dualarch_candidate() {
+        use crate::{wine_candidate::CandidateProfile, wine_native_abi};
+        let profile: CandidateProfile = serde_json::from_str(include_str!(
+            "../../../docs/artifact-evidence/winehq-dualarch-profile.json"
+        ))
+        .unwrap();
+        let inventory: Vec<endfield_unix_runtime_audit::Entry> =
+            serde_json::from_str(include_str!(
+                "../../../docs/artifact-evidence/winehq-dualarch-transformed-inventory.json"
+            ))
+            .unwrap();
+        profile.validate(&inventory).unwrap();
+        let sources: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../docs/artifact-evidence/winehq-dualarch-source-inventory.json"
+        ))
+        .unwrap();
+        let roots: BTreeMap<String, PathBuf> =
+            serde_json::from_str(&std::env::var("ENDFIELD_WINE_SOURCE_ROOTS").unwrap()).unwrap();
+        let mut objects = Vec::new();
+        let mut preloaders = Vec::new();
+        let mut dependencies = BTreeMap::new();
+        let mut budget = 256 * 1024 * 1024;
+        for owned in sources["entry_ownership"].as_array().unwrap() {
+            let path = owned["path"].as_str().unwrap();
+            let entry = inventory.iter().find(|e| e.path == path).unwrap();
+            if !matches!(
+                entry.kind,
+                endfield_unix_runtime_audit::EntryKind::File { .. }
+            ) {
+                continue;
+            }
+            let owner = owned["packages"][0].as_str().unwrap();
+            let mut file = std::fs::File::open(roots[owner].join(path)).unwrap();
+            let mut magic = [0; 4];
+            use std::io::Read;
+            if file.read_exact(&mut magic).is_err() || magic != *b"\x7fELF" {
+                continue;
+            }
+            let bytes = std::fs::read(roots[owner].join(path)).unwrap();
+            if let endfield_unix_runtime_audit::EntryKind::File { sha256, .. } = &entry.kind {
+                assert_eq!(*sha256, endfield_unix_runtime_verification::sha256(&bytes));
+            }
+            let parsed = elf::inspect_candidate(&bytes);
+            for role in profile.roles.iter().filter(|r| r.path == path) {
+                profile.validate_native_bytes(&role.role, &bytes).unwrap();
+                if matches!(role.role.as_str(), "preloader" | "preloader_i386") {
+                    preloaders.push(serde_json::json!({"role":role.role,"assessment":wine_native_abi::assess_candidate_preloader(&profile,&inventory,&role.role,&bytes)}));
+                }
+            }
+            if let Ok(object) = &parsed {
+                let dirs = if object.class == 64 {
+                    vec!["/usr/lib/x86_64-linux-gnu", "/usr/lib64"]
+                } else {
+                    vec!["/usr/lib/i386-linux-gnu", "/usr/lib32"]
+                };
+                for name in &object.needed {
+                    let key = format!("{}:{name}", object.class);
+                    if dependencies.contains_key(&key) {
+                        continue;
+                    }
+                    let managed: Vec<_> = inventory
+                        .iter()
+                        .filter(|e| {
+                            profile
+                                .unix_module_directories
+                                .iter()
+                                .any(|d| e.path == format!("{d}/{name}"))
+                        })
+                        .map(|e| e.path.clone())
+                        .collect();
+                    let mut providers = Vec::new();
+                    for dir in &dirs {
+                        let candidate = Path::new(dir).join(name);
+                        if let Ok((resolved, bytes)) = system_bytes(&candidate, &mut budget) {
+                            let observed = elf::inspect_candidate(&bytes);
+                            providers.push(serde_json::json!({"path":resolved,"sha256":endfield_unix_runtime_verification::sha256(&bytes),"elf":observed}));
+                        }
+                    }
+                    dependencies.insert(key,serde_json::json!({"managed_candidates":managed,"observed_system_providers":providers,
+                        "resolution":"STATIC_CANDIDATES_ONLY_ACTUAL_LOADER_RESOLUTION_UNVERIFIED"}));
+                }
+            }
+            objects.push(serde_json::json!({"path":path,"sha256":endfield_unix_runtime_verification::sha256(&bytes),"classification":wine_native_abi::classify(&bytes),"elf":parsed}));
+        }
+        let mut version_checks = Vec::new();
+        for consumer in &objects {
+            if let Some(object) = consumer["elf"]["Ok"].as_object() {
+                let class = object["class"].as_u64().unwrap();
+                for requirement in object["version_requirements"].as_array().unwrap() {
+                    let name = requirement["library"].as_str().unwrap();
+                    let providers =
+                        &dependencies[&format!("{class}:{name}")]["observed_system_providers"];
+                    let satisfied =
+                        providers.as_array().unwrap().iter().any(|p| {
+                            p["elf"]["Ok"]["class"].as_u64() == Some(class)
+                                && requirement["versions"].as_array().unwrap().iter().all(
+                                    |version| {
+                                        p["elf"]["Ok"]["version_definitions"]
+                                            .as_array()
+                                            .is_some_and(|defs| defs.contains(version))
+                                    },
+                                )
+                        });
+                    version_checks.push(serde_json::json!({"consumer":consumer["path"],"library":name,"required":requirement["versions"],"satisfied_in_observed_provider":satisfied,"actual_loader_selection_verified":false}));
+                }
+            }
+        }
+        let probe = tempfile::tempdir().unwrap();
+        let capabilities = crate::runtime_view::inspect_capabilities(probe.path()).unwrap();
+        let report = serde_json::json!({"schema_version":1,"host_os":std::fs::read_to_string("/etc/os-release").unwrap(),"host_kernel":std::fs::read_to_string("/proc/sys/kernel/osrelease").unwrap(),
+            "artifact_sha256":profile.derived_artifact_sha256,"profile_sha256":endfield_unix_runtime_verification::sha256(include_bytes!("../../../docs/artifact-evidence/winehq-dualarch-profile.json")),"inventory_sha256":profile.inventory_sha256,"native_objects":objects,"preloaders":preloaders,"dependencies":dependencies,"gnu_symbol_checks":version_checks,
+            "i386_interpreter_present":Path::new("/lib/ld-linux.so.2").exists(),"kernel_ia32_execution":"NOT_TESTED","runtime_view":capabilities,
+            "host_abi":"UNQUALIFIED_STATIC_OBSERVATIONS_ONLY","gnu_version_definitions":"Recorded per provider; full multiarch symbol/loader closure remains unverified",
+            "authentic_execution":"NOT_RUN","production_initialization":"BLOCKED"});
+        std::fs::write(
+            std::env::var("ENDFIELD_DUALARCH_ABI_REPORT").unwrap(),
+            serde_json::to_vec_pretty(&report).unwrap(),
+        )
+        .unwrap();
+    }
+}

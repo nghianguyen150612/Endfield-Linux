@@ -141,7 +141,8 @@
     "provenance": {
       "enum": [
         "repository_integrity_publisher_identity_unverified",
-        "source_authenticated_local_build"
+        "source_authenticated_local_build",
+        "upstream_packages_locally_transformed"
       ]
     },
     "roles": {
@@ -176,6 +177,12 @@
               "windows_module",
               "resource"
             ]
+          },
+          "architecture": {
+            "enum": [
+              "x86_64",
+              "i386"
+            ]
           }
         }
       }
@@ -187,6 +194,18 @@
         "type": "string",
         "maxLength": 512
       }
+    },
+    "source_inventory_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "transformation_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "derived_artifact_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
     }
   }
 }

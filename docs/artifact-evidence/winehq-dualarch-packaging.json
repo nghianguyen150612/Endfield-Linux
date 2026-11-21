@@ -1,0 +1,45 @@
+{
+  "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+  "artifact_size": 437830035,
+  "authentic_execution": "NOT_RUN",
+  "game_launch": "BLOCKED",
+  "generated_metadata": [
+    "endfield-layout-v1.json",
+    "version"
+  ],
+  "generation": 1,
+  "generation_identity": "4b8cba966f1c4bbf51cd4c12c67d458d924ffafc662a08840db3ea9568639ba3",
+  "layout": "winehq-dualarch-v1",
+  "manifest_signer": "NONE",
+  "p024": "BLOCKED_NO_ENROLLED_MANIFEST_AUTHORITY",
+  "p025": "STRUCTURAL_CANDIDATE_ONLY",
+  "p027": "NOT_INSTALLED_OR_PINNED",
+  "production_initialization": "BLOCKED",
+  "schema_version": 1,
+  "source_evidence_sha256": "aded3ac7e6c6b01c18916fa23f465c3a8ee118e7acd010453a7071dc86b6eb90",
+  "source_inventory_sha256": "d73e7e769fc0d19ad7fb958264987550648d4f6491762a6df520094431e5b90c",
+  "source_packages": [
+    {
+      "package": "wine-stable-amd64",
+      "sha256": "393d545040fe5c029eadeb31fcea52126714473e6c11b3cd851447b2dcbf1f72"
+    },
+    {
+      "package": "wine-stable-i386",
+      "sha256": "5ba523409f013b12953f577bc3322aeae599bb16afac66c59ebe2dde7b337bfa"
+    },
+    {
+      "package": "wine-stable",
+      "sha256": "31e6eb2e15ae2e38ef72c9865c0d01da4bc587e554e7db46fe1a75b4420878e1"
+    }
+  ],
+  "transformation_integrity": "LOCALLY_COMPUTED",
+  "transformations": [
+    "retain original payload paths and exact file bytes",
+    "normalize uid/gid and mtime to zero",
+    "normalize directories to 0700 and files to 0700/0600 as P025 extracts",
+    "retain safe source symlink targets",
+    "add local version and layout metadata"
+  ],
+  "transformed_inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+  "upstream_package_integrity": "VERIFIED_FOR_REPOSITORY_KEY"
+}

@@ -64,7 +64,7 @@ def ar_members(data):
     return result
 
 
-def inventory(data, destination=None):
+def inventory(data, destination=None, observations=None, contents=None):
     if len(data) > MAX_PACKAGE:
         raise ValueError('compressed stream limit')
     if data.startswith(b'\x28\xb5\x2f\xfd'):
@@ -83,15 +83,15 @@ def inventory(data, destination=None):
                 if process.wait() != 0:
                     raise ValueError('invalid zstd stream')
             expanded.seek(0)
-            return inventory_tar(expanded, destination)
+            return inventory_tar(expanded, destination, observations, contents)
     stream = io.BytesIO(data)
     if data.startswith(b'\x1f\x8b'):
         with gzip.GzipFile(fileobj=stream) as decoded:
-            return inventory_tar(decoded, destination)
+            return inventory_tar(decoded, destination, observations, contents)
     if data.startswith(b'\xfd7zXZ\x00'):
         with lzma.LZMAFile(stream) as decoded:
-            return inventory_tar(decoded, destination)
-    return inventory_tar(stream, destination)
+            return inventory_tar(decoded, destination, observations, contents)
+    return inventory_tar(stream, destination, observations, contents)
 
 
 class BoundedReader:
@@ -107,7 +107,7 @@ class BoundedReader:
         return result
 
 
-def inventory_tar(stream, destination=None):
+def inventory_tar(stream, destination=None, observations=None, contents=None):
     entries, seen, files, parents = [], set(), set(), set()
     total = 0
     # Streaming avoids unbounded metadata accumulation. Reject extension records.
@@ -119,7 +119,8 @@ def inventory_tar(stream, destination=None):
             ancestors = {'/'.join(name.split('/')[:i]) for i in range(1, len(name.split('/')))}
             if (name in seen or files.intersection(ancestors) or item.mode & 0o6000
                     or not (item.isfile() or item.isdir() or item.issym())
-                    or item.pax_headers or (not item.isdir() and name in parents)):
+                    or item.pax_headers or item.uid != 0 or item.gid != 0
+                    or (not item.isdir() and name in parents)):
                 raise ValueError('unsafe, duplicate or unsupported tar entry')
             seen.add(name)
             parents.update(ancestors)
@@ -150,6 +151,12 @@ def inventory_tar(stream, destination=None):
                     with out.open('xb') as target:
                         target.write(content)
                     out.chmod(0o600)
+            if observations is not None:
+                observations.append({'path': name, 'archive_path': item.name,
+                    'mode': item.mode, 'uid': item.uid, 'gid': item.gid,
+                    'uname': item.uname, 'gname': item.gname})
+            if contents is not None and name == 'control' and item.isfile():
+                contents[name] = content.decode('utf-8')
             entries.append({'path': name, 'kind': kind})
     return sorted(entries, key=lambda e: e['path'])
 
@@ -159,6 +166,7 @@ def main():
     parser.add_argument('package', type=Path)
     parser.add_argument('destination', type=Path)
     parser.add_argument('--expected-sha256', required=True)
+    parser.add_argument('--inventory-only', action='store_true')
     args = parser.parse_args()
     parent = args.destination.parent.resolve(strict=True)
     st = parent.stat()
@@ -173,18 +181,22 @@ def main():
     payload = next(v for k, v in members.items() if k.startswith('data.tar.'))
     control = next(v for k, v in members.items() if k.startswith('control.tar.'))
     # Validate all entries before writing any extracted payload.
-    entries = inventory(payload)
-    controls = inventory(control)
+    observations = []
+    control_content = {}
+    entries = inventory(payload, observations=observations)
+    controls = inventory(control, contents=control_content)
     args.destination.mkdir(mode=0o700)
-    staging = args.destination / 'staging'
-    staging.mkdir(mode=0o700)
-    assert inventory(payload, staging) == entries
+    if not args.inventory_only:
+        staging = args.destination / 'staging'
+        staging.mkdir(mode=0o700)
+        assert inventory(payload, staging) == entries
     report = {'schema_version': 1, 'package_sha256': sha(data),
               'inventory_sha256': sha(encode(entries)), 'entries': entries,
-              'control_entries': controls, 'staging_executable': False,
+              'control_entries': controls, 'observations': sorted(observations, key=lambda e: e['path']),
+              'package_control': control_content.get('control'), 'staging_executable': False,
               'publisher_identity': 'UNVERIFIED', 'authentic_execution': 'NOT_RUN'}
     (args.destination / 'inventory.json').write_text(json.dumps(report, indent=2)+'\n')
-    print(json.dumps({k: v for k, v in report.items() if k not in ('entries', 'control_entries')}))
+    print(json.dumps({k: v for k, v in report.items() if k not in ('entries', 'control_entries', 'observations', 'package_control')}))
 
 
 if __name__ == '__main__':
