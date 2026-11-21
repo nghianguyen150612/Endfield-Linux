@@ -262,12 +262,21 @@ mod tests {
             backing.execution_blocker(),
             ViewBlocker::TrustedImageMountAuthorityUnavailable
         );
+        use std::os::unix::fs::MetadataExt;
         let fd = backing.file.as_raw_fd();
+        let identity = backing.file.metadata().unwrap();
         drop(alias);
         backing.close().unwrap();
         assert_eq!(close_owned(-1), Err(ViewBlocker::CleanupFailed));
-        // SAFETY: F_GETFD performs no dereference on a possibly closed descriptor.
-        assert_eq!(unsafe { libc::fcntl(fd, libc::F_GETFD) }, -1);
+        // Other parallel fixtures may reuse the number; the original backing
+        // object must no longer occupy this descriptor.
+        match std::fs::metadata(format!("/proc/self/fd/{fd}")) {
+            Ok(current) => assert_ne!(
+                (current.dev(), current.ino()),
+                (identity.dev(), identity.ino())
+            ),
+            Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::NotFound),
+        }
     }
     #[test]
     fn changed_bytes_and_invalid_generation_never_prepare() {
@@ -285,6 +294,8 @@ mod tests {
     #[test]
     fn private_mount_probe_cannot_authorize_or_change_parent_view() {
         let directory = tempfile::tempdir().unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let sentinel = directory.path().join("sentinel");
         std::fs::write(&sentinel, b"unchanged").unwrap();
         let before = std::fs::read_to_string("/proc/self/mountinfo").unwrap();
@@ -305,6 +316,13 @@ mod tests {
     }
     #[test]
     fn view_creation_failure_is_fail_closed() {
+        use std::os::unix::fs::PermissionsExt;
+        let public = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(public.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(matches!(
+            inspect_capabilities(public.path()),
+            Err(ViewBlocker::InvalidScope)
+        ));
         assert!(matches!(
             inspect_capabilities(std::path::Path::new("/nonexistent-p034-runtime-view")),
             Err(ViewBlocker::Io)
@@ -355,6 +373,8 @@ mod actual_candidate_backing {
         let prepared = PreparedBacking::prepare(&bytes, scope.clone()).unwrap();
         prepared.revalidate(&scope).unwrap();
         let probe = tempfile::tempdir().unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(probe.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let capabilities = inspect_capabilities(probe.path()).unwrap();
         prepared.close().unwrap();
         std::fs::write(report_path,serde_json::to_vec_pretty(&serde_json::json!({"scope":scope,"backing":"SEALED_AND_DIGEST_REVALIDATED","lifecycle":"BACKING_CLOSED_NO_MOUNT_CREATED","capabilities":capabilities,"mounted_runtime_view":"UNAVAILABLE","execution_authorized":false,"authentic_execution":"NOT_RUN"})).unwrap()).unwrap();

@@ -600,6 +600,8 @@ mod dualarch_observation {
             }
         }
         let probe = tempfile::tempdir().unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(probe.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let capabilities = crate::runtime_view::inspect_capabilities(probe.path()).unwrap();
         let report = serde_json::json!({"schema_version":1,"host_os":std::fs::read_to_string("/etc/os-release").unwrap(),"host_kernel":std::fs::read_to_string("/proc/sys/kernel/osrelease").unwrap(),
             "artifact_sha256":profile.derived_artifact_sha256,"profile_sha256":endfield_unix_runtime_verification::sha256(include_bytes!("../../../docs/artifact-evidence/winehq-dualarch-profile.json")),"inventory_sha256":profile.inventory_sha256,"native_objects":objects,"preloaders":preloaders,"dependencies":dependencies,"gnu_symbol_checks":version_checks,
