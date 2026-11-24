@@ -381,3 +381,10 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+# Combined Wine package namespaces
+
+P034 validates ancestor types after combining DEB inventories: every explicitly
+listed ancestor must be a directory, including ancestors owned by a different
+package. Conflicting regular-file and symlink parents fail before packaging
+creates output. Individual package safety does not establish combined layout
+safety. See [candidate revalidation](WINE-PACKAGE-CLOSURE.md).

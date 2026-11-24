@@ -67,6 +67,36 @@ class PackageSetTests(unittest.TestCase):
             with self.assertRaises(ValueError):pack.package_candidate(records,packages,[root]*3,root/'candidate')
             self.assertFalse((root/'candidate/packaging.json').exists())
 
+    def test_cross_package_non_directory_ancestors_rejected_before_output(self):
+        for ancestor_type in ['file', 'symlink']:
+            for reverse in [False, True]:
+                records,packages=fixture()
+                packages[0]['entries'][0]['path']='shared'
+                packages[0]['observations'][0]['path']='shared'
+                if ancestor_type=='symlink':
+                    packages[0]['entries'][0]['kind']=dict(type='symlink',target='elsewhere')
+                packages[1]['entries'][0]['path']='shared/nested/child'
+                packages[1]['observations'][0]['path']='shared/nested/child'
+                for package in packages:package['inventory_sha256']=digest(package['entries'])
+                if reverse:records.reverse();packages.reverse()
+                with tempfile.TemporaryDirectory() as temp:
+                    root=Path(temp);root.chmod(0o700)
+                    with self.subTest(ancestor=ancestor_type,reverse=reverse),self.assertRaisesRegex(ValueError,'non-directory combined ancestor'):
+                        pack.package_candidate(records,packages,[root]*3,root/'candidate')
+                    self.assertFalse((root/'candidate').exists())
+
+    def test_shared_multiarch_directories_remain_valid(self):
+        records,packages=fixture()
+        for index,package in enumerate(packages):
+            package['entries'][0]['path']='shared/arch'+str(index)+'/file'
+            package['observations'][0]['path']=package['entries'][0]['path']
+            package['entries'].append(dict(path='shared',kind=dict(type='directory',mode=0o700)))
+            package['observations'].append(dict(path='shared',archive_path='./shared',mode=0o755,uid=0,gid=0,uname='root',gname='root'))
+            package['inventory_sha256']=digest(package['entries'])
+        result=combine(records,packages)
+        shared=next(e for e in result['entry_ownership'] if e['path']=='shared')
+        self.assertEqual(len(shared['packages']),3)
+
     def test_deterministic_original_vs_derived_and_changed_staging(self):
         records,packages=fixture()
         with tempfile.TemporaryDirectory() as directory:

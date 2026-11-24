@@ -5,6 +5,30 @@ repeatable managed-package candidate. **Execution remains blocked.** Wine,
 package maintainer scripts and Endfield were not executed. PR #7 stays Draft and
 unmerged; P034 remains active and P035 has not begun.
 
+## Recovery and independent revalidation, 2026-11-24
+
+Recovery started at `164e3c9a974f1f9ec926cdb21672ad6edb7d4298`, three commits
+after the requested checkpoint. The branch was clean and matched the fetched
+remote; PR #7 was open, Draft and unmerged. Its exact-head CI run
+[44883220442](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/44883220442)
+was independently checked as successful. All newer implementation was preserved.
+
+A fresh acquisition through `acquire-winehq-candidate.py` verified the live
+InRelease signature, both signed index digests and all three downloaded DEBs.
+Offline inspection and packaging reproduced the committed source inventory,
+transformed inventory and packaging record exactly, including the archive digest.
+The actual archive is now also available at
+`/workspace/p034-verification/acquired/managed/winehq-noble-10.0-dualarch-candidate.tar.gz`.
+See the bounded [revalidation receipt](artifact-evidence/winehq-dualarch-revalidation-2026-11-24.json).
+
+Combined-inventory validation additionally rejects any entry beneath another
+package's regular file or symlink. Per-DEB validation alone cannot exclude these
+cross-package conflicts. Tests cover both input orders and both ancestor types,
+require rejection before candidate output creation, and preserve legitimate
+shared directories and architecture-specific descendants. Package-set fixtures
+now contain eight tests. This check does not change the genuine candidate bytes,
+inventory identities, provenance or execution eligibility.
+
 ## Packages and integrity
 
 All packages are WineHQ Ubuntu Noble version `10.0.0.0~noble-1`:

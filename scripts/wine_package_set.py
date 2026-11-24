@@ -86,6 +86,15 @@ def combine(records, packages):
                     required_packages=internal, host_availability='NOT_ESTABLISHED' if not internal else 'NOT_APPLICABLE'))
     if set(found) != set(EXPECTED) or any(n not in found for g in graph for n in g['required_packages']):
         raise ValueError('missing required companion')
+    # Individually safe DEBs can introduce unsafe ancestors when combined.
+    # Validate the complete namespace, independently of package/entry order,
+    # before packaging can materialize any links or regular files.
+    for path in merged:
+        parts = path.split('/')
+        for length in range(1, len(parts)):
+            ancestor = merged.get('/'.join(parts[:length]))
+            if ancestor and ancestor['kind']['type'] != 'directory':
+                raise ValueError('non-directory combined ancestor: '+ancestor['path'])
     entries = sorted(merged.values(), key=lambda e: e['path'])
     return dict(schema_version=1, packages=records, entries=entries,
         inventory_sha256=digest(entries), entry_ownership=[dict(path=p, packages=sorted(ownership[p]), observations=sorted(observations[p],key=lambda o:o['package'])) for p in sorted(merged)],
