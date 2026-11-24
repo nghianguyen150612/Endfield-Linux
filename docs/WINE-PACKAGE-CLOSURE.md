@@ -16,7 +16,11 @@ was independently checked as successful. All newer implementation was preserved.
 A fresh acquisition through `acquire-winehq-candidate.py` verified the live
 InRelease signature, both signed index digests and all three downloaded DEBs.
 Offline inspection and packaging reproduced the committed source inventory,
-transformed inventory and packaging record exactly, including the archive digest.
+transformed inventory and packaging record exactly, including the archive digest. The fresh actual-archive P025/P026 dry run and
+81-object ABI observation also passed. This recovery host permits the private
+namespace/tmpfs probe, but still returns
+`trusted_image_mount_authority_unavailable`: no qualified mounted runtime view
+is implemented. The earlier failed mount probe below remains historical evidence.
 The actual archive is now also available at
 `/workspace/p034-verification/acquired/managed/winehq-noble-10.0-dualarch-candidate.tar.gz`.
 See the bounded [revalidation receipt](artifact-evidence/winehq-dualarch-revalidation-2026-11-24.json).
@@ -191,7 +195,7 @@ Capability detection invokes only fixed distribution utilities in a child user
 and mount namespace, with a cleared environment and bounded timeout. A private
 read-only tmpfs mount is attempted there; the parent namespace and sentinel are
 checked unchanged. No sudo, normal-host mount or delegated service is used.
-This host permits sealed memfd but fails the namespace/mount probe:
+The original closure host permitted sealed memfd but failed the namespace/mount probe:
 `namespace_mount_unavailable`. Even on a host where the probe succeeds, the
 implementation returns `trusted_image_mount_authority_unavailable`: no qualified
 filesystem-image mount provider is installed or implemented here. No execution

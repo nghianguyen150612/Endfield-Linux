@@ -60,5 +60,159 @@
   "authentic_wine_executed": false,
   "endfield_executed": false,
   "installation_created": false,
-  "pin_created": false
+  "pin_created": false,
+  "p025_p026_actual_artifact": {
+    "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+    "authentic_execution": "NOT_RUN",
+    "candidate_generation": 1,
+    "entries": 2849,
+    "installation_created": false,
+    "p026_inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+    "pin_created": false,
+    "provenance": "user_pinned_limited_trust_observation_only",
+    "structural_layout": "PASS"
+  },
+  "host_abi": {
+    "host_os": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.6\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+    "host_kernel": "6.18.57\n",
+    "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+    "profile_sha256": "c2d687c1885f5ca343a362f955c221e6589b8a1fb2f44655b4064032fba42947",
+    "inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+    "i386_interpreter_present": false,
+    "kernel_ia32_execution": "NOT_TESTED",
+    "runtime_view": {
+      "execution_blocker": "trusted_image_mount_authority_unavailable",
+      "guarantees": "Seals protect backing bytes against write/truncate through aliases. No mounted Wine view, helper identity, host-library closure or protection against ptrace/root is claimed.",
+      "private_tmpfs_mount_supported": true,
+      "sealed_memfd_supported": true
+    },
+    "host_abi": "UNQUALIFIED_STATIC_OBSERVATIONS_ONLY",
+    "preloaders": [
+      {
+        "assessment": {
+          "classification": "static_elf",
+          "execution_authorized": false,
+          "reason": "structure supported; candidate role lacks production publisher authentication, kernel qualification and sealed mounted runtime view",
+          "role_inventory_bound": true,
+          "state": "preloader_abi_unverified",
+          "structurally_supported": true
+        },
+        "role": "preloader_i386"
+      },
+      {
+        "assessment": {
+          "classification": "interpreter_free_et_dyn",
+          "execution_authorized": false,
+          "reason": "structure supported; candidate role lacks production publisher authentication, kernel qualification and sealed mounted runtime view",
+          "role_inventory_bound": true,
+          "state": "preloader_abi_unverified",
+          "structurally_supported": true
+        },
+        "role": "preloader"
+      }
+    ],
+    "native_objects": 81,
+    "dependency_groups": 51,
+    "gnu_requirement_groups": 98,
+    "groups_satisfied_in_observed_provider": 51
+  },
+  "local_validation": [
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "check",
+        "--locked",
+        "--workspace"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "build",
+        "--locked",
+        "--workspace"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "metadata",
+        "--locked",
+        "--no-deps",
+        "--format-version",
+        "1"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "sh",
+        "native/optimizer/tests/run-c-tests.sh"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "local_non_gtk_tests": {
+    "passed": 850,
+    "failed": 0,
+    "ignored": 9
+  },
+  "offline_fixture_tests": {
+    "package_set": 8,
+    "deb": 6,
+    "native_handoff": 4,
+    "source": 4
+  },
+  "gcc_asan_ubsan": "PASS",
+  "local_workspace_limitation": "GLib/GTK development packages absent; hosted CI required"
 }
