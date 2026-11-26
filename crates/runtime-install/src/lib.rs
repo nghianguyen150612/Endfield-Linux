@@ -56,6 +56,7 @@ impl std::error::Error for Error {}
 pub enum TrustClassification {
     IndependentlyAuthenticatedPublisher,
     UserPinnedLimitedTrust,
+    DevelopmentOnly,
 }
 
 struct InstallationIdentityEvidence<'a> {
@@ -242,6 +243,25 @@ impl RuntimeInstallationPlan {
             trust: self.trust,
         })
     }
+
+    /// Explicit installation approval for reserved P034 disposable development
+    /// manifests. The resulting installation and baseline retain DevelopmentOnly
+    /// provenance and are never accepted by publisher-only initialization policy.
+    pub fn approve_development(&self, exact_identity: &str) -> Result<Authorization> {
+        if self.trust != TrustClassification::DevelopmentOnly
+            || !self.key_id.starts_with("dev-")
+            || self.provider != "endfield-unix-development"
+            || self.project != "p034-disposable"
+            || self.channel != "development"
+            || exact_identity != self.identity()
+        {
+            return Err(Error::Approval);
+        }
+        Ok(Authorization {
+            identity: self.identity(),
+            trust: self.trust,
+        })
+    }
 }
 pub struct Authorization {
     identity: String,
@@ -264,6 +284,8 @@ fn trust(m: &v::VerifiedManifest) -> Result<TrustClassification> {
             Ok(TrustClassification::IndependentlyAuthenticatedPublisher)
         }
         v::Provenance::UserPinned => Ok(TrustClassification::UserPinnedLimitedTrust),
+        v::Provenance::DevelopmentOnly => Ok(TrustClassification::DevelopmentOnly),
+        v::Provenance::SyntheticFixtureOnly => Err(Error::TrustUnavailable),
         v::Provenance::Unverified => Err(Error::TrustUnavailable),
     }
 }
@@ -278,6 +300,10 @@ fn validate_artifact_report(
         ),
         TrustClassification::UserPinnedLimitedTrust => (
             v::Provenance::UserPinned,
+            SourceVerificationState::CandidateIdentified,
+        ),
+        TrustClassification::DevelopmentOnly => (
+            v::Provenance::DevelopmentOnly,
             SourceVerificationState::CandidateIdentified,
         ),
     };
@@ -523,6 +549,7 @@ pub fn install_observed(
         match evidence_trust {
             TrustClassification::IndependentlyAuthenticatedPublisher => endfield_unix_runtime_audit::TrustClassification::IndependentlyAuthenticatedPublisher,
             TrustClassification::UserPinnedLimitedTrust => endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust,
+            TrustClassification::DevelopmentOnly => endfield_unix_runtime_audit::TrustClassification::DevelopmentOnly,
         },
     ).map_err(|_| Error::Record)?;
     endfield_unix_runtime_audit::write_baseline(&baseline_root, &baseline)
@@ -883,6 +910,9 @@ pub fn audit_installation(
                 TrustClassification::UserPinnedLimitedTrust => {
                     endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust
                 }
+                TrustClassification::DevelopmentOnly => {
+                    endfield_unix_runtime_audit::TrustClassification::DevelopmentOnly
+                }
             };
             if error.contains("missing") {
                 return Ok(endfield_unix_runtime_audit::inspect_without_baseline(
@@ -908,6 +938,9 @@ pub fn audit_installation(
         }
         TrustClassification::UserPinnedLimitedTrust => {
             endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust
+        }
+        TrustClassification::DevelopmentOnly => {
+            endfield_unix_runtime_audit::TrustClassification::DevelopmentOnly
         }
     };
     if baseline.installation_id != installation_id
@@ -1069,6 +1102,9 @@ pub fn audit_against_verified_artifact(
         }
         TrustClassification::UserPinnedLimitedTrust => {
             endfield_unix_runtime_audit::TrustClassification::UserPinnedLimitedTrust
+        }
+        TrustClassification::DevelopmentOnly => {
+            endfield_unix_runtime_audit::TrustClassification::DevelopmentOnly
         }
     };
     let mut expected = endfield_unix_runtime_audit::create_baseline(

@@ -485,3 +485,7 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+## P034 verified runtime image continuation — 2026-11-26
+
+`prefix-management::runtime_view` separates sealed candidate/image backing from a mounted execution view. `PreparedRuntimeImage` binds image digest, candidate digest, inventory/profile digests, provider format and generation; it does not grant execution. The selected SquashFS/squashfuse workflow is qualified in a private namespace for native path handoff and actual Wine image inventory, while app-level mount ownership and process descendant completion remain unimplemented. See [runtime image provider](RUNTIME-IMAGE-PROVIDER.md).

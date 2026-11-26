@@ -98,3 +98,7 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](../WINE-PACKAGE-CLOSURE.md).
+
+## P034 manifest authority and runtime image continuation — 2026-11-26
+
+A disposable Ed25519 development authority verified the exact real candidate through P024; the development signer was not enrolled in application trust settings. The real candidate completed isolated P025 installation, P026 full audit, and P027 exact pin creation/reload. Its SquashFS image is 387,833,856 bytes, SHA-256 `e3b4a6d61313f1f93ebbbf933a1078771a5ba1062af24d30c42aeba1d28ff15b`, and was byte-identical across two builds. The actual image mounted read-only in a private namespace and all 2,849 entries revalidated. Native fixture preloader/helper handoff passed. Wine and Endfield were not executed. Production authority, i386 host ABI (the kernel rejected a harmless static ELF32 fixture with `ENOEXEC`, and `/lib/ld-linux.so.2` is absent), app-level process/view lifecycle ownership, and production initialization remain blocked. Exact final-head CI is pending; PR #7 remains Draft and unmerged, and P035 remains unstarted. See [runtime image provider evidence](../RUNTIME-IMAGE-PROVIDER.md).

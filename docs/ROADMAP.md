@@ -159,3 +159,7 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+### P034 continuation update — 2026-11-26
+
+Scoped development manifest verification, real disposable P025/P026/P027 state, deterministic SquashFS construction, native mounted handoff, and actual Wine image mounted inventory are now evidenced. Production authority, complete i386 host ABI, application-owned mounted execution lifecycle, authentic qualification, and production initialization remain blockers. PR #7 remains Draft; P035 has not started. See [runtime image provider](RUNTIME-IMAGE-PROVIDER.md).

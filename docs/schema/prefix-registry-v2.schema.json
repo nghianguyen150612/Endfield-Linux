@@ -63,7 +63,7 @@
                 "manifest_sha256": { "$ref": "#/$defs/digest" },
                 "generation": { "type": "integer", "minimum": 1 },
                 "ownership_record_sha256": { "$ref": "#/$defs/digest" },
-                "trust": { "enum": ["independently_authenticated_publisher", "user_pinned_limited_trust", "unknown_external_source"] }
+                "trust": { "enum": ["independently_authenticated_publisher", "user_pinned_limited_trust", "development_only", "unknown_external_source"] }
               }
             }
           }

@@ -274,3 +274,7 @@ backing observation were selected separately and passed. Offline package-set
 fixtures: six passed; DEB fixtures: six passed; native descriptor/chain fixtures:
 four passed; source fixtures: four passed. Affected-crate all-target Clippy passes
 with warnings denied. Final-head hosted results are reported on Draft PR #7.
+
+## P034 runtime image continuation — 2026-11-26
+
+The missing artifact bytes were recovered and independently revalidated against the recorded identities. A disposable P024 development manifest then drove the real P025 install, complete P026 audit, and P027 persisted/reloaded pin. A deterministic SquashFS image was built twice from that installed generation and mounted with squashfuse in a private namespace; the mounted inventory matches all 2,849 transformed entries. The earlier paragraph describing the mount as unavailable is historical for its then-current host/state; the later mount result and limits are recorded in [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md). Host i386 ABI is unavailable on this host: a harmless static ELF32 fixture returned `ENOEXEC`, `/lib/ld-linux.so.2` is absent, and no i386 libraries appear in ldconfig. Production publisher authority also remains unavailable.

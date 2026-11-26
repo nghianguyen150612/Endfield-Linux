@@ -20,6 +20,19 @@ pub struct ViewScope {
     pub profile_sha256: String,
     pub generation: u64,
 }
+
+/// Verified image bytes bound to one P025 candidate scope. This is not a mount.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeImageScope {
+    pub artifact_sha256: String,
+    pub image_sha256: String,
+    pub inventory_sha256: String,
+    pub profile_sha256: String,
+    pub generation: u64,
+    pub image_format: String,
+    pub provider_id: String,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ViewBlocker {
@@ -45,6 +58,11 @@ pub struct PreparedBacking {
     file: File,
     scope: ViewScope,
     size: u64,
+}
+/// Sealed filesystem-image backing. No mounted tree or process lifecycle is issued.
+pub struct PreparedRuntimeImage {
+    backing: PreparedBacking,
+    scope: RuntimeImageScope,
 }
 const SEALS: i32 = libc::F_SEAL_WRITE | libc::F_SEAL_GROW | libc::F_SEAL_SHRINK | libc::F_SEAL_SEAL;
 impl PreparedBacking {
@@ -129,6 +147,63 @@ impl PreparedBacking {
 
     pub fn execution_blocker(&self) -> ViewBlocker {
         ViewBlocker::TrustedImageMountAuthorityUnavailable
+    }
+}
+
+impl PreparedRuntimeImage {
+    pub fn prepare(bytes: &[u8], scope: RuntimeImageScope) -> Result<Self, ViewBlocker> {
+        let valid = |s: &str| {
+            s.len() == 64
+                && s.bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        };
+        if scope.generation == 0
+            || !valid(&scope.artifact_sha256)
+            || !valid(&scope.image_sha256)
+            || !valid(&scope.inventory_sha256)
+            || !valid(&scope.profile_sha256)
+            || scope.image_format != "squashfs"
+            || scope.provider_id != "squashfuse"
+        {
+            return Err(ViewBlocker::InvalidScope);
+        }
+        if sha256(bytes) != scope.image_sha256 {
+            return Err(ViewBlocker::ChangedArtifact);
+        }
+        let backing_scope = ViewScope {
+            artifact_sha256: scope.image_sha256.clone(),
+            inventory_sha256: scope.inventory_sha256.clone(),
+            profile_sha256: scope.profile_sha256.clone(),
+            generation: scope.generation,
+        };
+        Ok(Self {
+            backing: PreparedBacking::prepare(bytes, backing_scope)?,
+            scope,
+        })
+    }
+
+    pub fn revalidate(&self, expected: &RuntimeImageScope) -> Result<(), ViewBlocker> {
+        if &self.scope != expected {
+            return Err(ViewBlocker::ChangedScope);
+        }
+        self.backing.revalidate(&ViewScope {
+            artifact_sha256: expected.image_sha256.clone(),
+            inventory_sha256: expected.inventory_sha256.clone(),
+            profile_sha256: expected.profile_sha256.clone(),
+            generation: expected.generation,
+        })
+    }
+
+    pub fn scope(&self) -> &RuntimeImageScope {
+        &self.scope
+    }
+
+    pub fn execution_blocker(&self) -> ViewBlocker {
+        ViewBlocker::TrustedImageMountAuthorityUnavailable
+    }
+
+    pub fn close(self) -> Result<(), ViewBlocker> {
+        self.backing.close()
     }
 }
 
@@ -290,6 +365,52 @@ mod tests {
             PreparedBacking::prepare(b"fixture", bad),
             Err(ViewBlocker::InvalidScope)
         ));
+    }
+    #[test]
+    fn image_identity_is_separate_from_candidate_and_does_not_claim_a_mount() {
+        let bytes = b"verified fixture squashfs bytes";
+        let scope = RuntimeImageScope {
+            artifact_sha256: sha256(b"source artifact"),
+            image_sha256: sha256(bytes),
+            inventory_sha256: "1".repeat(64),
+            profile_sha256: "2".repeat(64),
+            generation: 7,
+            image_format: "squashfs".into(),
+            provider_id: "squashfuse".into(),
+        };
+        let image = PreparedRuntimeImage::prepare(bytes, scope.clone()).unwrap();
+        image.revalidate(&scope).unwrap();
+        assert_eq!(image.scope(), &scope);
+        assert_eq!(
+            image.execution_blocker(),
+            ViewBlocker::TrustedImageMountAuthorityUnavailable
+        );
+        let mut changed = scope.clone();
+        changed.generation += 1;
+        assert_eq!(image.revalidate(&changed), Err(ViewBlocker::ChangedScope));
+        let mut changed_inventory = scope.clone();
+        changed_inventory.inventory_sha256 = "3".repeat(64);
+        assert_eq!(
+            image.revalidate(&changed_inventory),
+            Err(ViewBlocker::ChangedScope)
+        );
+        let mut changed_profile = scope.clone();
+        changed_profile.profile_sha256 = "4".repeat(64);
+        assert_eq!(
+            image.revalidate(&changed_profile),
+            Err(ViewBlocker::ChangedScope)
+        );
+        let mut changed_provider = scope.clone();
+        changed_provider.provider_id = "other-provider".into();
+        assert_eq!(
+            image.revalidate(&changed_provider),
+            Err(ViewBlocker::ChangedScope)
+        );
+        assert!(matches!(
+            PreparedRuntimeImage::prepare(b"changed", scope),
+            Err(ViewBlocker::ChangedArtifact)
+        ));
+        image.close().unwrap();
     }
     #[test]
     fn private_mount_probe_cannot_authorize_or_change_parent_view() {

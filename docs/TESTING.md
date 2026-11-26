@@ -1229,3 +1229,9 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+## P034 manifest and runtime-image evidence — 2026-11-26
+
+P024 rejected development-to-publisher promotion and verified the exact real candidate with the ephemeral authority in the reserved disposable scope. The P025/P026/P027 opt-in lifecycle passed against the candidate: the installation and full audit succeeded, and the exact development-only pin was persisted and reloaded. The temporary test AppPaths were removed afterward; a separate private disposable state remains outside the repository for the reproducible image evidence.
+
+Local Rust 1.85 formatting, workspace check, warning-denied Clippy, serialized full-workspace tests, workspace build, Cargo metadata, and the exact two application-binary assertion passed. GTK smoke was ignored locally because Xvfb is unavailable; Clang is not installed locally. GCC C17 ABI and GCC ASan/UBSan scripts passed. The bounded manifest signer tests, deterministic SquashFS builder tests, and opt-in native FUSE handoff test passed. The actual Wine image mounted read-only with sealed memfd backing; all 2,849 entries matched the transformed inventory, and the parent namespace was unchanged. The host-specific FUSE tests are explicit opt-in scripts; default CI builds only a small fixture image. No Wine or Endfield process ran. Exact final-head hosted CI is pending in Draft PR #7. See [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).

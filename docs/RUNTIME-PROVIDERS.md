@@ -332,3 +332,7 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+## P034 selected image provider
+
+P034 now has a tested host workflow for deterministic SquashFS construction and read-only squashfuse mounting in a private user/mount namespace. It is tied to the development-only real candidate and disposable P025/P026/P027 state. This host provider workflow does not yet produce an application execution capability; the runtime-view library remains fail-closed until mount ownership and descendant lifecycle supervision are connected. See [provider design and evidence](RUNTIME-IMAGE-PROVIDER.md).

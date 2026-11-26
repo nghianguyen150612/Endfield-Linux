@@ -62,19 +62,25 @@ pub(crate) fn collect(
 }
 pub(crate) fn summary(report: &WineRuntimeQualification) -> String {
     format!(
-        "Managed Wine: {}. Pin {} revision {}. P025 {:?}; P026 {:?}. Dependency observations: {}. Artifact profile {:?}; profile blocker {:?}; host ABI {:?}; isolated readiness {:?}; recorded outcome {:?}. Helper inventory {:?}; invocation {:?}; descendant completion {:?}; authentic qualification {:?}. Initialization {:?}; approval required: {}. Blockers: {}. Game launch remains unsupported.",
+        "Managed Wine: {}. Pin {} revision {}. Manifest authority {:?}; signature/provenance {:?}. P025 {:?}; P026 {:?}. Dependency observations: {}. Artifact profile {:?}; profile blocker {:?}; host ABI {:?}; i386 host ABI {:?}; image provider {}; image digest {:?}; mounted view {:?}; isolated readiness {:?}; recorded outcome {:?}. Helper inventory {:?}; invocation {:?}; descendant completion {:?}; authentic qualification {:?}. Initialization {:?}; approval required: {}. Blockers: {}. Game launch remains unsupported.",
         report
             .runtime_installation_id
             .as_deref()
             .unwrap_or("unavailable"),
         report.pin_id.as_deref().unwrap_or("none"),
         report.pin_revision,
+        report.manifest_authority_scope,
+        report.manifest_signature_state,
         report.ownership,
         report.integrity,
         report.dependencies.len(),
         report.artifact_profile_id,
         report.artifact_profile_blocker,
         report.host_abi.state,
+        report.host_i386_abi,
+        report.runtime_image_provider,
+        report.runtime_image_sha256,
+        report.mounted_view_eligibility,
         report.isolated_qualification_readiness,
         report.recorded_qualification,
         report.helper_inventory,

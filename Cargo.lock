@@ -488,6 +488,7 @@ dependencies = [
  "ed25519-dalek",
  "endfield-unix-runtime",
  "endfield-unix-runtime-audit",
+ "endfield-unix-runtime-selection",
  "endfield-unix-runtime-verification",
  "endfield-unix-storage",
  "flate2",

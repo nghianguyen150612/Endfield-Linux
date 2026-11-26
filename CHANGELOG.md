@@ -91,3 +91,10 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](docs/WINE-PACKAGE-CLOSURE.md).
+
+### P034 runtime image and manifest authority continuation
+
+- Added reserved `DevelopmentOnly` manifest scope and explicit disposable P025 installation approval; development signing cannot authorize publisher-only initialization.
+- Added offline P024 Wine manifest signing workflow, deterministic SquashFS image builder, image-scope validation, and bounded squashfuse mount inspection.
+- Verified the real candidate through disposable P025/P026/P027 state, reproduced the image byte-for-byte, qualified native launcher/preloader/helper handoff, and revalidated the actual mounted image inventory.
+- Production authority is not enrolled. Application execution-view ownership, complete i386 host ABI, authentic Wine qualification, production initialization, and game launch remain blocked.

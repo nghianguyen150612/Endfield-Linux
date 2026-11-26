@@ -120,6 +120,9 @@ pub fn verify_managed_wine_executable(
         endfield_unix_runtime_install::TrustClassification::UserPinnedLimitedTrust => {
             TrustClassification::UserPinnedLimitedTrust
         }
+        endfield_unix_runtime_install::TrustClassification::DevelopmentOnly => {
+            TrustClassification::DevelopmentOnly
+        }
     };
     if baseline.installation_id != identity.installation_id
         || baseline.generation != identity.generation

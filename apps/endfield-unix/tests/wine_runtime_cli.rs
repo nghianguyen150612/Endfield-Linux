@@ -21,9 +21,14 @@ fn wine_qualification_is_read_only_and_never_claims_authentic_success() {
     );
     assert!(output.stdout.len() < 1024 * 1024);
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["schema_version"], 2);
     assert_eq!(report["authentic_qualification"], "not_run");
     assert_eq!(report["production_initialization"], "blocked");
+    assert_eq!(report["manifest_authority_scope"], "unknown");
+    assert_eq!(report["manifest_signature_state"], "unavailable");
+    assert_eq!(report["runtime_image_provider"], "squashfuse");
+    assert_eq!(report["runtime_image_sha256"], serde_json::Value::Null);
+    assert_eq!(report["mounted_view_eligibility"], "blocked");
     assert!(!String::from_utf8_lossy(&output.stdout).contains(root.path().to_str().unwrap()));
     for path in ["config", "data", "cache", ".wine"] {
         assert!(!root.path().join(path).exists());

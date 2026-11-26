@@ -55,6 +55,22 @@ pub enum QualificationState {
     Unknown,
     Blocked,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManifestAuthorityScope {
+    IndependentlyAuthenticatedPublisher,
+    UserPinned,
+    DevelopmentOnly,
+    Unknown,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManifestSignatureState {
+    PublisherProvenanceRecorded,
+    DevelopmentOnlyProvenanceRecorded,
+    UserPinned,
+    Unavailable,
+}
 /// Source-defined roles are inventory candidates, not an approved package layout.
 #[derive(Clone, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -81,6 +97,8 @@ pub struct Wine10InvocationContract {
 pub struct WineRuntimeQualification {
     pub schema_version: u32,
     pub policy_id: &'static str,
+    pub manifest_authority_scope: ManifestAuthorityScope,
+    pub manifest_signature_state: ManifestSignatureState,
     pub runtime_installation_id: Option<String>,
     pub pin_id: Option<String>,
     pub pin_revision: u64,
@@ -101,6 +119,10 @@ pub struct WineRuntimeQualification {
     pub artifact_profile_id: Option<String>,
     pub artifact_profile_blocker: Option<ArtifactProfileBlocker>,
     pub host_abi: HostAbiEvidence,
+    pub host_i386_abi: QualificationState,
+    pub runtime_image_provider: &'static str,
+    pub runtime_image_sha256: Option<String>,
+    pub mounted_view_eligibility: QualificationState,
     pub isolated_qualification_readiness: QualificationState,
     pub host_compatible: bool,
     pub host_architecture: &'static str,
@@ -112,8 +134,10 @@ pub struct WineRuntimeQualification {
 impl WineRuntimeQualification {
     pub fn unavailable(reason: &str) -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             policy_id: POLICY_ID,
+            manifest_authority_scope: ManifestAuthorityScope::Unknown,
+            manifest_signature_state: ManifestSignatureState::Unavailable,
             runtime_installation_id: None,
             pin_id: None,
             pin_revision: 0,
@@ -142,6 +166,14 @@ impl WineRuntimeQualification {
             artifact_profile_id: None,
             artifact_profile_blocker: Some(ArtifactProfileBlocker::Missing),
             host_abi: HostAbiEvidence::issue(HostAbiState::Unverifiable, "artifact_profile"),
+            host_i386_abi: if Path::new("/lib/ld-linux.so.2").is_file() {
+                QualificationState::Unknown
+            } else {
+                QualificationState::Missing
+            },
+            runtime_image_provider: "squashfuse",
+            runtime_image_sha256: None,
+            mounted_view_eligibility: QualificationState::Blocked,
             isolated_qualification_readiness: QualificationState::Blocked,
             host_compatible: false,
             host_architecture: std::env::consts::ARCH,
@@ -154,6 +186,7 @@ impl WineRuntimeQualification {
                 "dynamic_modules_not_established".into(),
                 "descendant_completion_not_established".into(),
                 "authentic_qualification_not_run".into(),
+                "application_runtime_image_provider_not_integrated".into(),
                 "descriptor_runtime_loading_observation_required".into(),
                 "disposable_root_and_exact_approval_required".into(),
             ],
@@ -174,6 +207,26 @@ pub fn qualify_managed_wine(
     let pins::PinnedRuntimeReference::Managed(runtime) = reference else {
         return report;
     };
+    match runtime.trust {
+        pins::Provenance::IndependentlyAuthenticatedPublisher => {
+            report.manifest_authority_scope =
+                ManifestAuthorityScope::IndependentlyAuthenticatedPublisher;
+            report.manifest_signature_state = ManifestSignatureState::PublisherProvenanceRecorded;
+        }
+        pins::Provenance::UserPinnedLimitedTrust => {
+            report.manifest_authority_scope = ManifestAuthorityScope::UserPinned;
+            report.manifest_signature_state = ManifestSignatureState::UserPinned;
+        }
+        pins::Provenance::DevelopmentOnly => {
+            report.manifest_authority_scope = ManifestAuthorityScope::DevelopmentOnly;
+            report.manifest_signature_state =
+                ManifestSignatureState::DevelopmentOnlyProvenanceRecorded;
+        }
+        pins::Provenance::UnknownExternalSource => {
+            report.manifest_authority_scope = ManifestAuthorityScope::Unknown;
+            report.manifest_signature_state = ManifestSignatureState::Unavailable;
+        }
+    }
     report.runtime_installation_id = Some(runtime.installation_id.clone());
     report.artifact_sha256 = Some(runtime.artifact_sha256.clone());
     if reference.validate().is_err() {
@@ -1012,6 +1065,26 @@ mod tests {
         });
         fs::write(temp.path().join("unrelated"), b"preserved").unwrap();
         let report = qualify_managed_wine(&paths, "missing-pin", 1, &reference);
+        assert_eq!(report.schema_version, 2);
+        assert_eq!(
+            report.manifest_authority_scope,
+            ManifestAuthorityScope::IndependentlyAuthenticatedPublisher
+        );
+        assert_eq!(
+            report.manifest_signature_state,
+            ManifestSignatureState::PublisherProvenanceRecorded
+        );
+        assert_eq!(report.runtime_image_provider, "squashfuse");
+        assert!(report.runtime_image_sha256.is_none());
+        assert_eq!(report.mounted_view_eligibility, QualificationState::Blocked);
+        assert_eq!(
+            report.host_i386_abi,
+            if Path::new("/lib/ld-linux.so.2").is_file() {
+                QualificationState::Unknown
+            } else {
+                QualificationState::Missing
+            }
+        );
         assert_eq!(report.authentic_qualification, QualificationState::NotRun);
         assert_eq!(
             report.production_initialization,
@@ -1028,5 +1101,36 @@ mod tests {
             fs::read(temp.path().join("unrelated")).unwrap(),
             b"preserved"
         );
+        let development = pins::PinnedRuntimeReference::Managed(pins::ManagedRuntimeReference {
+            installation_id: "wine-development".into(),
+            family: "wine".into(),
+            lineage: "upstream-wine".into(),
+            provider: "endfield-unix-development".into(),
+            project: "p034-disposable".into(),
+            build: "wine-10.0".into(),
+            artifact_sha256: "a".repeat(64),
+            manifest_sha256: "b".repeat(64),
+            generation: 1,
+            ownership_record_sha256: "c".repeat(64),
+            trust: pins::Provenance::DevelopmentOnly,
+        });
+        let dev_report = qualify_managed_wine(&paths, "development-pin", 1, &development);
+        assert_eq!(
+            dev_report.manifest_authority_scope,
+            ManifestAuthorityScope::DevelopmentOnly
+        );
+        assert_eq!(
+            dev_report.manifest_signature_state,
+            ManifestSignatureState::DevelopmentOnlyProvenanceRecorded
+        );
+        assert_eq!(
+            dev_report.mounted_view_eligibility,
+            QualificationState::Blocked
+        );
+        assert_eq!(
+            dev_report.production_initialization,
+            QualificationState::Blocked
+        );
+        assert!(!paths.data_dir().exists());
     }
 }

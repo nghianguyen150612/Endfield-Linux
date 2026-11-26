@@ -1,0 +1,21 @@
+{
+  "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+  "artifact_size": 437830035,
+  "authority_scope": "development_only_disposable",
+  "manifest_id": "winehq-noble-dualarch-dev-20261125",
+  "manifest_sha256": "28a9ccc9ba07c46e64ae7aa1e0058fb43f7eafa80c2f2625ca1b4b6feec856d5",
+  "packaging_record_sha256": "eff5e4efeb1331cee88a3135641e4a06bd63b5c6ae1cf9dccc31a5132d01022c",
+  "profile_sha256": "c2d687c1885f5ca343a362f955c221e6589b8a1fb2f44655b4064032fba42947",
+  "public_key_sha256": "127cf36d266a367756e037eb36875e6200940e5cf1ae4d996c30fac2bd140b7a",
+  "revalidation_evidence_sha256": "cba7f0ded4ccc67c4b680a26ec5b6ccc212f5a2ee03954da5968a30b818c76af",
+  "schema_version": 1,
+  "signature_sha256": "2f501670fcc1397e15fac62be091355d1045c6d00d223c520ff983d9ed139493",
+  "source_evidence_sha256": "aded3ac7e6c6b01c18916fa23f465c3a8ee118e7acd010453a7071dc86b6eb90",
+  "source_inventory_sha256": "d73e7e769fc0d19ad7fb958264987550648d4f6491762a6df520094431e5b90c",
+  "source_package_sha256": [
+    "393d545040fe5c029eadeb31fcea52126714473e6c11b3cd851447b2dcbf1f72",
+    "5ba523409f013b12953f577bc3322aeae599bb16afac66c59ebe2dde7b337bfa",
+    "31e6eb2e15ae2e38ef72c9865c0d01da4bc587e554e7db46fe1a75b4420878e1"
+  ],
+  "transformed_inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24"
+}

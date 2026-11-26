@@ -388,3 +388,7 @@ listed ancestor must be a directory, including ancestors owned by a different
 package. Conflicting regular-file and symlink parents fail before packaging
 creates output. Individual package safety does not establish combined layout
 safety. See [candidate revalidation](WINE-PACKAGE-CLOSURE.md).
+
+## P034 scoped manifest and mounted image update — 2026-11-26
+
+P024 reserves `dev-` signer identities and the `endfield-unix-development/p034-disposable/development/wine/upstream-wine` scope for `DevelopmentOnly` provenance. Synthetic tests use a separate `fixture-` namespace and `SyntheticFixtureOnly` provenance; P025 refuses to install it. Neither scope can create a publisher checkpoint or be relabeled as a production publisher. The real candidate was installed and pinned only in disposable development state. Its image uses sealed memfd backing and a private read-only squashfuse mount (`ro,nosuid,nodev`); the complete mounted inventory was revalidated. The application still issues no execution capability, because it does not own the full helper/wineserver lifecycle. Host libraries are outside the image. Malicious root, kernel compromise, unrestricted ptrace and mutable host library bytes are outside this guarantee. See [authority enrollment](MANIFEST-AUTHORITY-ENROLLMENT.md) and [image provider evidence](RUNTIME-IMAGE-PROVIDER.md).

@@ -86,3 +86,7 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+## P034 runtime image continuation — 2026-11-26
+
+The real Wine image now passes a private SquashFS mount and complete inventory check, and a native launcher/preloader/helper fixture completed through the mounted view. `PreparedRuntimeImage` only prepares and revalidates sealed image backing; it does not create a production mounted execution capability. The direct-child executor still does not own wineserver/helper descendants, so initialization remains unsupported, Play remains disabled, and authentic Wine was not started. Details: [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).

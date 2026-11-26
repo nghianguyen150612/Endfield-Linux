@@ -235,3 +235,5 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](docs/WINE-PACKAGE-CLOSURE.md).
+
+P034 continuation now verifies a development-only manifest for the real Wine candidate, installs and pins it in disposable application state, builds a byte-reproducible SquashFS image, and validates a private squashfuse mount against the complete inventory. A harmless native preloader/helper fixture passes through the mounted view. Production trust, full i386 host ABI, application-level descendant ownership, authentic Wine qualification, initialization, and game launch remain blocked. See [runtime image provider evidence](docs/RUNTIME-IMAGE-PROVIDER.md).

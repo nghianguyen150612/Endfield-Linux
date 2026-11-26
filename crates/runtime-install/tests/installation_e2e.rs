@@ -72,16 +72,40 @@ fn evidence_at(
     now: i64,
 ) -> v::VerifiedManifest {
     let key = SigningKey::from_bytes(&[42; 32]);
-    let bytes=serde_json::to_vec(&json!({"schema_version":1,"manifest_id":"fixture","manifest_version":1,"provider_id":"fixture","project_id":"fixture","channel":"test","runtime_family":family,"runtime_lineage":"custom","runtime_build":"GE-Proton10-26","key_id":"test","signature_algorithm":"ed25519","issued_at":"2026-01-01T00:00:00Z","expires_at":"2036-01-01T00:00:00Z","artifacts":[{"artifact_id":"test","filename":"runtime.tar.gz","size_bytes":data.len(),"sha256":v::sha256(data)}]})).unwrap();
+    let key_id = match provenance {
+        v::Provenance::DevelopmentOnly => "dev-test",
+        v::Provenance::SyntheticFixtureOnly => "fixture-test",
+        _ => "test",
+    };
+    let (provider, project, channel, lineage) = match provenance {
+        v::Provenance::DevelopmentOnly => (
+            "endfield-unix-development",
+            "p034-disposable",
+            "development",
+            "upstream-wine",
+        ),
+        v::Provenance::SyntheticFixtureOnly => (
+            "endfield-unix-fixture",
+            "synthetic-contracts",
+            "fixture",
+            if family == "wine" {
+                "upstream-wine"
+            } else {
+                "ge-proton"
+            },
+        ),
+        _ => ("fixture", "fixture", "test", "custom"),
+    };
+    let bytes=serde_json::to_vec(&json!({"schema_version":1,"manifest_id":"fixture","manifest_version":1,"provider_id":provider,"project_id":project,"channel":channel,"runtime_family":family,"runtime_lineage":lineage,"runtime_build":"GE-Proton10-26","key_id":key_id,"signature_algorithm":"ed25519","issued_at":"2026-01-01T00:00:00Z","expires_at":"2036-01-01T00:00:00Z","artifacts":[{"artifact_id":"test","filename":"runtime.tar.gz","size_bytes":data.len(),"sha256":v::sha256(data)}]})).unwrap();
     let anchor = v::TrustAnchor {
-        key_id: "test".into(),
+        key_id: key_id.into(),
         public_key: key.verifying_key().to_bytes(),
         scope: v::Scope {
-            provider: "fixture".into(),
-            project: "fixture".into(),
-            channel: "test".into(),
+            provider: provider.into(),
+            project: project.into(),
+            channel: channel.into(),
             family: family.into(),
-            lineage: "custom".into(),
+            lineage: lineage.into(),
         },
         provenance,
         revoked: false,
@@ -178,6 +202,39 @@ fn installation_side_by_side_collision_and_integrity() {
         assert!(!third.destination().exists());
         assert!(plan.destination().exists());
     }
+}
+
+#[test]
+fn development_manifest_authority_is_explicit_in_disposable_install_plan() {
+    let d = tempfile::tempdir().unwrap();
+    let paths = AppPaths::from_base_dirs(d.path(), d.path(), d.path()).unwrap();
+    let data = archive("wine", false);
+    let verified = evidence(&data, "wine", v::Provenance::DevelopmentOnly, false);
+    let plan = RuntimeInstallationPlan::new(&paths, &verified, "test", 1).unwrap();
+    assert_eq!(
+        plan.trust_classification(),
+        TrustClassification::DevelopmentOnly
+    );
+    assert!(plan.approve(&plan.identity()).is_err());
+    assert!(plan.approve_development("wrong").is_err());
+    assert!(plan.approve_development(&plan.identity()).is_ok());
+    assert!(
+        !paths.data_dir().exists() || std::fs::read_dir(paths.data_dir()).unwrap().count() == 0
+    );
+}
+
+#[test]
+fn synthetic_fixture_manifest_cannot_create_an_installation_plan() {
+    let d = tempfile::tempdir().unwrap();
+    let paths = AppPaths::from_base_dirs(d.path(), d.path(), d.path()).unwrap();
+    let data = archive("wine", false);
+    let verified = evidence(&data, "wine", v::Provenance::SyntheticFixtureOnly, false);
+    assert_eq!(verified.provenance(), v::Provenance::SyntheticFixtureOnly);
+    assert!(matches!(
+        RuntimeInstallationPlan::new(&paths, &verified, "test", 1),
+        Err(Error::TrustUnavailable)
+    ));
+    assert!(!paths.data_dir().exists());
 }
 
 #[test]

@@ -2,7 +2,7 @@
 
 Authentic Wine execution is **NOT_RUN**. An actual WineHQ Noble 10.0 AMD64/common candidate has now been extracted and inventoried, but publisher identity, complete packaging and safe preloader handoff remain blocked. See [real-layout candidate evidence](WINE-REAL-LAYOUT-CANDIDATE.md). The disposable harness can reach the descriptor-bound executor when its gates pass. Production prefix initialization and game launch have separate eligibility and approval requirements and remain blocked.
 
-`endfield-unix diagnose wine-runtime --profile desktop --json` inspects the selected P027 pin, P025 ownership, P026 bytes, artifact profile, host ABI and qualification blockers. It creates no XDG storage and starts no subprocess. Set `ENDFIELD_AUTHENTIC_WINE_TEST_ROOT` to consult one preserved, matching test journal. The recorded status reports an absent, inconclusive, stale, unreadable or recorded outcome. A diagnostic record cannot grant an execution capability. GTK performs the same inspection on its existing worker. Its Play action stays disabled. [Diagnostic schema](schema/wine-runtime-qualification-v1.schema.json)
+`endfield-unix diagnose wine-runtime --profile desktop --json` inspects the selected P027 pin, P025 ownership, P026 bytes, artifact profile, host ABI and qualification blockers. It creates no XDG storage and starts no subprocess. Set `ENDFIELD_AUTHENTIC_WINE_TEST_ROOT` to consult one preserved, matching test journal. The recorded status reports an absent, inconclusive, stale, unreadable or recorded outcome. A diagnostic record cannot grant an execution capability. GTK performs the same inspection on its existing worker. Its Play action stays disabled. The v2 report includes recorded manifest authority scope, signature/provenance status, image-provider identity, image digest availability, mounted-view eligibility, and a separate i386 ABI observation. [Diagnostic schema v2](schema/wine-runtime-qualification-v2.schema.json); [historical schema v1](schema/wine-runtime-qualification-v1.schema.json).
 
 ## Legacy schema-1 authenticated package contract
 
@@ -122,3 +122,7 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+## P034 runtime image continuation — 2026-11-26
+
+The real Wine candidate now has a development-only P024 manifest, disposable P025 installation, complete P026 baseline, and exact P027 pin. Its SquashFS bytes are reproducible, and the actual image mounted read-only with a revalidated complete inventory. This does not issue authentic execution authorization: production authority is absent, i386 host ABI is incomplete, and the application has not integrated mount and descendant lifetime ownership. Authentic Wine remains **NOT_RUN**. See [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).
