@@ -464,7 +464,9 @@ The P034 prefix library now owns shared P025/P026/P027 executable verification a
 
 The ELF inspector supplies static dependency and symbol-version evidence. Prefix management validates the signed artifact role map and observes the host ABI. A separate disposable qualification capability feeds the existing coordinator, while P028 retains all lifecycle transitions. CLI and GTK report read-only evidence. [Wine qualification](WINE-QUALIFICATION.md)
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate and runtime-image continuation below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -473,7 +475,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries

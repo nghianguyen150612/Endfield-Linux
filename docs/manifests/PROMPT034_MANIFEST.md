@@ -77,7 +77,10 @@ This continuation recovered clean exact HEAD d7a564e117a90b159818c024348f299a4ea
 
 This continuation starts at `34e3dc581c115f7d767d6c62031333fdfb65456d`, which passed [run 43834023540](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/43834023540). P024 schema 2 role-map binding, P026 helper integrity, host ABI validation, private XDG, separate qualification authorization and the two-stage P028 execution path are covered by native fixtures. Authentic Wine remains NOT_RUN. Production initialization and game launch are blocked. Final-head hosted validation is tracked in Draft PR #7. [Wine qualification](../WINE-QUALIFICATION.md)
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate, development
+manifest, disposable P025/P026/P027 lifecycle and mounted image evidence below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -86,7 +89,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](../WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following mount-probe and trust status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
@@ -101,4 +106,4 @@ unstarted. See [package, provenance, ABI and runtime-view evidence](../WINE-PACK
 
 ## P034 manifest authority and runtime image continuation — 2026-11-26
 
-A disposable Ed25519 development authority verified the exact real candidate through P024; the development signer was not enrolled in application trust settings. The real candidate completed isolated P025 installation, P026 full audit, and P027 exact pin creation/reload. Its SquashFS image is 387,833,856 bytes, SHA-256 `e3b4a6d61313f1f93ebbbf933a1078771a5ba1062af24d30c42aeba1d28ff15b`, and was byte-identical across two builds. The actual image mounted read-only in a private namespace and all 2,849 entries revalidated. Native fixture preloader/helper handoff passed. Wine and Endfield were not executed. Production authority, i386 host ABI (the kernel rejected a harmless static ELF32 fixture with `ENOEXEC`, and `/lib/ld-linux.so.2` is absent), app-level process/view lifecycle ownership, and production initialization remain blocked. Implementation commit `5b462b4e267440800b73249faf4922c9b99a5beb` passed exact-head hosted CI in [run 45734624779](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45734624779). This evidence-record commit is separately checked on Draft PR #7. The PR remains unmerged, and P035 remains unstarted. See [runtime image provider evidence](../RUNTIME-IMAGE-PROVIDER.md).
+A disposable Ed25519 development authority verified the exact real candidate through P024; the development signer was not enrolled in application trust settings. The real candidate completed isolated P025 installation, P026 full audit, and P027 exact pin creation/reload. Its SquashFS image is 387,833,856 bytes, SHA-256 `e3b4a6d61313f1f93ebbbf933a1078771a5ba1062af24d30c42aeba1d28ff15b`, and was byte-identical across two builds. The actual image mounted read-only in a private namespace and all 2,849 entries revalidated. Native fixture preloader/helper handoff passed. Wine and Endfield were not executed. Production authority, i386 host ABI (the kernel rejected a harmless static ELF32 fixture with `ENOEXEC`, and `/lib/ld-linux.so.2` is absent), app-level process/view lifecycle ownership, and production initialization remain blocked. Implementation commit `5b462b4e267440800b73249faf4922c9b99a5beb` passed exact-head hosted CI in [run 45734624779](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45734624779). Evidence-record commit `e678478dc7f851907e147a2f657d36438a1e25a4` passed exact-head hosted CI in [run 45735439542](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45735439542). This docs-only historical-status cleanup requires its own exact-head check, tracked on Draft PR #7. The PR remains unmerged, and P035 remains unstarted. See [runtime image provider evidence](../RUNTIME-IMAGE-PROVIDER.md).

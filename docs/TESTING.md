@@ -1208,7 +1208,10 @@ Wine ELF parser and graph/helper qualification tests use harmless synthetic fixt
 
 The ignored authentic Wine harness has separate prepare and execute stages. Default Rust tests exercise the two stages with a native fixture, a synthetic signing key and a disposable P028 registry. The default run never starts authentic Wine or Endfield. The fixture verifies source-registry preservation and consumed-approval replay refusal. [Wine qualification procedure](WINE-QUALIFICATION.md)
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This checkpoint predates the complete dual-architecture candidate, development
+manifest, disposable P025/P026/P027 lifecycle and mounted image evidence below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -1217,7 +1220,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following mount-probe and trust status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
@@ -1236,4 +1241,4 @@ P024 rejected development-to-publisher promotion and verified the exact real can
 
 Local Rust 1.85 formatting, workspace check, warning-denied Clippy, serialized full-workspace tests, workspace build, Cargo metadata, and the exact two application-binary assertion passed. GTK smoke was ignored locally because Xvfb is unavailable; Clang is not installed locally. GCC C17 ABI and GCC ASan/UBSan scripts passed. The bounded manifest signer tests, deterministic SquashFS builder tests, and opt-in native FUSE handoff test passed. The actual Wine image mounted read-only with sealed memfd backing; all 2,849 entries matched the transformed inventory, and the parent namespace was unchanged. The host-specific FUSE tests are explicit opt-in scripts; default CI builds only a small fixture image. No Wine or Endfield process ran.
 
-Implementation commit `5b462b4e267440800b73249faf4922c9b99a5beb` passed exact-head hosted CI in [run 45734624779](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45734624779): Rust 1.85 formatting, workspace check, warning-denied Clippy, serialized full-workspace and CLI tests, v2 diagnostic schema, GTK/Xvfb smoke and screenshot, workspace build/metadata, daemon/IPC gates, and GCC/Clang C17 ABI. This evidence-record update is a documentation-only follow-on; its exact-head result is tracked on Draft PR #7 and in the completion report. See [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).
+Implementation commit `5b462b4e267440800b73249faf4922c9b99a5beb` passed exact-head hosted CI in [run 45734624779](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45734624779): Rust 1.85 formatting, workspace check, warning-denied Clippy, serialized full-workspace and CLI tests, v2 diagnostic schema, GTK/Xvfb smoke and screenshot, workspace build/metadata, daemon/IPC gates, and GCC/Clang C17 ABI. The evidence-record commit `e678478dc7f851907e147a2f657d36438a1e25a4` also passed exact-head hosted CI in [run 45735439542](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45735439542), including the full Rust/GTK suite, screenshot, build/metadata and both C17 jobs. This documentation cleanup is a further docs-only follow-on; its exact-head result is tracked on Draft PR #7 and in the completion report. See [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).

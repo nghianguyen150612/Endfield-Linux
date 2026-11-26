@@ -1,6 +1,6 @@
 # Managed Wine qualification (P034)
 
-Authentic Wine execution is **NOT_RUN**. An actual WineHQ Noble 10.0 AMD64/common candidate has now been extracted and inventoried, but publisher identity, complete packaging and safe preloader handoff remain blocked. See [real-layout candidate evidence](WINE-REAL-LAYOUT-CANDIDATE.md). The disposable harness can reach the descriptor-bound executor when its gates pass. Production prefix initialization and game launch have separate eligibility and approval requirements and remain blocked.
+Authentic Wine execution is **NOT_RUN**. The real WineHQ Noble 10.0 dual-architecture candidate has a development-scoped P024 manifest, a disposable P025 installation, a complete P026 baseline, an exact P027 pin, and a reproducible SquashFS image that was mounted and inventory-checked with squashfuse in a private namespace. Native fixtures exercised the preloader/helper pathname handoff against that provider workflow. These results do not supply production publisher authority or an application-owned execution view: the host lacks i386 ABI support, and the executor does not yet own the mounted view and complete descendant lifecycle. See [runtime-image evidence](RUNTIME-IMAGE-PROVIDER.md) and [real-layout candidate evidence](WINE-REAL-LAYOUT-CANDIDATE.md). The authentic qualification plan is not ready. Production prefix initialization and game launch remain blocked.
 
 `endfield-unix diagnose wine-runtime --profile desktop --json` inspects the selected P027 pin, P025 ownership, P026 bytes, artifact profile, host ABI and qualification blockers. It creates no XDG storage and starts no subprocess. Set `ENDFIELD_AUTHENTIC_WINE_TEST_ROOT` to consult one preserved, matching test journal. The recorded status reports an absent, inconclusive, stale, unreadable or recorded outcome. A diagnostic record cannot grant an execution capability. GTK performs the same inspection on its existing worker. Its Play action stays disabled. The v2 report includes recorded manifest authority scope, signature/provenance status, image-provider identity, image digest availability, mounted-view eligibility, and a separate i386 ABI observation. [Diagnostic schema v2](schema/wine-runtime-qualification-v2.schema.json); [historical schema v1](schema/wine-runtime-qualification-v1.schema.json).
 
@@ -110,7 +110,9 @@ independent key-identity corroboration, not an automatic extension of source-key
 policy to a P024 binary publisher. See the candidate report and preserved GPG
 certification evidence; production trust remains unpromoted.
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries

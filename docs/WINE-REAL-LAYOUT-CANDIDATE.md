@@ -1,9 +1,13 @@
 # Wine 10.0 real binary candidate (P034 continuation)
 
-Current continuation: the i386 package is now acquired, all three Wine packages
-have a 2,847-entry source inventory, and a deterministic 2,849-entry managed-package
-candidate passes disposable P025/P026 checks. See [complete package closure and
-runtime-view evidence](WINE-PACKAGE-CLOSURE.md). Execution remains blocked.
+Historical two-package report: the sections below preserve the earlier AMD64/common
+checkpoint. The current continuation recovered and verified the complete three-package
+candidate, enrolled a disposable development-scoped P024 manifest, completed disposable
+P025/P026/P027 state, built a byte-reproducible SquashFS image, and verified a private
+read-only mount plus native preloader/helper handoff. The application still has no
+owned mounted execution capability; production authority, complete i386 host ABI and
+authentic qualification remain blocked. See [package closure](WINE-PACKAGE-CLOSURE.md),
+[runtime image provider](RUNTIME-IMAGE-PROVIDER.md), and [qualification status](WINE-QUALIFICATION.md).
 
 The following sections preserve the earlier two-package checkpoint.
 
@@ -191,11 +195,9 @@ Wine. Candidate ABI observation is an ignored, explicitly selected read-only uni
 test; it cannot invoke the authentic execution harness. Existing P019/P021–P033
 regressions, C17 ABI 0x00010000, and exactly two application binaries remain required.
 
-This continuation delivers real binary evidence but **does not complete P034
-acceptance**. Remaining work includes accepting an explicit binary publisher identity policy,
-complete package closure, a qualified managed packaging contract and signature,
-preloader-aware ABI resolution, immutable helper handoff/process ownership,
-P025/P026/P027 integration, and separately approved authentic qualification.
+This historical checkpoint delivered real binary evidence but **did not complete
+P034 acceptance**. Its remaining-work list is superseded by the current continuation
+at the top of this document and the linked package/provider evidence.
 
 Local validation used genuine rustc 1.85.0 (4d91de4e4). Formatting and locked
 metadata passed. The non-GTK workspace run passed 804 tests (six ignored) before

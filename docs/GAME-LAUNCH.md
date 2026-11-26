@@ -65,7 +65,9 @@ Production initialization remains blocked by `PrefixInitializationPlan::approve`
 
 The disposable Wine qualification path validates a signed role map and host ABI and uses a separate coordinator capability after exact plan approval. It reports initializer exit and helper quiescence separately. Production initialization and game launch remain blocked. Authentic Wine is NOT_RUN. [Wine qualification](WINE-QUALIFICATION.md)
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate and runtime-image continuation below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -74,7 +76,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries

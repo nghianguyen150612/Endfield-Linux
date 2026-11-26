@@ -360,7 +360,9 @@ P034 statically parses bounded ELF program/dynamic headers without ldd or execut
 
 Disposable Wine qualification uses an independently authenticated P024 artifact profile, exact P025/P026/P027 evidence, a private XDG tree and a write-once reviewed attempt. The headless environment omits desktop and loader overrides. It does not enforce a filesystem or network namespace. Linux Wine can write a prefix-specific directory under /tmp. Helper completion uses a read-only lock and process-use observation. Production initialization and game launch remain separately blocked. [Wine qualification](WINE-QUALIFICATION.md)
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate and runtime-image continuation below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -369,7 +371,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
@@ -381,6 +385,12 @@ execution authorization is issued. P024 manifest authority, complete host ABI,
 installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+The current continuation verified a development-scoped manifest, disposable
+P025/P026/P027 lifecycle, reproducible SquashFS image, private read-only mount,
+and native preloader/helper handoff. The application still does not own that
+mounted view or the complete descendant lifecycle. Production authority and
+i386 host ABI remain unavailable. See [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).
 # Combined Wine package namespaces
 
 P034 validates ancestor types after combining DEB inventories: every explicitly

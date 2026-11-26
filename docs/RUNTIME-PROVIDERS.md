@@ -311,7 +311,9 @@ Managed Wine descriptor evidence now comes from the shared prefix library valida
 
 P024 manifest schema 2 can bind an artifact-specific Wine qualification profile by SHA-256. For an independently authenticated Wine 10.0 archive, this binds loader configuration, role paths, host ABI requirements and the complete P026 payload inventory. Checks also bind the local P025 generation and exact P027 pin. No authenticated Wine package/profile pair is shipped. [Wine qualification](WINE-QUALIFICATION.md)
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate and runtime-image continuation below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -320,7 +322,10 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary at the prior checkpoint
+
+The following status describes the 2026-11-24 checkpoint and is superseded by
+the current continuation below.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
@@ -333,6 +338,6 @@ installation/pinning and authentic qualification remain blocked. Wine and
 Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
 unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
 
-## P034 selected image provider
+## P034 selected image provider — current continuation
 
 P034 now has a tested host workflow for deterministic SquashFS construction and read-only squashfuse mounting in a private user/mount namespace. It is tied to the development-only real candidate and disposable P025/P026/P027 state. This host provider workflow does not yet produce an application execution capability; the runtime-view library remains fail-closed until mount ownership and descendant lifecycle supervision are connected. See [provider design and evidence](RUNTIME-IMAGE-PROVIDER.md).

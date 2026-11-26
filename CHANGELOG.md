@@ -70,7 +70,9 @@ P034: add bounded ELF64 dependency parsing, explicit managed/system trust observ
 
 P034 adds authenticated artifact role-map binding, static GNU symbol-version checks, a headless disposable XDG environment, and a separate two-stage qualification capability. Native fixtures exercise the existing P028 coordinator, durable approval consumption and bounded helper-quiescence assessment. Authentic Wine remains NOT_RUN.
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate and runtime-image continuation below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -79,7 +81,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](docs/WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries

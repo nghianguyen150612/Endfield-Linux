@@ -136,9 +136,11 @@ P027's managed and external runtime pinning, typed P021 evidence evaluation, and
 
 P034 continuation: shared production provenance revalidation and bounded capture cleanup are implemented. Authentic Wine closure/initialization qualification and production authorization remain blockers. P034 is partial; P035 has not started.
 
-P034 adds authenticated Wine artifact profiles, a bounded host ABI and helper assessment, and a two-stage disposable execution harness. Authentic Wine remains NOT_RUN pending a matching verified archive, host and exact approval. Production initialization and game launch remain blocked. P034 is partial and P035 has not started.
+P034 adds authenticated Wine artifact profiles, a bounded host ABI and helper assessment, and a two-stage disposable execution harness. Authentic Wine remains NOT_RUN pending a production-authorized manifest, qualified host ABI, application-owned runtime-view/process lifecycle, and exact approval. The current real candidate is verified only under the reserved development scope, with its image and disposable P025/P026/P027 state checked separately. Production initialization and game launch remain blocked. P034 is partial and P035 has not started.
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+The following status predates the complete candidate and runtime-image continuation.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -147,7 +149,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
@@ -162,4 +166,4 @@ unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE
 
 ### P034 continuation update — 2026-11-26
 
-Scoped development manifest verification, real disposable P025/P026/P027 state, deterministic SquashFS construction, native mounted handoff, and actual Wine image mounted inventory are now evidenced. Production authority, complete i386 host ABI, application-owned mounted execution lifecycle, authentic qualification, and production initialization remain blockers. PR #7 remains Draft; P035 has not started. See [runtime image provider](RUNTIME-IMAGE-PROVIDER.md).
+Scoped development manifest verification, real disposable P025/P026/P027 state, deterministic SquashFS construction, native mounted handoff, and actual Wine image mounted inventory are evidenced. The image is 387,833,856 bytes with SHA-256 `e3b4a6d61313f1f93ebbbf933a1078771a5ba1062af24d30c42aeba1d28ff15b`; two builds were byte-identical. Production authority, complete i386 host ABI, application-owned mounted execution lifecycle, authentic qualification, and production initialization remain blockers. PR #7 remains Draft; P035 has not started. See [runtime image provider](RUNTIME-IMAGE-PROVIDER.md).

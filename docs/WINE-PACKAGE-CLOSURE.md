@@ -129,12 +129,14 @@ operations. An unknown or incomplete descriptor fails; it does not fall back to
 legacy layout. Legacy Wine/Proton formats remain supported. The descriptor is
 layout metadata inside the artifact, never an independent signature authority.
 
-The actual archive passed the existing P025 extractor in a disposable temporary
-tree, then layout validation, P026 shadow-baseline creation and full audit.
+At the 2026-11-24 dry-run checkpoint, the actual archive passed the existing
+P025 extractor in a disposable temporary tree, then layout validation, P026
+shadow-baseline creation and full audit.
 [Dry-run result](artifact-evidence/winehq-dualarch-p025-dry-run.json) records the
-exact transformed inventory. No P025 installation record, managed runtime,
-existing installation change, prefix or pin was created. The baseline uses the
-existing limited-trust classification solely for inspection, not an actual user pin.
+exact transformed inventory. That dry run created no installation record,
+managed runtime, existing installation change, prefix or pin. The subsequent
+development-scoped P024/P025/P026/P027 lifecycle is recorded in the
+2026-11-26 continuation below and its [runtime image evidence](RUNTIME-IMAGE-PROVIDER.md).
 
 ## Preloader-aware ABI and host assessment
 
@@ -160,8 +162,11 @@ The updated [host ABI report](artifact-evidence/winehq-dualarch-host-abi.json)
 inspects **81 actual native ELF objects** on Debian 13 x86-64, both architectures,
 51 architecture-qualified dependency names and 98 GNU version requirements.
 51 requirement groups have their symbols in an observed provider; that does not
-establish which provider the real loader will select. The i386 interpreter
-`/lib/ld-linux.so.2` is absent. Kernel IA32 execution was not tested. Managed module
+establish which provider the real loader will select. At the time of this static
+report, the i386 interpreter `/lib/ld-linux.so.2` was absent and kernel IA32
+execution had not been tested. The later harmless ELF32 host probe returned
+`ENOEXEC`; see [host IA32 evidence](artifact-evidence/winehq-dualarch-host-ia32-probe.json).
+Managed module
 candidates, missing providers, ambiguous/static resolution limits and dynamic
 loading unknowns remain explicit. No ldd or inspected ELF was executed. These
 results do not qualify Arch Linux, other distributions, or complete runtime ABI.
@@ -215,7 +220,10 @@ Interrupted native children are reaped. These are deliberately harmless Linux
 contract observations, not authentic Wine qualification. The runtime-view API
 fails closed before claiming a secured handoff.
 
-## Trust and eligibility
+## Trust and eligibility at the 2026-11-24 checkpoint
+
+This table is a historical snapshot from before the scoped development
+manifest and disposable installation continuation below.
 
 | State | Result |
 | --- | --- |
@@ -277,4 +285,4 @@ with warnings denied. Final-head hosted results are reported on Draft PR #7.
 
 ## P034 runtime image continuation — 2026-11-26
 
-The missing artifact bytes were recovered and independently revalidated against the recorded identities. A disposable P024 development manifest then drove the real P025 install, complete P026 audit, and P027 persisted/reloaded pin. A deterministic SquashFS image was built twice from that installed generation and mounted with squashfuse in a private namespace; the mounted inventory matches all 2,849 transformed entries. The earlier paragraph describing the mount as unavailable is historical for its then-current host/state; the later mount result and limits are recorded in [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md). Host i386 ABI is unavailable on this host: a harmless static ELF32 fixture returned `ENOEXEC`, `/lib/ld-linux.so.2` is absent, and no i386 libraries appear in ldconfig. Production publisher authority also remains unavailable.
+The missing artifact bytes were recovered and independently revalidated against the recorded identities. A disposable P024 development manifest then drove the real P025 install, complete P026 audit, and P027 persisted/reloaded pin. The installed generation produced a deterministic 387,833,856-byte SquashFS image (SHA-256 `e3b4a6d61313f1f93ebbbf933a1078771a5ba1062af24d30c42aeba1d28ff15b`) in two byte-identical builds. It mounted with squashfuse in a private namespace; the mounted inventory matches all 2,849 transformed entries. The earlier dry-run, trust-table and mount-probe findings above are historical checkpoint results. The application does not yet own a mounted execution view or descendant lifecycle. Host i386 ABI is unavailable here: a harmless static ELF32 fixture returned `ENOEXEC`, `/lib/ld-linux.so.2` is absent, and no i386 libraries appear in ldconfig. Production publisher authority also remains unavailable. See [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).

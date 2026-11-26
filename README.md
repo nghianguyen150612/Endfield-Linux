@@ -214,7 +214,9 @@ P034 now shares independent managed Wine provenance validation between preview a
 
 P034 provides read-only `endfield-unix diagnose wine-runtime --profile desktop --json` and GTK background inspection. The ignored two-stage harness can qualify a matching authenticated Wine 10.0 artifact on a supported host after exact approval. Authentic Wine remains NOT_RUN. Production initialization and game launch remain blocked. [Wine qualification](docs/WINE-QUALIFICATION.md)
 
-## P034 real Wine 10.0 candidate continuation
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate and runtime-image continuation below.
 
 Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
 inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
@@ -223,7 +225,9 @@ preloader identity handoff and authentic execution remain blocked. Production
 initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
 P035 unstarted. See [candidate evidence and compatibility assessment](docs/WINE-REAL-LAYOUT-CANDIDATE.md).
 
-## P034 complete package candidate and runtime-view boundary
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
 
 The exact WineHQ Noble i386 companion is acquired. The three-package source
 inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
