@@ -1,0 +1,15 @@
+{
+  "endfield_spawned": false,
+  "fixture": "harmless statically linked ELF32 i386 exit(0) syscall fixture",
+  "fixture_elf_class": "ELF32",
+  "fixture_elf_machine": "Intel 80386",
+  "fixture_interpreter": null,
+  "host_architecture": "x86_64",
+  "i386_dynamic_interpreter": "/lib/ld-linux.so.2",
+  "i386_dynamic_interpreter_present": false,
+  "i386_shared_libraries_in_ldconfig_cache": [],
+  "kernel_exec_result": "ENOEXEC (Exec format error)",
+  "schema_version": 1,
+  "state": "IA32_NATIVE_EXECUTION_UNSUPPORTED",
+  "wine_spawned": false
+}

@@ -1631,7 +1631,7 @@ fn write_general_help<W: Write>(output: &mut W) -> io::Result<()> {
     )?;
     writeln!(
         output,
-        "  game <import|list|show|validate|remove-plan|remove>  Register and inspect one existing game location"
+        "  game <import|list|show|validate|remove-plan|remove|launch>  Register, inspect, and preflight one selected game"
     )?;
     writeln!(
         output,
@@ -1805,7 +1805,7 @@ fn write_prefix_help<W: Write>(output: &mut W) -> io::Result<()> {
 fn write_game_help<W: Write>(output: &mut W) -> io::Result<()> {
     writeln!(
         output,
-        "Usage: {APPLICATION_NAME} game import <plan|apply> --path PATH --id ID\n       {APPLICATION_NAME} game <list|show|validate|remove-plan|remove>\n       {APPLICATION_NAME} game sources [--json]\n       {APPLICATION_NAME} game source <show|check-catalog|inspect|revalidate|plan-association|validate>\n"
+        "Usage: {APPLICATION_NAME} game import <plan|apply> --path PATH --id ID\n       {APPLICATION_NAME} game launch plan --id ID --prefix-id ID --profile ID --adapter ADAPTER --executable-relative PATH [--json]\n       {APPLICATION_NAME} game <list|show|validate|remove-plan|remove>\n       {APPLICATION_NAME} game sources [--json]\n       {APPLICATION_NAME} game source <show|check-catalog|inspect|revalidate|plan-association|validate>\n"
     )?;
     writeln!(
         output,
@@ -1895,7 +1895,7 @@ mod tests {
         assert!(String::from_utf8_lossy(&output).contains("diagnose display"));
         assert!(
             String::from_utf8_lossy(&output)
-                .contains("game <import|list|show|validate|remove-plan|remove>")
+                .contains("game <import|list|show|validate|remove-plan|remove|launch>")
         );
     }
 

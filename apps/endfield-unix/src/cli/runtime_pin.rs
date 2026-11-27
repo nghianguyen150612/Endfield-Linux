@@ -199,6 +199,7 @@ fn run_inner(operation: Operation, out: &mut impl Write) -> Result<u8, String> {
                 trust: match identity.trust {
                     endfield_unix_runtime_install::TrustClassification::IndependentlyAuthenticatedPublisher => pins::Provenance::IndependentlyAuthenticatedPublisher,
                     endfield_unix_runtime_install::TrustClassification::UserPinnedLimitedTrust => pins::Provenance::UserPinnedLimitedTrust,
+                    endfield_unix_runtime_install::TrustClassification::DevelopmentOnly => pins::Provenance::DevelopmentOnly,
                 },
             };
             let adapter = adapter.map(|a| match a {
@@ -486,7 +487,7 @@ fn runtime_label(runtime: &pins::PinnedRuntimeReference) -> &str {
     }
 }
 
-fn external_reference(
+pub(super) fn external_reference(
     snapshot: endfield_unix_runtime_linux::ExternalRuntimeSnapshot,
 ) -> Result<pins::ExternalRuntimeReference, String> {
     let location = snapshot

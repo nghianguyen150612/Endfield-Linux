@@ -149,6 +149,139 @@ fn signature_and_scope_negative_matrix() {
     assert!(verify_manifest(&b, &s, &[], None, None).is_err());
     assert!(verify_manifest(&b, &s, &[a.clone(), a], None, None).is_err());
 }
+
+#[test]
+fn development_authority_is_reserved_and_cannot_be_promoted_to_publisher() {
+    let mut value = manifest(b"development payload");
+    value["provider_id"] = json!("endfield-unix-development");
+    value["project_id"] = json!("p034-disposable");
+    value["channel"] = json!("development");
+    value["runtime_family"] = json!("wine");
+    value["runtime_lineage"] = json!("upstream-wine");
+    value["key_id"] = json!("dev-synthetic-key");
+    let (bytes, signature) = signed(&value);
+    let mut development = anchor(Provenance::DevelopmentOnly);
+    development.key_id = "dev-synthetic-key".into();
+    development.scope.provider = "endfield-unix-development".into();
+    development.scope.project = "p034-disposable".into();
+    development.scope.channel = "development".into();
+    development.scope.family = "wine".into();
+    development.scope.lineage = "upstream-wine".into();
+    let verified = verify_manifest(
+        &bytes,
+        &signature,
+        &[development.clone()],
+        Some(1800000000),
+        None,
+    )
+    .unwrap();
+    assert_eq!(verified.provenance(), Provenance::DevelopmentOnly);
+    assert!(verified.checkpoint().is_err());
+    let data = b"development payload";
+    let directory = tempfile::tempdir().unwrap();
+    let artifact_path = directory.path().join("runtime.tar.gz");
+    std::fs::write(&artifact_path, data).unwrap();
+    let report = verify_artifact(ArtifactInput {
+        artifact_id: "synthetic-artifact",
+        filename: "runtime.tar.gz",
+        build: "synthetic-build",
+        file: open_artifact(&artifact_path).unwrap(),
+        metadata: &verified,
+    })
+    .unwrap();
+    assert!(!report.assessment.matched_trusted_metadata());
+    assert!(!report.source.verification().state().has_verified_artifact());
+
+    let mut promoted = development.clone();
+    promoted.provenance = Provenance::IndependentlyAuthenticatedPublisher;
+    assert!(matches!(
+        verify_manifest(&bytes, &signature, &[promoted], Some(1800000000), None),
+        Err(Error::Scope)
+    ));
+
+    let mut wrong_namespace = development;
+    wrong_namespace.scope.channel = "stable".into();
+    assert!(matches!(
+        verify_manifest(
+            &bytes,
+            &signature,
+            &[wrong_namespace],
+            Some(1800000000),
+            None
+        ),
+        Err(Error::Scope)
+    ));
+}
+
+#[test]
+fn synthetic_fixture_authority_is_distinct_and_cannot_be_promoted() {
+    let mut value = manifest(b"synthetic fixture payload");
+    value["provider_id"] = json!("endfield-unix-fixture");
+    value["project_id"] = json!("synthetic-contracts");
+    value["channel"] = json!("fixture");
+    value["runtime_family"] = json!("wine");
+    value["runtime_lineage"] = json!("upstream-wine");
+    value["key_id"] = json!("fixture-p034-contracts");
+    let (bytes, signature) = signed(&value);
+    let fixture = TrustAnchor {
+        key_id: "fixture-p034-contracts".into(),
+        public_key: SigningKey::from_bytes(&[42; 32]).verifying_key().to_bytes(),
+        scope: Scope {
+            provider: "endfield-unix-fixture".into(),
+            project: "synthetic-contracts".into(),
+            channel: "fixture".into(),
+            family: "wine".into(),
+            lineage: "upstream-wine".into(),
+        },
+        provenance: Provenance::SyntheticFixtureOnly,
+        revoked: false,
+        valid_from: None,
+        valid_until: None,
+    };
+    let verified = verify_manifest(
+        &bytes,
+        &signature,
+        &[fixture.clone()],
+        Some(1800000000),
+        None,
+    )
+    .unwrap();
+    assert_eq!(verified.provenance(), Provenance::SyntheticFixtureOnly);
+    assert!(verified.checkpoint().is_err());
+
+    let directory = tempfile::tempdir().unwrap();
+    let artifact = directory.path().join("runtime.tar.gz");
+    std::fs::write(&artifact, b"synthetic fixture payload").unwrap();
+    let report = verify_artifact(ArtifactInput {
+        artifact_id: "synthetic-artifact",
+        filename: "runtime.tar.gz",
+        build: "synthetic-build",
+        file: open_artifact(&artifact).unwrap(),
+        metadata: &verified,
+    })
+    .unwrap();
+    assert!(!report.assessment.matched_trusted_metadata());
+    assert!(!report.source.verification().state().has_verified_artifact());
+
+    let mut promoted = fixture.clone();
+    promoted.provenance = Provenance::IndependentlyAuthenticatedPublisher;
+    assert!(matches!(
+        verify_manifest(&bytes, &signature, &[promoted], Some(1800000000), None),
+        Err(Error::Scope)
+    ));
+    let mut development = fixture.clone();
+    development.provenance = Provenance::DevelopmentOnly;
+    assert!(matches!(
+        verify_manifest(&bytes, &signature, &[development], Some(1800000000), None),
+        Err(Error::Scope)
+    ));
+    let mut wrong_scope = fixture;
+    wrong_scope.scope.channel = "development".into();
+    assert!(matches!(
+        verify_manifest(&bytes, &signature, &[wrong_scope], Some(1800000000), None),
+        Err(Error::Scope)
+    ));
+}
 #[test]
 fn rollback_and_expiry() {
     let v = manifest(b"a");

@@ -1,8 +1,10 @@
 # endfield-unix
 
-The work-in-progress P033 report can inspect one explicitly selected Steam metadata path without storing an association.
+P033 merged with outstanding acceptance debt; its preliminary dependency report can inspect one explicitly selected Steam metadata path without storing an association.
 
-P033 dependency diagnostics are in progress and not qualified. See [current implementation and limitations](docs/DEPENDENCY-DIAGNOSTICS.md).
+P033 dependency diagnostics remain incomplete and unqualified. See [current implementation and limitations](docs/DEPENDENCY-DIAGNOSTICS.md).
+
+P034 adds a schema-v2 launch preflight, a durable P028 initialization journal, a descriptor-bound Linux ELF executor with owned direct-child handling, a no-follow Wine 10.0 completion verifier, and an internal initialization coordinator. Native fixture tests exercise the real executor and P028 lifecycle, including the spawn-to-Running race and completion verification. Synthetic execution does not qualify authentic Wine: production initialization and game launch remain blocked until a production authorization producer and the Wine helper/loader/library dependency closure are independently qualified. GTK Play stays disabled. See [game launch](docs/GAME-LAUNCH.md).
 
 `endfield-unix` is an independent community launcher and goal-driven optimization application for Arknights: Endfield on Unix-like systems. Linux is the first implementation target. The frontend is Rust 2024 with GTK4, libadwaita, Relm4, GTK CSS, and locally included SVG resources. Optimization decisions belong to the portable C17 library; Rust will validate and execute only user-approved actions.
 
@@ -207,3 +209,35 @@ are unsupported. Source association previews are read-only and preserve P031
 schema v1. Listing provenance never authenticates installed game files or proves
 Linux compatibility. See [official sources](docs/OFFICIAL-GAME-SOURCES.md) and
 [qualification](docs/manifests/PROMPT032_MANIFEST.md).
+
+P034 now shares independent managed Wine provenance validation between preview and the durable initializer coordinator, and bounds output-capture worker cleanup. Default execution tests use native fixtures. The opt-in disposable harness requires an authenticated profile and exact approval. See [GAME-LAUNCH.md](docs/GAME-LAUNCH.md).
+
+P034 provides read-only `endfield-unix diagnose wine-runtime --profile desktop --json` and GTK background inspection. The ignored two-stage harness can qualify a matching authenticated Wine 10.0 artifact on a supported host after exact approval. Authentic Wine remains NOT_RUN. Production initialization and game launch remain blocked. [Wine qualification](docs/WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This status predates the complete dual-architecture candidate and runtime-image continuation below.
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](docs/WINE-REAL-LAYOUT-CANDIDATE.md).
+
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
+
+The exact WineHQ Noble i386 companion is acquired. The three-package source
+inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
+and passes a disposable P025 layout/extraction and P026 audit. ELF32 candidate
+inspection and role-bound preloader structural checks preserve executor
+architecture restrictions. Real memfd seals protect candidate backing bytes;
+the private mount probe is unavailable here, so no mounted execution view or
+execution authorization is issued. P024 manifest authority, complete host ABI,
+installation/pinning and authentic qualification remain blocked. Wine and
+Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
+unstarted. See [package, provenance, ABI and runtime-view evidence](docs/WINE-PACKAGE-CLOSURE.md).
+
+P034 continuation now verifies a development-only manifest for the real Wine candidate, installs and pins it in disposable application state, builds a byte-reproducible SquashFS image, and validates a private squashfuse mount against the complete inventory. A harmless native preloader/helper fixture passes through the mounted view. Production trust, full i386 host ABI, application-level descendant ownership, authentic Wine qualification, initialization, and game launch remain blocked. See [runtime image provider evidence](docs/RUNTIME-IMAGE-PROVIDER.md).

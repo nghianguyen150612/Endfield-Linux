@@ -367,6 +367,7 @@ pub fn stable_pin_id(scope: &RuntimePinScope, runtime: &impl Serialize) -> Strin
 pub enum Provenance {
     IndependentlyAuthenticatedPublisher,
     UserPinnedLimitedTrust,
+    DevelopmentOnly,
     UnknownExternalSource,
 }
 
@@ -1154,6 +1155,20 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn development_only_runtime_pin_preserves_nonproduction_provenance() {
+        let scope = RuntimePinScope::Machine { machine: machine() };
+        let mut candidate = runtime("wine-development");
+        candidate.family = "wine".into();
+        candidate.lineage = "upstream-wine".into();
+        candidate.trust = Provenance::DevelopmentOnly;
+        let pin = RuntimePin::new("wine-dev", scope, candidate, None, 10).unwrap();
+        assert_eq!(pin.runtime.provenance(), Provenance::DevelopmentOnly);
+        let decoded: RuntimePin =
+            serde_json::from_slice(&serde_json::to_vec(&pin).unwrap()).unwrap();
+        assert_eq!(decoded.runtime.provenance(), Provenance::DevelopmentOnly);
     }
     #[test]
     fn external_pin_keeps_unknown_provenance_and_validates_exact_reference() {

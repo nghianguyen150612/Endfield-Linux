@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "starting_head": "164e3c9a974f1f9ec926cdb21672ad6edb7d4298",
+  "checkpoint": "fcbbb75f100235f12f5c967ca75424e0b18176bd",
+  "date": "2026-11-24",
+  "acquisition": "FRESH_SIGNED_INDEX_AND_THREE_DEB_VERIFICATION_PASS",
+  "signer_fingerprint": "D43F640145369C51D786DDEA76F1A20FF987672F",
+  "inrelease_sha256": "03a70aec1e5ac0b2602dff1e6111be8f820f8945526d11014c000f8611c2fc39",
+  "source_inventory_entries": 2847,
+  "transformed_inventory_entries": 2849,
+  "packaging": {
+    "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+    "artifact_size": 437830035,
+    "authentic_execution": "NOT_RUN",
+    "game_launch": "BLOCKED",
+    "generated_metadata": [
+      "endfield-layout-v1.json",
+      "version"
+    ],
+    "generation": 1,
+    "generation_identity": "4b8cba966f1c4bbf51cd4c12c67d458d924ffafc662a08840db3ea9568639ba3",
+    "layout": "winehq-dualarch-v1",
+    "manifest_signer": "NONE",
+    "p024": "BLOCKED_NO_ENROLLED_MANIFEST_AUTHORITY",
+    "p025": "STRUCTURAL_CANDIDATE_ONLY",
+    "p027": "NOT_INSTALLED_OR_PINNED",
+    "production_initialization": "BLOCKED",
+    "schema_version": 1,
+    "source_evidence_sha256": "aded3ac7e6c6b01c18916fa23f465c3a8ee118e7acd010453a7071dc86b6eb90",
+    "source_inventory_sha256": "d73e7e769fc0d19ad7fb958264987550648d4f6491762a6df520094431e5b90c",
+    "source_packages": [
+      {
+        "package": "wine-stable-amd64",
+        "sha256": "393d545040fe5c029eadeb31fcea52126714473e6c11b3cd851447b2dcbf1f72"
+      },
+      {
+        "package": "wine-stable-i386",
+        "sha256": "5ba523409f013b12953f577bc3322aeae599bb16afac66c59ebe2dde7b337bfa"
+      },
+      {
+        "package": "wine-stable",
+        "sha256": "31e6eb2e15ae2e38ef72c9865c0d01da4bc587e554e7db46fe1a75b4420878e1"
+      }
+    ],
+    "transformation_integrity": "LOCALLY_COMPUTED",
+    "transformations": [
+      "retain original payload paths and exact file bytes",
+      "normalize uid/gid and mtime to zero",
+      "normalize directories to 0700 and files to 0700/0600 as P025 extracts",
+      "retain safe source symlink targets",
+      "add local version and layout metadata"
+    ],
+    "transformed_inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+    "upstream_package_integrity": "VERIFIED_FOR_REPOSITORY_KEY"
+  },
+  "committed_source_inventory_matches": true,
+  "committed_transformed_inventory_matches": true,
+  "committed_packaging_record_matches": true,
+  "additional_validation": "Combined package ancestors must be directories; file/symlink parents rejected in both package orders before output creation",
+  "authentic_wine_executed": false,
+  "endfield_executed": false,
+  "installation_created": false,
+  "pin_created": false,
+  "p025_p026_actual_artifact": {
+    "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+    "authentic_execution": "NOT_RUN",
+    "candidate_generation": 1,
+    "entries": 2849,
+    "installation_created": false,
+    "p026_inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+    "pin_created": false,
+    "provenance": "user_pinned_limited_trust_observation_only",
+    "structural_layout": "PASS"
+  },
+  "host_abi": {
+    "host_os": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.6\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+    "host_kernel": "6.18.57\n",
+    "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+    "profile_sha256": "c2d687c1885f5ca343a362f955c221e6589b8a1fb2f44655b4064032fba42947",
+    "inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+    "i386_interpreter_present": false,
+    "kernel_ia32_execution": "NOT_TESTED",
+    "runtime_view": {
+      "execution_blocker": "trusted_image_mount_authority_unavailable",
+      "guarantees": "Seals protect backing bytes against write/truncate through aliases. No mounted Wine view, helper identity, host-library closure or protection against ptrace/root is claimed.",
+      "private_tmpfs_mount_supported": true,
+      "sealed_memfd_supported": true
+    },
+    "host_abi": "UNQUALIFIED_STATIC_OBSERVATIONS_ONLY",
+    "preloaders": [
+      {
+        "assessment": {
+          "classification": "static_elf",
+          "execution_authorized": false,
+          "reason": "structure supported; candidate role lacks production publisher authentication, kernel qualification and sealed mounted runtime view",
+          "role_inventory_bound": true,
+          "state": "preloader_abi_unverified",
+          "structurally_supported": true
+        },
+        "role": "preloader_i386"
+      },
+      {
+        "assessment": {
+          "classification": "interpreter_free_et_dyn",
+          "execution_authorized": false,
+          "reason": "structure supported; candidate role lacks production publisher authentication, kernel qualification and sealed mounted runtime view",
+          "role_inventory_bound": true,
+          "state": "preloader_abi_unverified",
+          "structurally_supported": true
+        },
+        "role": "preloader"
+      }
+    ],
+    "native_objects": 81,
+    "dependency_groups": 51,
+    "gnu_requirement_groups": 98,
+    "groups_satisfied_in_observed_provider": 51
+  },
+  "local_validation": [
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "check",
+        "--locked",
+        "--workspace"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "build",
+        "--locked",
+        "--workspace"
+      ],
+      "exit_code": 101
+    },
+    {
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "metadata",
+        "--locked",
+        "--no-deps",
+        "--format-version",
+        "1"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "sh",
+        "native/optimizer/tests/run-c-tests.sh"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "local_non_gtk_tests": {
+    "passed": 850,
+    "failed": 0,
+    "ignored": 9
+  },
+  "offline_fixture_tests": {
+    "package_set": 8,
+    "deb": 6,
+    "native_handoff": 4,
+    "source": 4
+  },
+  "gcc_asan_ubsan": "PASS",
+  "local_workspace_limitation": "GLib/GTK development packages absent; hosted CI required"
+}

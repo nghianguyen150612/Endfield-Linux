@@ -44,8 +44,8 @@ This roadmap preserves the requested development order. P001 established the doc
 - **P030** — **Merged; hosted qualified** — Add evidence-based, read-only runner, driver, Vulkan, and managed-prefix compatibility diagnostics with a portable assessment core and versioned JSON. PR #3 merged at `6f383c6390462cd4da64a97d372fee739b20fd2c`; final-head CI passed in [run 41207736864](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41207736864). Static diagnostics do not prove Endfield launch or rendering. See [compatibility diagnostics](COMPATIBILITY-DIAGNOSTICS.md) and [P030 manifest](manifests/PROMPT030_MANIFEST.md).
 - **P031** — **Merged; hosted qualified** — PR [#4](https://github.com/nghianguyen150612/Endfield-Linux/pull/4) merged at `846d9c867bc49946b2dffe15f2d4632cd6b412df`; its final-head [CI run 41449658972](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41449658972) passed. Register and manage one explicitly selected existing game directory using private application metadata, bounded Linux filesystem observations, exact approval, and read-only revalidation. No game layout, authenticity, compatibility, or launch readiness is inferred. See [game import](GAME-IMPORT.md) and [P031 manifest](manifests/PROMPT031_MANIFEST.md).
 - **P032** — **Merged; hosted qualified** — Add a reviewed offline Steam/Epic/GRYPHLINK catalog, official manual handoff, bounded explicit Steam metadata observation/revalidation and read-only P031 source previews. No acquisition, launcher execution, migration or compatibility promotion. See [official sources](OFFICIAL-GAME-SOURCES.md) and [P032 manifest](manifests/PROMPT032_MANIFEST.md).
-- **P033** — **In progress; not qualified** — Implement dependency assessment and actionable setup diagnostics. See the [work-in-progress status](DEPENDENCY-DIAGNOSTICS.md).
-- **P034** — Implement one-click launch through the selected runtime and prefix.
+- **P033** — **Merged with outstanding acceptance debt** — The preliminary dependency assessment remains incomplete and unqualified. See the [status](DEPENDENCY-DIAGNOSTICS.md).
+- **P034** — **In progress; production launch unsupported** — P028 journals initialization intent and verified completion evidence. The Linux executor binds the ELF and working directory by descriptor, validates the trusted root and ELF header, rejects scripts, captures bounded output, and retains direct-child ownership with wait/cancel operations. The internal initialization coordinator is exercised end to end with a harmless native ELF and the real P028 transitions, including immediate exit, pre-spawn revalidation, completion verification, and interrupted/revision-conflict states. Synthetic authorization remains test-only. Runtime-root and executable digest checks do not close same-UID mutation races or verify the Wine loader/library/helper closure. The production authorization producer and P019 handoff remain absent; no CLI apply or GTK action creates a process. External Wine, UMU execution, and direct Proton remain unsupported; P029 initialized-prefix backup/restore remains unsupported. GTK Play stays disabled. PR #7 tracks the exact current-head CI result; historical runs qualify only their named commits. See [game launch](GAME-LAUNCH.md) and the [manifest](manifests/PROMPT034_MANIFEST.md).
 - **P035** — Connect launch, daemon session tracking, and session metadata.
 - **P036** — Handle process exit, interrupted launch, cleanup, and restart recovery.
 - **P037** — Validate runtime compatibility evidence and preserve user-selected known-good combinations.
@@ -133,3 +133,37 @@ P025 provides qualified local tar.gz installation with P024 artifact verificatio
 P026 installed runtime auditing is documented in [RUNTIME-INTEGRITY-AUDIT-LINUX.md](RUNTIME-INTEGRITY-AUDIT-LINUX.md). It compares new-install local snapshots and leaves P025 schema-v1 installations without baselines Unverifiable. P026 supports optional P024 source-backed reconstruction with user-pinned CLI evidence; hosted qualification passed in [run 41007250223](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41007250223), and no game compatibility claim is made.
 
 P027's managed and external runtime pinning, typed P021 evidence evaluation, and actual CLI integration passed hosted qualification in [run 41022089042](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/41022089042). Physical Arch desktop and Dell Vostro checks remain unverified; P027 provides a non-executable selection preview and does not establish Endfield compatibility. P028 records and revalidates the explicit machine/profile preference without changing the pin or migrating an existing prefix. Real physical-device prefix/runtime checks remain unverified.
+
+P034 continuation: shared production provenance revalidation and bounded capture cleanup are implemented. Authentic Wine closure/initialization qualification and production authorization remain blockers. P034 is partial; P035 has not started.
+
+P034 adds authenticated Wine artifact profiles, a bounded host ABI and helper assessment, and a two-stage disposable execution harness. Authentic Wine remains NOT_RUN pending a production-authorized manifest, qualified host ABI, application-owned runtime-view/process lifecycle, and exact approval. The current real candidate is verified only under the reserved development scope, with its image and disposable P025/P026/P027 state checked separately. Production initialization and game launch remain blocked. P034 is partial and P035 has not started.
+
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+The following status predates the complete candidate and runtime-image continuation.
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
+
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following status predates the 2026-11-26 continuation.
+
+The exact WineHQ Noble i386 companion is acquired. The three-package source
+inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
+and passes a disposable P025 layout/extraction and P026 audit. ELF32 candidate
+inspection and role-bound preloader structural checks preserve executor
+architecture restrictions. Real memfd seals protect candidate backing bytes;
+the private mount probe is unavailable here, so no mounted execution view or
+execution authorization is issued. P024 manifest authority, complete host ABI,
+installation/pinning and authentic qualification remain blocked. Wine and
+Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
+unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+### P034 continuation update — 2026-11-26
+
+Scoped development manifest verification, real disposable P025/P026/P027 state, deterministic SquashFS construction, native mounted handoff, and actual Wine image mounted inventory are evidenced. The image is 387,833,856 bytes with SHA-256 `e3b4a6d61313f1f93ebbbf933a1078771a5ba1062af24d30c42aeba1d28ff15b`; two builds were byte-identical. Production authority, complete i386 host ABI, application-owned mounted execution lifecycle, authentic qualification, and production initialization remain blockers. PR #7 remains Draft; P035 has not started. See [runtime image provider](RUNTIME-IMAGE-PROVIDER.md).

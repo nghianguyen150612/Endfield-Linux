@@ -1,0 +1,19 @@
+{
+  "authentic_execution": "NOT_RUN",
+  "backing": "SEALED_AND_DIGEST_REVALIDATED",
+  "capabilities": {
+    "execution_blocker": "namespace_mount_unavailable",
+    "guarantees": "Seals protect backing bytes against write/truncate through aliases. No mounted Wine view, helper identity, host-library closure or protection against ptrace/root is claimed.",
+    "private_tmpfs_mount_supported": false,
+    "sealed_memfd_supported": true
+  },
+  "execution_authorized": false,
+  "lifecycle": "BACKING_CLOSED_NO_MOUNT_CREATED",
+  "mounted_runtime_view": "UNAVAILABLE",
+  "scope": {
+    "artifact_sha256": "391fe86b400d2cf7a8a58c72866c7a8752d4cc613f5536003a7f45f40f7851ec",
+    "generation": 1,
+    "inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+    "profile_sha256": "c2d687c1885f5ca343a362f955c221e6589b8a1fb2f44655b4064032fba42947"
+  }
+}

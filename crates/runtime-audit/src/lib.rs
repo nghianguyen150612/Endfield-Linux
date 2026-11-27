@@ -28,6 +28,7 @@ pub const MAX_MANIFEST: u64 = 64 * 1024 * 1024;
 pub enum TrustClassification {
     IndependentlyAuthenticatedPublisher,
     UserPinnedLimitedTrust,
+    DevelopmentOnly,
 }
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

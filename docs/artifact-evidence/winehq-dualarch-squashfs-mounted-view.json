@@ -1,0 +1,21 @@
+{
+  "authentic_execution": "NOT_RUN",
+  "backing": "sealed_memfd",
+  "image_sha256": "e3b4a6d61313f1f93ebbbf933a1078771a5ba1062af24d30c42aeba1d28ff15b",
+  "image_size": 387833856,
+  "mount_cleanup": "unmounted_before_namespace_owner_exit",
+  "mount_options": "ro,nosuid,nodev,relatime",
+  "mounted_entries": 2849,
+  "mounted_inventory_sha256": "74bdf3b1215aace973ab7cc2292266194c072c99977836c09e989c7ff3247b24",
+  "p025_installation_id": "wine-02b53c1f12f48c147799cf30a04ad10e6e22341bed8a10ee25e8535092bdabb3-1",
+  "p025_installed_generation": 1,
+  "p026_baseline_sha256": "79092c5e2eb728d4dcbd6437dace19dbf7c557fdb8f449a413ca3bb0bbdf4940",
+  "p027_pin_id": "pin-1873fb0eb33d90d28a415bb7009de791f58d58c93b9a337b4b5320164c4771a4",
+  "p027_pin_registry_revision": 1,
+  "parent_namespace_unchanged": true,
+  "provider": "squashfuse 0.5.2 (c) 2012 Dave Vasilevsky",
+  "runtime_file_write_replace_symlink_attempts": "rejected",
+  "schema_version": 1,
+  "state": "ACTUAL_WINE_IMAGE_VIEW_QUALIFIED",
+  "wine_spawned": false
+}

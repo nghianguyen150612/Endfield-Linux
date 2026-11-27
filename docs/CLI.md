@@ -4,6 +4,14 @@
 
 ## Available commands
 
+P034 launch planning is available as the headless command:
+
+    endfield-unix game launch plan --id INSTALLATION --prefix-id PREFIX --profile PROFILE --adapter ADAPTER --executable-relative PATH --json
+
+The adapter is mandatory and accepts managed-wine, external-wine, umu-proton, or direct-proton. Omitting the profile selects the machine pin. The command revalidates the exact P027 selection and selected P031/P028 records, reports blockers with exit status 78, and never starts a process. No apply command exists while production execution is unsupported.
+
+Managed Wine JSON reports whether the exact opened `bin/wine` ELF matched the P026 baseline SHA-256, device, inode, and size. It separately reports that dynamic dependency closure remains unverified. This is a planning observation; it does not authorize a later process creation. `prefix init` remains an explicit blocked outcome, with no initialization-apply command exposed until the selected Wine initializer and completion contract are qualified.
+
 | Invocation | Behavior | Needs a graphical session |
 | --- | --- | --- |
 | `endfield-unix` | Start the GTK4 desktop application | Yes |
@@ -46,7 +54,7 @@
 | `endfield-unix service systemd uninstall` | Remove verified installer-owned files after the unit is inactive | No |
 | `endfield-unix service systemd enable/disable/start/stop/restart/status` | Manage autostart/lifecycle or inspect unit state plus a separate live IPC Ping | No |
 
-Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, display/session discovery through `diagnose display`, installed Wine/Proton discovery through `diagnose runtimes`, and UMU integration discovery through `diagnose umu`. Runtime output is ephemeral and labels trust and compatibility as unverified. Frame telemetry is an explicit file import with canonical timestamped events by default; select `mangohud-csv` for supported MangoHud schema variants. P031 provides headless existing-location import only; game launch, runtime setup, optimization, and benchmarking remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), [DISPLAY-LINUX.md](DISPLAY-LINUX.md), [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md), [SYSTEMD-USER.md](SYSTEMD-USER.md), and [GAME-IMPORT.md](GAME-IMPORT.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
+Help lists only implemented commands. Linux CPU and memory inventory is available through `diagnose hardware`; on-demand CPU and memory telemetry is available through `diagnose telemetry cpu-memory`; GPU discovery is available through `diagnose gpu`, display/session discovery through `diagnose display`, installed Wine/Proton discovery through `diagnose runtimes`, and UMU integration discovery through `diagnose umu`. Runtime output is ephemeral and labels trust and compatibility as unverified. Frame telemetry is an explicit file import with canonical timestamped events by default; select `mangohud-csv` for supported MangoHud schema variants. P031 provides headless existing-location import. P034 adds read-only launch planning; production execution, runtime setup, optimization, and benchmarking remain under development. See [HARDWARE-LINUX.md](HARDWARE-LINUX.md), [TELEMETRY-LINUX.md](TELEMETRY-LINUX.md), [FRAME-TELEMETRY-LINUX.md](FRAME-TELEMETRY-LINUX.md), [GPU-LINUX.md](GPU-LINUX.md), [DISPLAY-LINUX.md](DISPLAY-LINUX.md), [RUNTIME-DISCOVERY-LINUX.md](RUNTIME-DISCOVERY-LINUX.md), [SYSTEMD-USER.md](SYSTEMD-USER.md), and [GAME-IMPORT.md](GAME-IMPORT.md). The `about` output comes from package metadata and static project information; it does not claim detected hardware, installed runtimes, or game state.
 
 ## Companion daemon executable
 
@@ -276,7 +284,29 @@ display the selected local path and unverified identity state.
 `game remove --id ID --expected-revision REV --confirm TOKEN` removes only the
 application record. All commands are headless and do not contact the daemon.
 
-Plan/apply/show/validate/remove-plan JSON uses schema version 1. A successful
+P034 provides the headless command `game launch plan`. Adapter selection is
+mandatory. The schema-v2 report revalidates the exact P027 runtime pin, P028
+managed prefix and initialization plan, P029 recovery markers, P031
+installation root, and one explicitly selected relative executable. Managed
+Wine can prepare a direct native-argument preview bound to P025/P026 identity
+and the exact executable inode; it cannot create a process.
+`prefix init-plan --id ID [--json]` prints the schema-v2 initialization
+assessment with the exact machine/profile scope in its plan binding.
+`prefix init --id ID` preserves its existing syntax and remains
+blocked. The intent journal and Wine 10.0 completion verifier do not enable an
+initializer process.
+External Wine, UMU execution, direct Proton, and prefix initialization remain unsupported.
+Unknown P033 critical dependency readiness also blocks execution. Blocked
+plans return 78. There is no apply command.
+
+The current `game launch plan` report uses
+[`game-launch-plan-v2.schema.json`](schema/game-launch-plan-v2.schema.json).
+Prefix registry mutations use
+[`prefix-registry-v2.schema.json`](schema/prefix-registry-v2.schema.json),
+which checksum-validates and migrates v1 records in memory. Initialization plan
+JSON uses
+[`prefix-initialization-plan-v2.schema.json`](schema/prefix-initialization-plan-v2.schema.json).
+P031 import/mutation/show/validate/remove-plan JSON remains schema version 1. A successful
 plan or mutation exits 0; invalid IDs/paths, missing declarations, or wrong
 tokens exit 2; missing, empty, or unreadable locations exit 3; revision and
 duplicate conflicts exit 4; storage/corruption/recovery failures exit 70;

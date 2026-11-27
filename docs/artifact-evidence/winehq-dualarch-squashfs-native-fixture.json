@@ -1,0 +1,23 @@
+{
+  "backing": "sealed_memfd",
+  "backing_write_attempt": "rejected_by_kernel_seals",
+  "image_sha256": "add445d21b6947c6845cd4dea5299ae2d2136ef90c24766cf8c936bf5d320289",
+  "image_size": 8192,
+  "mount_cleanup": "unmounted_before_namespace_owner_exit",
+  "mount_options": "ro,nosuid,nodev,relatime",
+  "parent_namespace_unchanged": true,
+  "path_handoff": [
+    "descriptor-bound launcher",
+    "/proc/self/exe discovery",
+    "sibling preloader",
+    "preloader opened main executable by pathname",
+    "relative module lookup",
+    "helper exec",
+    "process completion"
+  ],
+  "provider": "squashfuse 0.5.2 (c) 2012 Dave Vasilevsky",
+  "runtime_replacement_and_write_attempts": "rejected_for_launcher_preloader_main_helper_module_and_root",
+  "schema_version": 1,
+  "state": "NATIVE_FIXTURE_VIEW_QUALIFIED",
+  "wine_executed": false
+}

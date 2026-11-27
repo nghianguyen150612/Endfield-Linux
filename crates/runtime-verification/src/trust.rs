@@ -5,6 +5,11 @@ use ed25519_dalek::{Signature, VerifyingKey};
 pub enum Provenance {
     IndependentlyAuthenticatedPublisher,
     UserPinned,
+    /// A deliberately isolated key used for disposable development qualification.
+    /// This is cryptographically verifiable but never establishes publisher trust.
+    DevelopmentOnly,
+    /// Test-only authority for synthetic contract fixtures; never installable.
+    SyntheticFixtureOnly,
     Unverified,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -152,6 +157,32 @@ pub fn verify_manifest(
     }
     if !a.scope.matches(&m) {
         return Err(Error::Scope);
+    }
+    // Reserved authority namespaces are part of the P024 trust contract, not
+    // display conventions. Synthetic fixtures and disposable development
+    // qualification cannot be relabeled as publisher authority.
+    let development_key = m.key_id.starts_with("dev-");
+    let development_manifest = m.provider_id == "endfield-unix-development"
+        && m.project_id == "p034-disposable"
+        && m.channel == "development"
+        && m.runtime_family == "wine"
+        && m.runtime_lineage == "upstream-wine";
+    let fixture_key = m.key_id.starts_with("fixture-");
+    let fixture_manifest = m.provider_id == "endfield-unix-fixture"
+        && m.project_id == "synthetic-contracts"
+        && m.channel == "fixture";
+    match a.provenance {
+        Provenance::DevelopmentOnly if !development_key || !development_manifest => {
+            return Err(Error::Scope);
+        }
+        Provenance::SyntheticFixtureOnly if !fixture_key || !fixture_manifest => {
+            return Err(Error::Scope);
+        }
+        Provenance::DevelopmentOnly | Provenance::SyntheticFixtureOnly => {}
+        _ if development_key || development_manifest || fixture_key || fixture_manifest => {
+            return Err(Error::Scope);
+        }
+        _ => {}
     }
     let key = VerifyingKey::from_bytes(&a.public_key).map_err(|_| Error::Signature)?;
     if key.is_weak() {

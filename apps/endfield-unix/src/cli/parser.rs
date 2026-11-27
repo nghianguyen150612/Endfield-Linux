@@ -104,6 +104,13 @@ enum RuntimeArgs {
 
 #[derive(Debug, Subcommand)]
 enum DiagnoseArgs {
+    /// Inspect selected Managed Wine without executing it or creating storage.
+    WineRuntime {
+        #[arg(long)]
+        profile: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Write a privacy-safe JSON support report to an explicit path.
     Report {
         /// Destination file for the generated report.
@@ -384,6 +391,9 @@ where
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Hardware,
         }) => Command::DiagnoseHardware,
+        Some(SubcommandArgs::Diagnose {
+            command: DiagnoseArgs::WineRuntime { profile, json },
+        }) => Command::DiagnoseWineRuntime { profile, json },
         Some(SubcommandArgs::Diagnose {
             command: DiagnoseArgs::Gpu,
         }) => Command::DiagnoseGpu,
@@ -805,6 +815,13 @@ mod tests {
                     expected_revision: 2,
                 },
             ),
+            (
+                vec!["init-plan", "--id", "game", "--json"],
+                O::InitPlan {
+                    id: "game".into(),
+                    json: true,
+                },
+            ),
         ];
         for (tail, operation) in cases {
             let values = std::iter::once("prefix").chain(tail).collect::<Vec<_>>();
@@ -974,12 +991,33 @@ mod tests {
             &["game", "--help"][..],
             &["game", "import", "--help"][..],
             &["game", "import", "plan", "--help"][..],
+            &["game", "launch", "--help"][..],
+            &["game", "launch", "plan", "--help"][..],
         ] {
             match parse(args(values)) {
                 Ok(Command::HelpOutput(help)) => assert!(help.contains("Usage:"), "{help}"),
                 other => panic!("expected nested game help for {values:?}, got {other:?}"),
             }
         }
+        assert!(matches!(
+            parse(args(&[
+                "game",
+                "launch",
+                "plan",
+                "--id",
+                "endfield-main",
+                "--prefix-id",
+                "prefix-main",
+                "--profile",
+                "desktop",
+                "--adapter",
+                "umu-proton",
+                "--executable-relative",
+                "Game/Selected.exe",
+                "--json",
+            ])),
+            Ok(Command::GameManagement(_))
+        ));
     }
 
     #[test]

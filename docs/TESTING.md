@@ -1,5 +1,11 @@
 # Testing and release gates
 
+P034 now includes an internal initialization coordinator that connects native descriptor-bound execution to the real P028 durable state transitions. The focused coordinator suite passes 16 tests on Rust 1.85. It covers successful synthetic structural verification, immediate exit, a child exiting before `Running` publication, nonzero exit, spawn failure, cancellation, pre-spawn recovery/runtime changes, stale approval, registry conflicts, duplicate attempts, unresolved intent after owner drop, prefix identity replacement, executable pathname replacement, and missing completion artifacts. Each test executes a harmless C ELF fixture through the real `BoundExecutable`; test-only authorization is available only under `cfg(test)`. Results identify `SyntheticNativeFixture`, and no authentic Wine or game process is run.
+
+Earlier executor tests also cover root and executable path replacement, no-follow behavior, literal Unicode/metacharacter argv, controlled environment, malformed ELF and environment input, changed permissions, direct-child cancellation, bounded stdout/stderr capture, and observed nonzero exit. Implementation commit `5dcbdc44569fa211d7c2dcb2ceb7f1bc3f372e94` passed all three hosted jobs in [CI run 43191511501](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/43191511501): Rust 1.85 formatting, workspace check and Clippy, P034 CLI/schema, P025–P033 and serialized CLI/daemon/workspace regressions, GTK smoke, workspace build/metadata, and GCC/Clang C17 ABI. The optional systemd user-manager integration was unavailable and skipped. Later run links qualify only their named commits; PR #7 tracks current-head status. Production Wine initialization remains unsupported: no production authorization constructor exists, and the selected runtime's loader, shared libraries, helper binaries, and invocation/completion behavior have not been independently qualified. No real runtime or game has been exercised.
+
+Additional P028 tests cover schema-v1 checksum-validated migration, deterministic initialization approval, write-ahead intent durability, revision conflicts, state transitions, zero-exit non-promotion, P029 recovery refusal, Wine 10.0 artifact checks, and symlink rejection. The coordinator invokes only the harmless fixture in `cfg(test)`; it never invokes the selected Managed Wine runtime. Authenticated initialization invocation, dynamic loader/library/helper closure, production authorization, and P019 handoff remain unestablished. Existing controlled execution fixtures remain synthetic and do not exercise an authentic runtime.
+
 P033 tests cover selected Steam metadata, matching and mismatching P031 locations, redaction, and storage refusal. Qualification remains incomplete.
 
 P033 qualification is incomplete; see [current limitations](DEPENDENCY-DIAGNOSTICS.md).
@@ -1180,3 +1186,59 @@ Clippy/build, metadata, formatting and GCC ABI passed. Full local app checks
 were blocked by missing GLib/GTK development files; Clang was absent. Final
 follow-up HEAD qualification is recorded in Draft PR #5 and the completion
 report, independently of this initial run. No physical/gameplay test is claimed.
+
+## P034 Managed Wine continuation
+
+The continuation starts at `2b219c251fa0faa6a48e08e5f95da9fe233418db`, whose
+exact-head hosted result is [run 42760639371](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42760639371). New code adds prefix registry v2 with checksum-validated v1 in-memory migration, a durable exact-plan initialization intent, failure/interruption transitions, and a descriptor-relative Wine 10.0 structural artifact verifier. The prefix-management suite passes 74 tests on Rust 1.85, covering write-ahead intent, exit-zero non-promotion, synthetic verified promotion, interrupted-state refusal, v1 migration, symlink refusal, and preservation. `cargo +1.85.0 fmt --all -- --check`, warning-denied prefix-crate Clippy, schema JSON parsing, and `git diff --check` pass. A wider non-GTK workspace test attempt ran out of filesystem space; this environment also lacks GTK4/libadwaita development metadata and Clang, so full-workspace and GUI validation remain hosted gates.
+
+P034 plan and controlled-executor regressions pass in `endfield-unix-game-launch` (17 tests). Selected P019 supervisor tests pass (16 passed, 4 ignored), and P022 runtime discovery/Wine-plan plus P027 runtime-selection suites pass. GCC C17 ABI tests and a local AddressSanitizer/UndefinedBehaviorSanitizer run also pass. These synthetic/runtime-contract tests do not create a production Wine or game process.
+
+The CLI adds only read-only `prefix init-plan`; the existing `prefix init` remains blocked. GTK Play remains insensitive. The new descriptor-bound ELF executor is not connected to Wine, P026 evidence, or P019 child ownership. The verifier reports structural Wine prefix evidence only. These synthetic tests are not authentic Wine qualification. Local GTK/libadwaita development files and Clang are absent in this environment, so full application/GTK and Clang validation are hosted gates. Real Wine, Endfield, anti-cheat, physical devices, and gameplay remain **UNVERIFIED**.
+
+The canonical `prefix init-plan --id game --json` integration is added to the existing actual-binary P029 CLI fixture. It asserts a blocked or unsupported result depending on `/proc` visibility, the unverified-adapter blocker, exit code 78, unchanged P027 pin and P028 registry bytes, an empty prefix, and no synthetic runtime execution marker. This application test runs in hosted CI because the local environment lacks native GTK development dependencies.
+
+The implementation head `384d178ac7a20bcc6ba224fd6d3b1efce16fad09` passed all three hosted jobs in [run 42790178867](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42790178867): Rust workspace check, warning-denied Clippy, full serialized workspace and CLI tests, the actual prefix-init-plan CLI assertion, daemon/IPC regressions, GTK smoke/screenshot, workspace build and metadata, and GCC/Clang C17 ABI tests. The optional real systemd user-manager integration was unavailable and skipped. The documentation-only head `231d2e318e033cebcfdc24786a672409acc78d77` also passed all three required jobs in [run 42792298525](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/42792298525).
+
+P034 continuation adds native post-spawn capture fault injection, capture shutdown with an open writer, and shared-validator rejection of forged provenance and stale pins with pin preservation. These tests establish synthetic executor/coordinator behavior only. This continuation uses genuine Rust 1.85; local full GTK validation requires missing system development packages. Hosted final-head results are recorded in PR #7 and the completion report; earlier qualification does not qualify changed code.
+
+Continuation implementation plus documentation at `02fd25e2232aaaeff1241a5adf88df1e4b6b510e` passed all three hosted jobs in [run 43351739913](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/43351739913), including full Rust 1.85, GTK smoke, CLI/schema, daemon/IPC, and GCC/Clang C17 ABI qualification. The final qualification-record commit is checked separately; its exact final-head result is in PR #7 and the completion report.
+
+Wine ELF parser and graph/helper qualification tests use harmless synthetic fixtures and native ELF inspection. The new CLI/schema gate verifies diagnostics create no XDG state and report blocked/NOT_RUN. The authentic_wine integration test is ignored and requires explicit opt-in plus independent policy eligibility; ordinary CI never runs Wine. The procedure and evidence scope are in [Wine qualification](WINE-QUALIFICATION.md).
+
+The ignored authentic Wine harness has separate prepare and execute stages. Default Rust tests exercise the two stages with a native fixture, a synthetic signing key and a disposable P028 registry. The default run never starts authentic Wine or Endfield. The fixture verifies source-registry preservation and consumed-approval replay refusal. [Wine qualification procedure](WINE-QUALIFICATION.md)
+
+## P034 real Wine 10.0 candidate continuation — historical checkpoint
+
+This checkpoint predates the complete dual-architecture candidate, development
+manifest, disposable P025/P026/P027 lifecycle and mounted image evidence below.
+
+Actual WineHQ Noble AMD64/common package bytes now have a deterministic 1,502-entry
+inventory, schema-v2 non-authorizing role profile, static ABI evidence and harmless
+descriptor path fixtures. Publisher identity, i386 package closure, P025 packaging,
+preloader identity handoff and authentic execution remain blocked. Production
+initialization and game launch remain blocked; PR #7 stays Draft, P034 active and
+P035 unstarted. See [candidate evidence and compatibility assessment](WINE-REAL-LAYOUT-CANDIDATE.md).
+
+## P034 complete package candidate and runtime-view boundary — historical checkpoint
+
+The following mount-probe and trust status predates the 2026-11-26 continuation.
+
+The exact WineHQ Noble i386 companion is acquired. The three-package source
+inventory has 2,847 paths; the deterministic derived archive has 2,849 entries
+and passes a disposable P025 layout/extraction and P026 audit. ELF32 candidate
+inspection and role-bound preloader structural checks preserve executor
+architecture restrictions. Real memfd seals protect candidate backing bytes;
+the private mount probe is unavailable here, so no mounted execution view or
+execution authorization is issued. P024 manifest authority, complete host ABI,
+installation/pinning and authentic qualification remain blocked. Wine and
+Endfield were not executed. PR #7 stays Draft; P034 remains active and P035
+unstarted. See [package, provenance, ABI and runtime-view evidence](WINE-PACKAGE-CLOSURE.md).
+
+## P034 manifest and runtime-image evidence — 2026-11-26
+
+P024 rejected development-to-publisher promotion and verified the exact real candidate with the ephemeral authority in the reserved disposable scope. The P025/P026/P027 opt-in lifecycle passed against the candidate: the installation and full audit succeeded, and the exact development-only pin was persisted and reloaded. The temporary test AppPaths were removed afterward; a separate private disposable state remains outside the repository for the reproducible image evidence.
+
+Local Rust 1.85 formatting, workspace check, warning-denied Clippy, serialized full-workspace tests, workspace build, Cargo metadata, and the exact two application-binary assertion passed. GTK smoke was ignored locally because Xvfb is unavailable; Clang is not installed locally. GCC C17 ABI and GCC ASan/UBSan scripts passed. The bounded manifest signer tests, deterministic SquashFS builder tests, and opt-in native FUSE handoff test passed. The actual Wine image mounted read-only with sealed memfd backing; all 2,849 entries matched the transformed inventory, and the parent namespace was unchanged. The host-specific FUSE tests are explicit opt-in scripts; default CI builds only a small fixture image. No Wine or Endfield process ran.
+
+Implementation commit `5b462b4e267440800b73249faf4922c9b99a5beb` passed exact-head hosted CI in [run 45734624779](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45734624779): Rust 1.85 formatting, workspace check, warning-denied Clippy, serialized full-workspace and CLI tests, v2 diagnostic schema, GTK/Xvfb smoke and screenshot, workspace build/metadata, daemon/IPC gates, and GCC/Clang C17 ABI. The evidence-record commit `e678478dc7f851907e147a2f657d36438a1e25a4` also passed exact-head hosted CI in [run 45735439542](https://github.com/nghianguyen150612/Endfield-Linux/actions/runs/45735439542), including the full Rust/GTK suite, screenshot, build/metadata and both C17 jobs. This documentation cleanup is a further docs-only follow-on; its exact-head result is tracked on Draft PR #7 and in the completion report. See [runtime image provider evidence](RUNTIME-IMAGE-PROVIDER.md).
